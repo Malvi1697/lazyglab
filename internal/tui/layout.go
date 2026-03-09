@@ -9,10 +9,10 @@ type Layout struct {
 	// Left sidebar
 	SidebarWidth int
 
-	// Individual panel heights (for the 4 sidebar panels)
+	// Individual panel heights (for the 4 sidebar panels), including borders
 	PanelHeights [4]int
 
-	// Main content area
+	// Main content area (total width including borders)
 	ContentWidth  int
 	ContentHeight int
 
@@ -22,7 +22,7 @@ type Layout struct {
 }
 
 // ComputeLayout calculates panel dimensions based on terminal size.
-func ComputeLayout(width, height int) Layout {
+func ComputeLayout(width, height int, activePanel PanelID) Layout {
 	l := Layout{
 		Width:            width,
 		Height:           height,
@@ -30,31 +30,32 @@ func ComputeLayout(width, height int) Layout {
 		KeybindBarHeight: 1,
 	}
 
-	// Sidebar takes ~30% of width, min 25, max 50
-	l.SidebarWidth = width * 30 / 100
-	if l.SidebarWidth < 25 {
-		l.SidebarWidth = 25
+	// Sidebar takes ~45% of width, min 35, max 75
+	l.SidebarWidth = width * 45 / 100
+	if l.SidebarWidth < 35 {
+		l.SidebarWidth = 35
 	}
-	if l.SidebarWidth > 50 {
-		l.SidebarWidth = 50
+	if l.SidebarWidth > 75 {
+		l.SidebarWidth = 75
 	}
 
-	// Content area is the rest
-	// Account for borders (2 chars each side)
-	l.ContentWidth = width - l.SidebarWidth - 2
+	// Content area is the rest (total width including borders)
+	l.ContentWidth = width - l.SidebarWidth
 	if l.ContentWidth < 10 {
 		l.ContentWidth = 10
 	}
 
-	// Usable height for panels (minus status bar, keybind bar, and borders)
-	usableHeight := height - l.StatusBarHeight - l.KeybindBarHeight - 2
+	// Usable height for panels (minus status bar and keybind bar)
+	usableHeight := height - l.StatusBarHeight - l.KeybindBarHeight
+	if usableHeight < 12 {
+		usableHeight = 12
+	}
 
-	// Distribute height evenly across 4 panels, accounting for borders
+	// Equal distribution across 4 panels
 	panelHeight := usableHeight / 4
 	remainder := usableHeight - (panelHeight * 4)
 	for i := range l.PanelHeights {
 		l.PanelHeights[i] = panelHeight
-		// Distribute remainder to first panels
 		if i < remainder {
 			l.PanelHeights[i]++
 		}

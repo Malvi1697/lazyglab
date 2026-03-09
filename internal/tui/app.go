@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"image/color"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -75,7 +76,6 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		a.width = msg.Width
 		a.height = msg.Height
-		a.layout = ComputeLayout(msg.Width, msg.Height)
 		return a, nil
 
 	case tea.KeyMsg:
@@ -216,10 +216,10 @@ func (a *App) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case KeyHelp:
 		a.showHelp = !a.showHelp
 		return a, nil
-	case KeyTab:
+	case KeyTab, KeyVimRight:
 		a.activePanel = (a.activePanel + 1) % 4
 		return a, nil
-	case KeyShiftTab:
+	case KeyShiftTab, KeyVimLeft:
 		a.activePanel = (a.activePanel + 3) % 4
 		return a, nil
 	case KeyPanel1:
@@ -282,6 +282,22 @@ func (a *App) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		return a, nil
 	}
+	if key == KeyHalfDown {
+		halfPage := (a.layout.PanelHeights[a.activePanel] - 2) / 2
+		if halfPage < 1 {
+			halfPage = 1
+		}
+		a.moveCursor(halfPage)
+		return a, nil
+	}
+	if key == KeyHalfUp {
+		halfPage := (a.layout.PanelHeights[a.activePanel] - 2) / 2
+		if halfPage < 1 {
+			halfPage = 1
+		}
+		a.moveCursor(-halfPage)
+		return a, nil
+	}
 
 	// Enter: select item
 	if key == KeyEnter {
@@ -320,6 +336,29 @@ func (a *App) handleJobViewKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 
 	switch key {
+	case KeyHalfDown:
+		halfPage := (a.layout.ContentHeight - 4) / 2
+		if halfPage < 1 {
+			halfPage = 1
+		}
+		a.jobCursor += halfPage
+		if a.jobCursor >= len(a.jobs) {
+			a.jobCursor = len(a.jobs) - 1
+		}
+		if a.jobCursor < 0 {
+			a.jobCursor = 0
+		}
+		return a, nil
+	case KeyHalfUp:
+		halfPage := (a.layout.ContentHeight - 4) / 2
+		if halfPage < 1 {
+			halfPage = 1
+		}
+		a.jobCursor -= halfPage
+		if a.jobCursor < 0 {
+			a.jobCursor = 0
+		}
+		return a, nil
 	case KeyOpenBrowse:
 		if a.jobCursor < len(a.jobs) {
 			url := a.jobs[a.jobCursor].WebURL
@@ -366,6 +405,29 @@ func (a *App) handleBranchPickerKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return a, nil
 	case key == KeyBottom:
 		a.branchCursor = len(a.branches) - 1
+		if a.branchCursor < 0 {
+			a.branchCursor = 0
+		}
+		return a, nil
+	case key == KeyHalfDown:
+		halfPage := (a.layout.ContentHeight - 4) / 2
+		if halfPage < 1 {
+			halfPage = 1
+		}
+		a.branchCursor += halfPage
+		if a.branchCursor >= len(a.branches) {
+			a.branchCursor = len(a.branches) - 1
+		}
+		if a.branchCursor < 0 {
+			a.branchCursor = 0
+		}
+		return a, nil
+	case key == KeyHalfUp:
+		halfPage := (a.layout.ContentHeight - 4) / 2
+		if halfPage < 1 {
+			halfPage = 1
+		}
+		a.branchCursor -= halfPage
 		if a.branchCursor < 0 {
 			a.branchCursor = 0
 		}
@@ -476,6 +538,9 @@ func (a *App) View() tea.View {
 	} else if a.showHelp {
 		content = a.renderHelp()
 	} else {
+		// Recompute layout each frame (active panel affects proportions)
+		a.layout = ComputeLayout(a.width, a.height, a.activePanel)
+
 		sidebar := lipgloss.JoinVertical(lipgloss.Left,
 			a.renderSidePanel(PanelProjects, "Projects", a.projectItems()),
 			a.renderSidePanel(PanelMergeRequests, "Merge Requests", a.mrItems()),
@@ -503,67 +568,83 @@ func (a *App) pipelinePanelTitle() string {
 }
 
 func (a *App) renderSidePanel(id PanelID, title string, items []string) string {
-	style := InactiveBorderStyle
-	if a.activePanel == id {
-		style = ActiveBorderStyle
-	}
-
+	isActive := a.activePanel == id
 	panelHeight := a.layout.PanelHeights[id]
-	innerWidth := a.layout.SidebarWidth - 4
-	innerHeight := panelHeight - 2
+	totalWidth := a.layout.SidebarWidth
+	contentWidth := totalWidth - 4 // border + padding on each side
+	contentHeight := panelHeight - 2 // top + bottom border
 
-	if innerWidth < 1 {
-		innerWidth = 1
+	if contentWidth < 1 {
+		contentWidth = 1
 	}
-	if innerHeight < 1 {
-		innerHeight = 1
+	if contentHeight < 0 {
+		contentHeight = 0
 	}
-
-	header := TitleStyle.Render(fmt.Sprintf("[%d] %s", int(id)+1, title))
-	lines := []string{header}
 
 	cursor := a.cursor[id]
 
 	// Scroll offset: keep cursor visible
-	visibleRows := innerHeight - 1 // minus header
 	scrollOffset := 0
-	if cursor >= visibleRows {
-		scrollOffset = cursor - visibleRows + 1
+	if cursor >= contentHeight {
+		scrollOffset = cursor - contentHeight + 1
 	}
 
-	for i := scrollOffset; i < len(items); i++ {
-		if len(lines) >= innerHeight {
-			break
-		}
-		displayItem := truncate(items[i], innerWidth)
-		if i == cursor && a.activePanel == id {
+	var contentLines []string
+	for i := scrollOffset; i < len(items) && len(contentLines) < contentHeight; i++ {
+		displayItem := truncate(items[i], contentWidth)
+		if i == cursor && isActive {
 			displayItem = SelectedItemStyle.Render(displayItem)
 		}
-		lines = append(lines, displayItem)
+		contentLines = append(contentLines, displayItem)
 	}
 
-	content := strings.Join(lines, "\n")
+	borderColor := ColorSecondary
+	titleColor := ColorSecondary
+	if isActive {
+		borderColor = ColorPrimary
+		titleColor = ColorPrimary
+	}
 
-	return style.
-		Width(innerWidth).
-		Height(innerHeight).
-		Render(content)
+	titleText := fmt.Sprintf("[%d] %s", int(id)+1, title)
+	return renderBox(titleText, contentLines, totalWidth, panelHeight, borderColor, titleColor)
+}
+
+func (a *App) detailTitle() string {
+	if a.showBranchPicker {
+		return "Select Branch"
+	}
+	if a.viewingJobs && a.activePanel == PanelPipelines {
+		return "Jobs"
+	}
+	switch a.activePanel {
+	case PanelProjects:
+		return "Project"
+	case PanelMergeRequests:
+		return "Merge Request"
+	case PanelPipelines:
+		return "Pipeline"
+	case PanelIssues:
+		return "Issue"
+	}
+	return "Detail"
 }
 
 func (a *App) renderDetail() string {
-	innerWidth := a.layout.ContentWidth - 4
-	innerHeight := a.layout.ContentHeight - 2
+	totalWidth := a.layout.ContentWidth
+	totalHeight := a.layout.ContentHeight
+	contentWidth := totalWidth - 4
+	contentHeight := totalHeight - 2
 
-	if innerWidth < 1 {
-		innerWidth = 1
+	if contentWidth < 1 {
+		contentWidth = 1
 	}
-	if innerHeight < 1 {
-		innerHeight = 1
+	if contentHeight < 0 {
+		contentHeight = 0
 	}
 
 	var content string
 	if a.showBranchPicker {
-		content = a.renderBranchPicker(innerHeight)
+		content = a.renderBranchPicker(contentHeight)
 	} else {
 		switch a.activePanel {
 		case PanelProjects:
@@ -572,7 +653,7 @@ func (a *App) renderDetail() string {
 			content = a.mrDetail()
 		case PanelPipelines:
 			if a.viewingJobs {
-				content = a.jobsDetail(innerWidth)
+				content = a.jobsDetail(contentWidth)
 			} else {
 				content = a.pipelineDetail()
 			}
@@ -585,10 +666,56 @@ func (a *App) renderDetail() string {
 		content = "Select an item to view details"
 	}
 
-	return InactiveBorderStyle.
-		Width(innerWidth).
-		Height(innerHeight).
-		Render(content)
+	lines := strings.Split(content, "\n")
+	return renderBox(a.detailTitle(), lines, totalWidth, totalHeight, ColorSecondary, ColorPrimary)
+}
+
+// renderBox draws a bordered box with a title embedded in the top border line.
+func renderBox(title string, lines []string, totalWidth, totalHeight int, borderColor, titleColor color.Color) string {
+	contentWidth := totalWidth - 4
+	contentHeight := totalHeight - 2
+
+	if contentWidth < 1 {
+		contentWidth = 1
+	}
+	if contentHeight < 0 {
+		contentHeight = 0
+	}
+
+	bs := lipgloss.NewStyle().Foreground(borderColor)
+	ts := lipgloss.NewStyle().Bold(true).Foreground(titleColor)
+	truncStyle := lipgloss.NewStyle().MaxWidth(contentWidth)
+
+	// Top border: ╭─[1] Title──────────╮
+	fill := totalWidth - len(title) - 3
+	if fill < 0 {
+		fill = 0
+	}
+	top := bs.Render("╭─") + ts.Render(title) + bs.Render(strings.Repeat("─", fill)+"╮")
+
+	leftB := bs.Render("│")
+	rightB := bs.Render("│")
+
+	var result []string
+	result = append(result, top)
+
+	for i := 0; i < contentHeight; i++ {
+		var line string
+		if i < len(lines) {
+			line = truncStyle.Render(lines[i])
+		}
+		visLen := lipgloss.Width(line)
+		pad := contentWidth - visLen
+		if pad < 0 {
+			pad = 0
+		}
+		result = append(result, leftB+" "+line+strings.Repeat(" ", pad)+" "+rightB)
+	}
+
+	bottom := bs.Render("╰" + strings.Repeat("─", totalWidth-2) + "╯")
+	result = append(result, bottom)
+
+	return strings.Join(result, "\n")
 }
 
 func (a *App) renderStatusBar() string {
@@ -628,8 +755,9 @@ func (a *App) renderKeybindBar() string {
 	global := []hint{
 		{"q", "quit"},
 		{"?", "help"},
-		{"Tab", "panel"},
+		{"h/l", "panel"},
 		{"j/k", "nav"},
+		{"^d/u", "page"},
 		{"r", "refresh"},
 		{"b", "branch"},
 	}
@@ -711,8 +839,10 @@ func (a *App) renderHelp() string {
 		{"?", "Toggle help"},
 		{"1-4", "Switch panel"},
 		{"Tab/S-Tab", "Next/prev panel"},
+		{"h/l", "Prev/next panel"},
 		{"j/k", "Navigate down/up"},
 		{"g/G", "Go to top/bottom"},
+		{"Ctrl+d/u", "Half page down/up"},
 		{"Enter", "Select / view jobs"},
 		{"Esc", "Go back / clear filter"},
 		{"r", "Refresh"},

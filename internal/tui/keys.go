@@ -16,8 +16,12 @@ const (
 	KeyDown       = "down"
 	KeyVimUp      = "k"
 	KeyVimDown    = "j"
+	KeyVimLeft    = "h"
+	KeyVimRight   = "l"
 	KeyTop        = "g"
 	KeyBottom     = "G"
+	KeyHalfDown   = "ctrl+d"
+	KeyHalfUp     = "ctrl+u"
 	KeyOpenBrowse = "o"
 	KeyBranch     = "b"
 
