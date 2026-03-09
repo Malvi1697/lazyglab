@@ -7,6 +7,7 @@ import (
 
 	"github.com/Malvi1697/lazyglab/internal/gitlab"
 	"github.com/Malvi1697/lazyglab/internal/tui"
+	"github.com/Malvi1697/lazyglab/internal/util"
 )
 
 // Run initializes the application and starts the TUI.
@@ -21,10 +22,21 @@ func Run() error {
 		return err
 	}
 
+	// Auto-detect project from git remote
+	var detectedHost, detectedPath string
+	remotes := util.DetectGitRemotes()
+	for _, r := range remotes {
+		if _, ok := clients[r.Host]; ok {
+			detectedHost = r.Host
+			detectedPath = r.Path
+			break
+		}
+	}
+
 	fmt.Println("  Launching lazyglab...")
 	fmt.Println()
 
-	model := tui.NewApp(clients, hostNames)
+	model := tui.NewApp(clients, hostNames, detectedHost, detectedPath)
 	p := tea.NewProgram(model)
 	if _, err := p.Run(); err != nil {
 		return fmt.Errorf("running TUI: %w", err)

@@ -22,6 +22,10 @@ type App struct {
 	// Active project
 	activeProject *gitlab.Project
 
+	// Auto-detected project from git remote
+	detectedHost string
+	detectedPath string
+
 	// Data
 	projects  []gitlab.Project
 	mrs       []gitlab.MergeRequest
@@ -63,16 +67,18 @@ type confirmAction struct {
 }
 
 // NewApp creates the root application model.
-func NewApp(clients map[string]*gitlab.Client, hostNames []string) *App {
+func NewApp(clients map[string]*gitlab.Client, hostNames []string, detectedHost, detectedPath string) *App {
 	activeHost := ""
 	if len(hostNames) > 0 {
 		activeHost = hostNames[0]
 	}
 	return &App{
-		clients:     clients,
-		hostNames:   hostNames,
-		activeHost:  activeHost,
-		activePanel: PanelProjects,
+		clients:      clients,
+		hostNames:    hostNames,
+		activeHost:   activeHost,
+		activePanel:  PanelProjects,
+		detectedHost: detectedHost,
+		detectedPath: detectedPath,
 	}
 }
 
@@ -117,6 +123,19 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.projects = msg.Projects
 		a.statusText = fmt.Sprintf("Loaded %d projects", len(msg.Projects))
 		a.statusIsErr = false
+
+		// Auto-select project from git remote detection
+		if a.detectedPath != "" && a.activeProject == nil {
+			for _, p := range a.projects {
+				if strings.EqualFold(p.NameWithNamespace, a.detectedPath) {
+					a.detectedPath = "" // clear so it doesn't re-trigger
+					return a, func() tea.Msg {
+						return ProjectSelectedMsg{Project: p}
+					}
+				}
+			}
+		}
+
 		return a, nil
 
 	case ProjectSelectedMsg:
