@@ -572,27 +572,27 @@ func (a *App) renderSidePanel(id PanelID, title string, items []string) string {
 	isActive := a.activePanel == id
 	panelHeight := a.layout.PanelHeights[id]
 	totalWidth := a.layout.SidebarWidth
-	contentWidth := totalWidth - 4 // border + padding on each side
-	contentHeight := panelHeight - 2 // top + bottom border
+	innerWidth := totalWidth - 4   // border + padding on each side
+	innerHeight := panelHeight - 2 // top + bottom border
 
-	if contentWidth < 1 {
-		contentWidth = 1
+	if innerWidth < 1 {
+		innerWidth = 1
 	}
-	if contentHeight < 0 {
-		contentHeight = 0
+	if innerHeight < 0 {
+		innerHeight = 0
 	}
 
 	cursor := a.cursor[id]
 
 	// Scroll offset: keep cursor visible
 	scrollOffset := 0
-	if cursor >= contentHeight {
-		scrollOffset = cursor - contentHeight + 1
+	if cursor >= innerHeight {
+		scrollOffset = cursor - innerHeight + 1
 	}
 
 	var contentLines []string
-	for i := scrollOffset; i < len(items) && len(contentLines) < contentHeight; i++ {
-		displayItem := truncate(items[i], contentWidth)
+	for i := scrollOffset; i < len(items) && len(contentLines) < innerHeight; i++ {
+		displayItem := truncate(items[i], innerWidth)
 		if i == cursor && isActive {
 			displayItem = SelectedItemStyle.Render(displayItem)
 		}
@@ -633,19 +633,15 @@ func (a *App) detailTitle() string {
 func (a *App) renderDetail() string {
 	totalWidth := a.layout.ContentWidth
 	totalHeight := a.layout.ContentHeight
-	contentWidth := totalWidth - 4
-	contentHeight := totalHeight - 2
+	innerHeight := totalHeight - 2
 
-	if contentWidth < 1 {
-		contentWidth = 1
-	}
-	if contentHeight < 0 {
-		contentHeight = 0
+	if innerHeight < 0 {
+		innerHeight = 0
 	}
 
 	var content string
 	if a.showBranchPicker {
-		content = a.renderBranchPicker(contentHeight)
+		content = a.renderBranchPicker(innerHeight)
 	} else {
 		switch a.activePanel {
 		case PanelProjects:
