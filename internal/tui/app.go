@@ -390,17 +390,20 @@ func (a *App) handleJobViewKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case KeyRetry:
 		if a.jobCursor < len(a.jobs) {
 			job := a.jobs[a.jobCursor]
-			return a, a.confirm(fmt.Sprintf("Retry job '%s'?", truncate(job.Name, 30)), a.retryJob())
+			a.confirm(fmt.Sprintf("Retry job '%s'?", truncate(job.Name, 30)), a.retryJob())
+			return a, nil
 		}
 	case KeyCancel:
 		if a.jobCursor < len(a.jobs) {
 			job := a.jobs[a.jobCursor]
-			return a, a.confirm(fmt.Sprintf("Cancel job '%s'?", truncate(job.Name, 30)), a.cancelJob())
+			a.confirm(fmt.Sprintf("Cancel job '%s'?", truncate(job.Name, 30)), a.cancelJob())
+			return a, nil
 		}
 	case KeyPlayJob:
 		if a.jobCursor < len(a.jobs) {
 			job := a.jobs[a.jobCursor]
-			return a, a.confirm(fmt.Sprintf("Play job '%s'?", truncate(job.Name, 30)), a.playJob())
+			a.confirm(fmt.Sprintf("Play job '%s'?", truncate(job.Name, 30)), a.playJob())
+			return a, nil
 		}
 	}
 
@@ -485,9 +488,8 @@ func (a *App) handleConfirmKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 // confirm shows a confirmation dialog. The action runs only if the user presses y/Enter.
-func (a *App) confirm(prompt string, action tea.Cmd) tea.Cmd {
+func (a *App) confirm(prompt string, action tea.Cmd) {
 	a.pendingConfirm = &confirmAction{prompt: prompt, action: action}
-	return nil
 }
 
 func (a *App) handleEnter() tea.Cmd {
@@ -519,12 +521,14 @@ func (a *App) handlePanelKey(key string) (tea.Model, tea.Cmd) {
 		case KeyApprove:
 			if idx := a.cursor[PanelMergeRequests]; idx < len(a.mrs) {
 				mr := a.mrs[idx]
-				return a, a.confirm(fmt.Sprintf("Approve !%d %s?", mr.IID, truncate(mr.Title, 30)), a.approveMR())
+				a.confirm(fmt.Sprintf("Approve !%d %s?", mr.IID, truncate(mr.Title, 30)), a.approveMR())
+				return a, nil
 			}
 		case KeyMerge:
 			if idx := a.cursor[PanelMergeRequests]; idx < len(a.mrs) {
 				mr := a.mrs[idx]
-				return a, a.confirm(fmt.Sprintf("Merge !%d %s?", mr.IID, truncate(mr.Title, 30)), a.mergeMR())
+				a.confirm(fmt.Sprintf("Merge !%d %s?", mr.IID, truncate(mr.Title, 30)), a.mergeMR())
+				return a, nil
 			}
 		case KeyOpenBrowse:
 			return a, a.openInBrowser()
@@ -534,12 +538,14 @@ func (a *App) handlePanelKey(key string) (tea.Model, tea.Cmd) {
 		case KeyRetry:
 			if idx := a.cursor[PanelPipelines]; idx < len(a.pipelines) {
 				p := a.pipelines[idx]
-				return a, a.confirm(fmt.Sprintf("Retry pipeline #%d?", p.ID), a.retryPipeline())
+				a.confirm(fmt.Sprintf("Retry pipeline #%d?", p.ID), a.retryPipeline())
+				return a, nil
 			}
 		case KeyCancel:
 			if idx := a.cursor[PanelPipelines]; idx < len(a.pipelines) {
 				p := a.pipelines[idx]
-				return a, a.confirm(fmt.Sprintf("Cancel pipeline #%d?", p.ID), a.cancelPipeline())
+				a.confirm(fmt.Sprintf("Cancel pipeline #%d?", p.ID), a.cancelPipeline())
+				return a, nil
 			}
 		case KeyRun:
 			return a, a.runPipeline()
@@ -555,7 +561,8 @@ func (a *App) handlePanelKey(key string) (tea.Model, tea.Cmd) {
 				if issue.State != "opened" {
 					action = "Reopen"
 				}
-				return a, a.confirm(fmt.Sprintf("%s #%d %s?", action, issue.IID, truncate(issue.Title, 30)), a.toggleIssue())
+				a.confirm(fmt.Sprintf("%s #%d %s?", action, issue.IID, truncate(issue.Title, 30)), a.toggleIssue())
+				return a, nil
 			}
 		case KeyOpenBrowse:
 			return a, a.openInBrowser()
