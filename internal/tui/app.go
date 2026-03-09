@@ -48,9 +48,18 @@ type App struct {
 	showBranchPicker bool
 	branchCursor     int
 
+	// Confirmation dialog
+	pendingConfirm *confirmAction // non-nil when confirmation dialog is shown
+
 	// Dimensions
 	width  int
 	height int
+}
+
+// confirmAction holds state for a pending confirmation dialog.
+type confirmAction struct {
+	prompt string  // e.g. "Merge !123?"
+	action tea.Cmd // command to execute on confirm
 }
 
 // NewApp creates the root application model.
@@ -79,6 +88,11 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, nil
 
 	case tea.KeyMsg:
+		// Confirmation dialog takes highest precedence
+		if a.pendingConfirm != nil {
+			return a.handleConfirmKey(msg)
+		}
+
 		// Help overlay takes precedence
 		if a.showHelp {
 			a.showHelp = false
@@ -374,11 +388,20 @@ func (a *App) handleJobViewKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		return a, nil
 	case KeyRetry:
-		return a, a.retryJob()
+		if a.jobCursor < len(a.jobs) {
+			job := a.jobs[a.jobCursor]
+			return a, a.confirm(fmt.Sprintf("Retry job '%s'?", truncate(job.Name, 30)), a.retryJob())
+		}
 	case KeyCancel:
-		return a, a.cancelJob()
+		if a.jobCursor < len(a.jobs) {
+			job := a.jobs[a.jobCursor]
+			return a, a.confirm(fmt.Sprintf("Cancel job '%s'?", truncate(job.Name, 30)), a.cancelJob())
+		}
 	case KeyPlayJob:
-		return a, a.playJob()
+		if a.jobCursor < len(a.jobs) {
+			job := a.jobs[a.jobCursor]
+			return a, a.confirm(fmt.Sprintf("Play job '%s'?", truncate(job.Name, 30)), a.playJob())
+		}
 	}
 
 	return a, nil
@@ -445,6 +468,28 @@ func (a *App) handleBranchPickerKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return a, nil
 }
 
+func (a *App) handleConfirmKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	key := msg.String()
+	switch key {
+	case "y", "Y", KeyEnter:
+		action := a.pendingConfirm.action
+		a.pendingConfirm = nil
+		return a, action
+	default:
+		// Any other key cancels
+		a.pendingConfirm = nil
+		a.statusText = "Canceled"
+		a.statusIsErr = false
+		return a, nil
+	}
+}
+
+// confirm shows a confirmation dialog. The action runs only if the user presses y/Enter.
+func (a *App) confirm(prompt string, action tea.Cmd) tea.Cmd {
+	a.pendingConfirm = &confirmAction{prompt: prompt, action: action}
+	return nil
+}
+
 func (a *App) handleEnter() tea.Cmd {
 	switch a.activePanel {
 	case PanelProjects:
@@ -472,18 +517,30 @@ func (a *App) handlePanelKey(key string) (tea.Model, tea.Cmd) {
 	case PanelMergeRequests:
 		switch key {
 		case KeyApprove:
-			return a, a.approveMR()
+			if idx := a.cursor[PanelMergeRequests]; idx < len(a.mrs) {
+				mr := a.mrs[idx]
+				return a, a.confirm(fmt.Sprintf("Approve !%d %s?", mr.IID, truncate(mr.Title, 30)), a.approveMR())
+			}
 		case KeyMerge:
-			return a, a.mergeMR()
+			if idx := a.cursor[PanelMergeRequests]; idx < len(a.mrs) {
+				mr := a.mrs[idx]
+				return a, a.confirm(fmt.Sprintf("Merge !%d %s?", mr.IID, truncate(mr.Title, 30)), a.mergeMR())
+			}
 		case KeyOpenBrowse:
 			return a, a.openInBrowser()
 		}
 	case PanelPipelines:
 		switch key {
 		case KeyRetry:
-			return a, a.retryPipeline()
+			if idx := a.cursor[PanelPipelines]; idx < len(a.pipelines) {
+				p := a.pipelines[idx]
+				return a, a.confirm(fmt.Sprintf("Retry pipeline #%d?", p.ID), a.retryPipeline())
+			}
 		case KeyCancel:
-			return a, a.cancelPipeline()
+			if idx := a.cursor[PanelPipelines]; idx < len(a.pipelines) {
+				p := a.pipelines[idx]
+				return a, a.confirm(fmt.Sprintf("Cancel pipeline #%d?", p.ID), a.cancelPipeline())
+			}
 		case KeyRun:
 			return a, a.runPipeline()
 		case KeyOpenBrowse:
@@ -492,7 +549,14 @@ func (a *App) handlePanelKey(key string) (tea.Model, tea.Cmd) {
 	case PanelIssues:
 		switch key {
 		case KeyComment:
-			return a, a.toggleIssue()
+			if idx := a.cursor[PanelIssues]; idx < len(a.issues) {
+				issue := a.issues[idx]
+				action := "Close"
+				if issue.State != "opened" {
+					action = "Reopen"
+				}
+				return a, a.confirm(fmt.Sprintf("%s #%d %s?", action, issue.IID, truncate(issue.Title, 30)), a.toggleIssue())
+			}
 		case KeyOpenBrowse:
 			return a, a.openInBrowser()
 		}
@@ -555,6 +619,11 @@ func (a *App) View() tea.View {
 		keybindBar := a.renderKeybindBar()
 		statusBar := a.renderStatusBar()
 		content = lipgloss.JoinVertical(lipgloss.Left, main, keybindBar, statusBar)
+	}
+
+	// Overlay confirmation dialog if active
+	if a.pendingConfirm != nil && a.width > 0 {
+		content = a.renderConfirmOverlay(content)
 	}
 
 	v := tea.NewView(content)
@@ -830,6 +899,41 @@ func (a *App) renderKeybindBar() string {
 		Background(lipgloss.Color("#222222")).
 		Width(a.width).
 		Render(bar)
+}
+
+func (a *App) renderConfirmOverlay(background string) string {
+	prompt := a.pendingConfirm.prompt
+	hint := "y/Enter: confirm  n/Esc: cancel"
+
+	// Box width: prompt or hint length + padding, whichever is wider
+	innerWidth := len(prompt)
+	if len(hint) > innerWidth {
+		innerWidth = len(hint)
+	}
+	innerWidth += 4 // padding
+	boxWidth := innerWidth + 4
+
+	lines := []string{
+		"",
+		"  " + lipgloss.NewStyle().Bold(true).Foreground(ColorWarning).Render(prompt),
+		"",
+		"  " + HelpDescStyle.Render(hint),
+		"",
+	}
+
+	box := renderBox("Confirm", lines, boxWidth, len(lines)+2, ColorWarning, ColorWarning)
+	overlay := lipgloss.Place(a.width, a.height, lipgloss.Center, lipgloss.Center, box)
+
+	// Merge overlay on top of background line by line
+	bgLines := strings.Split(background, "\n")
+	ovLines := strings.Split(overlay, "\n")
+	for i, ovLine := range ovLines {
+		trimmed := strings.TrimRight(ovLine, " ")
+		if trimmed != "" && i < len(bgLines) {
+			bgLines[i] = ovLine
+		}
+	}
+	return strings.Join(bgLines, "\n")
 }
 
 func (a *App) renderHelp() string {
