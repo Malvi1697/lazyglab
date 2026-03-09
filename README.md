@@ -15,7 +15,8 @@ Manage merge requests, pipelines, and issues without leaving your terminal.
 - Browse and manage issues (close/reopen)
 - Vim-style keyboard navigation (j/k/h/l/g/G/Ctrl+d/Ctrl+u)
 - Context-sensitive keybinding hints at the bottom
-- Reads auth from existing `glab` CLI config — zero setup
+- Interactive first-run setup wizard — no external tools required
+- Can import existing `glab` CLI config automatically
 
 ## Install
 
@@ -57,17 +58,36 @@ cd lazyglab
 make build
 ```
 
-## Requirements
+## First Run
 
-- [glab](https://gitlab.com/gitlab-org/cli) configured and authenticated with at least one GitLab host
+On first launch, lazyglab will:
+
+1. Check for an existing `glab` CLI config and offer to import it
+2. If no glab config is found, run an interactive setup wizard:
+
+```
+$ lazyglab
+
+  No config found. Let's set up lazyglab.
+
+  GitLab host [gitlab.com]:
+  Personal access token: ****
+
+  Testing connection... OK (logged in as @you)
+  Config saved to ~/.config/lazyglab/config.yml
+```
+
+You'll need a [Personal Access Token](https://docs.gitlab.com/ee/user/profile/personal_access_tokens.html) with `api` scope (or `read_api` for read-only).
+
+To reconfigure later: `lazyglab setup`
 
 ## Usage
 
 ```bash
-lazyglab
+lazyglab            # Launch the TUI
+lazyglab setup      # Re-run setup wizard
+lazyglab --version  # Show version
 ```
-
-Run it inside a git repo with a GitLab remote, or anywhere — lazyglab will list your accessible projects.
 
 ## Keybindings
 

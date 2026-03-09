@@ -11,42 +11,81 @@ import (
 
 // Run initializes the application and starts the TUI.
 func Run() error {
-	cfg, err := LoadGlabConfig()
+	cfg, err := resolveConfig()
 	if err != nil {
-		return fmt.Errorf("loading config: %w", err)
+		return err
 	}
 
+	clients, hostNames, err := buildClients(cfg)
+	if err != nil {
+		return err
+	}
+
+	fmt.Println("  Launching lazyglab...")
+	fmt.Println()
+
+	model := tui.NewApp(clients, hostNames)
+	p := tea.NewProgram(model)
+	if _, err := p.Run(); err != nil {
+		return fmt.Errorf("running TUI: %w", err)
+	}
+
+	return nil
+}
+
+// Setup runs the setup wizard explicitly (via `lazyglab setup`).
+func Setup() error {
+	_, err := RunSetup()
+	return err
+}
+
+// resolveConfig loads config with priority: own config > glab import > wizard.
+func resolveConfig() (*Config, error) {
+	// 1. Own config exists — use it
+	if ConfigExists() {
+		return LoadConfig()
+	}
+
+	// 2. glab config exists — offer import
+	cfg, err := OfferGlabImport()
+	if err != nil {
+		return nil, err
+	}
+	if cfg != nil {
+		return cfg, nil
+	}
+
+	// 3. Run setup wizard
+	return RunSetup()
+}
+
+// buildClients creates GitLab API clients from config.
+func buildClients(cfg *Config) (map[string]*gitlab.Client, []string, error) {
 	clients := make(map[string]*gitlab.Client)
 	var hostNames []string
+
 	for host, hostCfg := range cfg.Hosts {
 		if hostCfg.Token == "" {
-			continue // skip hosts without a token
-		}
-		protocol := hostCfg.APIProtocol
-		if protocol == "" {
-			protocol = "https"
-		}
-		if protocol != "https" {
-			return fmt.Errorf("refusing to connect to %s over insecure protocol %q (only https is supported)", host, protocol)
+			continue
 		}
 		apiHost := hostCfg.APIHost
 		if apiHost == "" {
 			apiHost = host
 		}
-		baseURL := fmt.Sprintf("%s://%s/api/v4", protocol, apiHost)
+		baseURL := fmt.Sprintf("https://%s/api/v4", apiHost)
 		client, err := gitlab.NewClient(hostCfg.Token, baseURL, host)
 		if err != nil {
-			return fmt.Errorf("creating GitLab client for %s: %w", host, err)
+			return nil, nil, fmt.Errorf("creating GitLab client for %s: %w", host, err)
 		}
 		clients[host] = client
 		hostNames = append(hostNames, host)
 	}
 
 	if len(clients) == 0 {
-		return fmt.Errorf("no GitLab hosts with tokens found in glab config")
+		return nil, nil, fmt.Errorf("no GitLab hosts with tokens found in config")
 	}
 
-	// Put the default host first if it has a token
+	// Put default host first
 	if cfg.DefaultHost != "" {
 		for i, h := range hostNames {
 			if h == cfg.DefaultHost && i > 0 {
@@ -56,11 +95,5 @@ func Run() error {
 		}
 	}
 
-	model := tui.NewApp(clients, hostNames)
-	p := tea.NewProgram(model)
-	if _, err := p.Run(); err != nil {
-		return fmt.Errorf("running TUI: %w", err)
-	}
-
-	return nil
+	return clients, hostNames, nil
 }

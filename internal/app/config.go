@@ -4,76 +4,104 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"runtime"
 
 	"gopkg.in/yaml.v3"
 )
 
-// GlabConfig represents the glab CLI configuration file structure.
-type GlabConfig struct {
+// Config is lazyglab's own configuration.
+type Config struct {
+	DefaultHost string                `yaml:"default_host"`
 	Hosts       map[string]HostConfig `yaml:"hosts"`
-	DefaultHost string                `yaml:"host"`
 }
 
-// HostConfig holds per-host GitLab configuration from glab.
+// HostConfig holds per-host GitLab configuration.
 type HostConfig struct {
-	Token       string `yaml:"token"`
-	APIHost     string `yaml:"api_host"`
-	APIProtocol string `yaml:"api_protocol"`
-	User        string `yaml:"user"`
+	Token   string `yaml:"token"`
+	APIHost string `yaml:"api_host,omitempty"` // optional: if API is on different host
+
 }
 
-// LoadGlabConfig reads authentication config from the glab CLI config file.
-func LoadGlabConfig() (*GlabConfig, error) {
-	path, err := glabConfigPath()
+// LoadConfig loads config from the default path.
+func LoadConfig() (*Config, error) {
+	return LoadConfigFrom(configPath())
+}
+
+// LoadConfigFrom loads config from a specific path.
+func LoadConfigFrom(path string) (*Config, error) {
+	info, err := os.Stat(path)
 	if err != nil {
-		return nil, fmt.Errorf("finding glab config: %w", err)
+		return nil, fmt.Errorf("reading config at %s: %w", path, err)
+	}
+
+	// Reject group/world readable config files (contain tokens)
+	if perm := info.Mode().Perm(); perm&0077 != 0 {
+		return nil, fmt.Errorf(
+			"config file %s has permissions %04o, which are too open; "+
+				"run: chmod 600 %s", path, perm, path)
 	}
 
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("reading glab config at %s: %w", path, err)
+		return nil, fmt.Errorf("reading config at %s: %w", path, err)
 	}
 
-	var cfg GlabConfig
+	var cfg Config
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
-		return nil, fmt.Errorf("parsing glab config: %w", err)
+		return nil, fmt.Errorf("parsing config: %w", err)
 	}
 
 	if len(cfg.Hosts) == 0 {
-		return nil, fmt.Errorf("no hosts found in glab config at %s", path)
+		return nil, fmt.Errorf("no hosts found in config at %s", path)
 	}
 
 	return &cfg, nil
 }
 
-func glabConfigPath() (string, error) {
-	// Check GLAB_CONFIG_DIR env var first
-	if dir := os.Getenv("GLAB_CONFIG_DIR"); dir != "" {
-		return filepath.Join(dir, "config.yml"), nil
+// SaveConfig saves config to the default path with secure permissions.
+func SaveConfig(cfg *Config) error {
+	return SaveConfigTo(configPath(), cfg)
+}
+
+// SaveConfigTo saves config to a specific path with secure permissions.
+func SaveConfigTo(path string, cfg *Config) error {
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		return fmt.Errorf("creating config directory: %w", err)
 	}
 
-	// macOS: ~/Library/Application Support/glab-cli/config.yml
-	if runtime.GOOS == "darwin" {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return "", err
-		}
-		path := filepath.Join(home, "Library", "Application Support", "glab-cli", "config.yml")
-		if _, err := os.Stat(path); err == nil {
-			return path, nil
-		}
+	data, err := yaml.Marshal(cfg)
+	if err != nil {
+		return fmt.Errorf("marshaling config: %w", err)
 	}
 
-	// Linux/fallback: ~/.config/glab-cli/config.yml
+	// Write with 0600 from the start — no permission race window
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
+	if err != nil {
+		return fmt.Errorf("creating config file: %w", err)
+	}
+	defer func() { _ = f.Close() }()
+
+	if _, err := f.Write(data); err != nil {
+		return fmt.Errorf("writing config: %w", err)
+	}
+
+	return nil
+}
+
+// ConfigExists returns true if lazyglab's own config file exists.
+func ConfigExists() bool {
+	_, err := os.Stat(configPath())
+	return err == nil
+}
+
+// configPath returns the path to lazyglab's config file.
+func configPath() string {
+	if p := os.Getenv("LAZYGLAB_CONFIG"); p != "" {
+		return p
+	}
 	configDir, err := os.UserConfigDir()
 	if err != nil {
-		return "", err
+		return filepath.Join(os.Getenv("HOME"), ".config", "lazyglab", "config.yml")
 	}
-	path := filepath.Join(configDir, "glab-cli", "config.yml")
-	if _, err := os.Stat(path); err == nil {
-		return path, nil
-	}
-
-	return "", fmt.Errorf("glab config not found; please configure glab first: https://gitlab.com/gitlab-org/cli")
+	return filepath.Join(configDir, "lazyglab", "config.yml")
 }
