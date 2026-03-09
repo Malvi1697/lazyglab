@@ -69,7 +69,9 @@ type confirmAction struct {
 // NewApp creates the root application model.
 func NewApp(clients map[string]*gitlab.Client, hostNames []string, detectedHost, detectedPath string) *App {
 	activeHost := ""
-	if len(hostNames) > 0 {
+	if detectedHost != "" {
+		activeHost = detectedHost
+	} else if len(hostNames) > 0 {
 		activeHost = hostNames[0]
 	}
 	return &App{
@@ -126,8 +128,9 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// Auto-select project from git remote detection
 		if a.detectedPath != "" && a.activeProject == nil {
-			for _, p := range a.projects {
+			for i, p := range a.projects {
 				if strings.EqualFold(p.PathWithNamespace, a.detectedPath) {
+					a.cursor[PanelProjects] = i
 					a.detectedPath = "" // clear so it doesn't re-trigger
 					return a, func() tea.Msg {
 						return ProjectSelectedMsg{Project: p}
