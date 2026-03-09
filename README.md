@@ -19,6 +19,12 @@ Manage merge requests, pipelines, and issues without leaving your terminal.
 
 ## Install
 
+### Quick install (Linux / macOS)
+
+```bash
+curl -sL https://raw.githubusercontent.com/Malvi1697/lazyglab/master/install.sh | sh
+```
+
 ### Go install
 
 ```bash
@@ -28,6 +34,20 @@ go install github.com/Malvi1697/lazyglab@latest
 ### Download binary
 
 Pre-built binaries for Linux, macOS, and Windows are available on the [Releases](https://github.com/Malvi1697/lazyglab/releases) page.
+
+### Debian / Ubuntu (.deb)
+
+```bash
+# Download from the latest release
+sudo dpkg -i lazyglab_*_linux_amd64.deb
+```
+
+### RHEL / Fedora (.rpm)
+
+```bash
+# Download from the latest release
+sudo rpm -i lazyglab_*_linux_amd64.rpm
+```
 
 ### Build from source
 

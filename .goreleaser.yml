@@ -26,6 +26,18 @@ archives:
       - goos: windows
         format: zip
 
+nfpms:
+  - id: lazyglab
+    package_name: lazyglab
+    vendor: Malvi1697
+    homepage: https://github.com/Malvi1697/lazyglab
+    maintainer: Jan Vseticek
+    description: Terminal UI for GitLab, inspired by lazygit
+    license: MIT
+    formats:
+      - deb
+      - rpm
+
 checksum:
   name_template: "checksums.txt"
 
