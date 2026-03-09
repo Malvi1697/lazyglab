@@ -141,25 +141,6 @@ lazyglab --version  # Show version
 |-----|--------|
 | `c` | Close/reopen issue |
 
-## Development
-
-```bash
-make check         # Run vet + lint + tests
-make run           # Build and run
-make cover         # Test with coverage report
-make fmt           # Format code
-make release-dry   # Test GoReleaser locally
-```
-
-## Releasing
-
-Push a version tag to trigger a GitHub Actions release with cross-compiled binaries:
-
-```bash
-git tag v0.1.0
-git push --tags
-```
-
 ## License
 
 [MIT](LICENSE)
