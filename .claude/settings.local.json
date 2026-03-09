@@ -9,7 +9,10 @@
       "WebFetch(domain:leg100.github.io)",
       "Bash(go mod:*)",
       "Bash(go list:*)",
-      "Bash(go build:*)"
+      "Bash(go build:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)"
     ]
   }
 }
