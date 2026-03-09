@@ -82,6 +82,18 @@ type StatusMsg struct {
 	IsErr bool
 }
 
+// JobActionDoneMsg is sent after a job action completes to refresh the job list.
+type JobActionDoneMsg struct {
+	Text  string
+	IsErr bool
+}
+
+// PipelineActionDoneMsg is sent after a pipeline action completes to refresh pipelines.
+type PipelineActionDoneMsg struct {
+	Text  string
+	IsErr bool
+}
+
 // ErrorMsg represents an error from an async operation.
 type ErrorMsg struct {
 	Err error

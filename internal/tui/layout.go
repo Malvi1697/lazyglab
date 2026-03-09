@@ -16,16 +16,18 @@ type Layout struct {
 	ContentWidth  int
 	ContentHeight int
 
-	// Status bar
-	StatusBarHeight int
+	// Status bar + keybind hint bar
+	StatusBarHeight  int
+	KeybindBarHeight int
 }
 
 // ComputeLayout calculates panel dimensions based on terminal size.
 func ComputeLayout(width, height int) Layout {
 	l := Layout{
-		Width:           width,
-		Height:          height,
-		StatusBarHeight: 1,
+		Width:            width,
+		Height:           height,
+		StatusBarHeight:  1,
+		KeybindBarHeight: 1,
 	}
 
 	// Sidebar takes ~30% of width, min 25, max 50
@@ -44,8 +46,8 @@ func ComputeLayout(width, height int) Layout {
 		l.ContentWidth = 10
 	}
 
-	// Usable height for panels (minus status bar and borders)
-	usableHeight := height - l.StatusBarHeight - 2
+	// Usable height for panels (minus status bar, keybind bar, and borders)
+	usableHeight := height - l.StatusBarHeight - l.KeybindBarHeight - 2
 
 	// Distribute height evenly across 4 panels, accounting for borders
 	panelHeight := usableHeight / 4

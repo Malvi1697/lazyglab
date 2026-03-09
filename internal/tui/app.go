@@ -144,7 +144,13 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		a.jobs = msg.Jobs
 		a.viewingJobs = true
-		a.jobCursor = 0
+		// Clamp cursor to new list (preserve position on refresh)
+		if a.jobCursor >= len(a.jobs) {
+			a.jobCursor = len(a.jobs) - 1
+		}
+		if a.jobCursor < 0 {
+			a.jobCursor = 0
+		}
 		return a, nil
 
 	case IssuesLoadedMsg:
@@ -174,6 +180,22 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.statusText = fmt.Sprintf("Branch: %s", msg.Branch.Name)
 		a.statusIsErr = false
 		return a, a.loadPipelines()
+
+	case JobActionDoneMsg:
+		a.statusText = msg.Text
+		a.statusIsErr = msg.IsErr
+		if !msg.IsErr {
+			return a, a.loadJobs()
+		}
+		return a, nil
+
+	case PipelineActionDoneMsg:
+		a.statusText = msg.Text
+		a.statusIsErr = msg.IsErr
+		if !msg.IsErr {
+			return a, a.loadPipelines()
+		}
+		return a, nil
 
 	case StatusMsg:
 		a.statusText = msg.Text
@@ -296,24 +318,30 @@ func (a *App) handleJobViewKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		return a, nil
 	}
-	if key == KeyOpenBrowse && a.jobCursor < len(a.jobs) {
-		url := a.jobs[a.jobCursor].WebURL
-		if url != "" {
-			return a, tea.ExecProcess(openBrowserCmd(url), func(err error) tea.Msg {
-				if err != nil {
-					return StatusMsg{Text: fmt.Sprintf("Failed to open browser: %v", err), IsErr: true}
-				}
-				return nil
-			})
+
+	switch key {
+	case KeyOpenBrowse:
+		if a.jobCursor < len(a.jobs) {
+			url := a.jobs[a.jobCursor].WebURL
+			if url != "" {
+				return a, tea.ExecProcess(openBrowserCmd(url), func(err error) tea.Msg {
+					if err != nil {
+						return StatusMsg{Text: fmt.Sprintf("Failed to open browser: %v", err), IsErr: true}
+					}
+					return nil
+				})
+			}
 		}
 		return a, nil
+	case KeyRetry:
+		return a, a.retryJob()
+	case KeyCancel:
+		return a, a.cancelJob()
+	case KeyPlayJob:
+		return a, a.playJob()
 	}
 
-	// Fall through to list navigation for pipeline list keys
-	if isNavigateUp(msg) || isNavigateDown(msg) {
-		return a, nil
-	}
-	return a.handlePanelKey(key)
+	return a, nil
 }
 
 func (a *App) handleBranchPickerKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -393,6 +421,8 @@ func (a *App) handlePanelKey(key string) (tea.Model, tea.Cmd) {
 			return a, a.retryPipeline()
 		case KeyCancel:
 			return a, a.cancelPipeline()
+		case KeyRun:
+			return a, a.runPipeline()
 		case KeyOpenBrowse:
 			return a, a.openInBrowser()
 		}
@@ -455,8 +485,9 @@ func (a *App) View() tea.View {
 
 		detail := a.renderDetail()
 		main := lipgloss.JoinHorizontal(lipgloss.Top, sidebar, detail)
+		keybindBar := a.renderKeybindBar()
 		statusBar := a.renderStatusBar()
-		content = lipgloss.JoinVertical(lipgloss.Left, main, statusBar)
+		content = lipgloss.JoinVertical(lipgloss.Left, main, keybindBar, statusBar)
 	}
 
 	v := tea.NewView(content)
@@ -590,6 +621,90 @@ func (a *App) renderStatusBar() string {
 	return style.Width(a.width).Render(bar)
 }
 
+func (a *App) renderKeybindBar() string {
+	type hint struct{ key, desc string }
+
+	// Always-present global hints
+	global := []hint{
+		{"q", "quit"},
+		{"?", "help"},
+		{"Tab", "panel"},
+		{"j/k", "nav"},
+		{"r", "refresh"},
+		{"b", "branch"},
+	}
+
+	// Context-specific hints
+	var ctx []hint
+
+	if a.showBranchPicker {
+		ctx = []hint{
+			{"Enter", "select"},
+			{"Esc", "cancel"},
+			{"g/G", "top/bottom"},
+		}
+	} else if a.viewingJobs && a.activePanel == PanelPipelines {
+		ctx = []hint{
+			{"R", "retry job"},
+			{"C", "cancel job"},
+			{"p", "play manual"},
+			{"o", "open"},
+			{"Esc", "back"},
+		}
+	} else {
+		switch a.activePanel {
+		case PanelProjects:
+			ctx = []hint{
+				{"Enter", "select"},
+				{"o", "open"},
+			}
+		case PanelMergeRequests:
+			ctx = []hint{
+				{"a", "approve"},
+				{"m", "merge"},
+				{"o", "open"},
+			}
+		case PanelPipelines:
+			ctx = []hint{
+				{"Enter", "jobs"},
+				{"p", "run new"},
+				{"R", "retry"},
+				{"C", "cancel"},
+				{"o", "open"},
+			}
+			if a.activeBranch != nil {
+				ctx = append(ctx, hint{"Esc", "clear branch"})
+			}
+		case PanelIssues:
+			ctx = []hint{
+				{"c", "close/reopen"},
+				{"o", "open"},
+			}
+		}
+	}
+
+	var parts []string
+	for _, h := range global {
+		parts = append(parts, fmt.Sprintf("%s %s",
+			HelpKeyStyle.Render(h.key),
+			HelpDescStyle.Render(h.desc),
+		))
+	}
+	parts = append(parts, HelpDescStyle.Render("|"))
+	for _, h := range ctx {
+		parts = append(parts, fmt.Sprintf("%s %s",
+			HelpKeyStyle.Render(h.key),
+			HelpDescStyle.Render(h.desc),
+		))
+	}
+
+	bar := " " + strings.Join(parts, "  ")
+	return StatusBarStyle.
+		Background(lipgloss.Color("#222222")).
+		Width(a.width).
+		Render(bar)
+}
+
 func (a *App) renderHelp() string {
 	help := []struct{ key, desc string }{
 		{"q", "Quit"},
@@ -610,8 +725,14 @@ func (a *App) renderHelp() string {
 		{"", ""},
 		{"--- Pipeline ---", ""},
 		{"Enter", "View jobs"},
+		{"p", "Run new pipeline"},
 		{"R", "Retry pipeline"},
 		{"C", "Cancel pipeline"},
+		{"", ""},
+		{"--- Jobs (in job view) ---", ""},
+		{"R", "Retry job"},
+		{"C", "Cancel job"},
+		{"p", "Play manual job"},
 		{"", ""},
 		{"--- Issue ---", ""},
 		{"c", "Close/reopen issue"},
@@ -828,7 +949,7 @@ func (a *App) pipelineDetail() string {
 		lines = append(lines, fmt.Sprintf("Updated: %s", util.TimeAgo(p.UpdatedAt)))
 	}
 	lines = append(lines, "")
-	lines = append(lines, HelpDescStyle.Render("Press Enter to view jobs"))
+	lines = append(lines, HelpDescStyle.Render("Enter: view jobs  R: retry  C: cancel  p: run new"))
 	lines = append(lines, "")
 	lines = append(lines, HelpDescStyle.Render(p.WebURL))
 
@@ -895,7 +1016,7 @@ func (a *App) jobsDetail(width int) string {
 	}
 
 	lines = append(lines, "")
-	lines = append(lines, HelpDescStyle.Render("j/k: navigate  o: open in browser  Esc: back"))
+	lines = append(lines, HelpDescStyle.Render("j/k: navigate  R: retry  C: cancel  p: play  o: open  Esc: back"))
 
 	return strings.Join(lines, "\n")
 }
@@ -1088,9 +1209,9 @@ func (a *App) retryPipeline() tea.Cmd {
 	return func() tea.Msg {
 		err := client.RetryPipeline(projectID, pipelineID)
 		if err != nil {
-			return StatusMsg{Text: fmt.Sprintf("Retry failed: %v", err), IsErr: true}
+			return PipelineActionDoneMsg{Text: fmt.Sprintf("Retry failed: %v", err), IsErr: true}
 		}
-		return StatusMsg{Text: fmt.Sprintf("Retried pipeline #%d", pipelineID)}
+		return PipelineActionDoneMsg{Text: fmt.Sprintf("Retried pipeline #%d", pipelineID)}
 	}
 }
 
@@ -1108,9 +1229,93 @@ func (a *App) cancelPipeline() tea.Cmd {
 	return func() tea.Msg {
 		err := client.CancelPipeline(projectID, pipelineID)
 		if err != nil {
-			return StatusMsg{Text: fmt.Sprintf("Cancel failed: %v", err), IsErr: true}
+			return PipelineActionDoneMsg{Text: fmt.Sprintf("Cancel failed: %v", err), IsErr: true}
 		}
-		return StatusMsg{Text: fmt.Sprintf("Canceled pipeline #%d", pipelineID)}
+		return PipelineActionDoneMsg{Text: fmt.Sprintf("Canceled pipeline #%d", pipelineID)}
+	}
+}
+
+func (a *App) runPipeline() tea.Cmd {
+	if a.activeProject == nil {
+		return nil
+	}
+	client := a.clients[a.activeHost]
+	projectID := a.activeProject.ID
+
+	// Use selected branch or default branch
+	ref := a.activeProject.DefaultBranch
+	if a.activeBranch != nil {
+		ref = a.activeBranch.Name
+	}
+
+	return func() tea.Msg {
+		p, err := client.RunPipeline(projectID, ref)
+		if err != nil {
+			return PipelineActionDoneMsg{Text: fmt.Sprintf("Run failed: %v", err), IsErr: true}
+		}
+		return PipelineActionDoneMsg{Text: fmt.Sprintf("Pipeline #%d started on %s", p.ID, ref)}
+	}
+}
+
+func (a *App) retryJob() tea.Cmd {
+	if a.activeProject == nil || len(a.jobs) == 0 {
+		return nil
+	}
+	if a.jobCursor >= len(a.jobs) {
+		return nil
+	}
+	client := a.clients[a.activeHost]
+	projectID := a.activeProject.ID
+	job := a.jobs[a.jobCursor]
+	return func() tea.Msg {
+		err := client.RetryJob(projectID, job.ID)
+		if err != nil {
+			return JobActionDoneMsg{Text: fmt.Sprintf("Retry job failed: %v", err), IsErr: true}
+		}
+		return JobActionDoneMsg{Text: fmt.Sprintf("Retried job '%s'", job.Name)}
+	}
+}
+
+func (a *App) cancelJob() tea.Cmd {
+	if a.activeProject == nil || len(a.jobs) == 0 {
+		return nil
+	}
+	if a.jobCursor >= len(a.jobs) {
+		return nil
+	}
+	client := a.clients[a.activeHost]
+	projectID := a.activeProject.ID
+	job := a.jobs[a.jobCursor]
+	return func() tea.Msg {
+		err := client.CancelJob(projectID, job.ID)
+		if err != nil {
+			return JobActionDoneMsg{Text: fmt.Sprintf("Cancel job failed: %v", err), IsErr: true}
+		}
+		return JobActionDoneMsg{Text: fmt.Sprintf("Canceled job '%s'", job.Name)}
+	}
+}
+
+func (a *App) playJob() tea.Cmd {
+	if a.activeProject == nil || len(a.jobs) == 0 {
+		return nil
+	}
+	if a.jobCursor >= len(a.jobs) {
+		return nil
+	}
+	client := a.clients[a.activeHost]
+	projectID := a.activeProject.ID
+	job := a.jobs[a.jobCursor]
+	if job.Status != "manual" {
+		return func() tea.Msg {
+			return StatusMsg{Text: "Only manual jobs can be played", IsErr: true}
+		}
+	}
+	return func() tea.Msg {
+		err := client.PlayJob(projectID, job.ID)
+		if err != nil {
+			return JobActionDoneMsg{Text: fmt.Sprintf("Play job failed: %v", err), IsErr: true}
+		}
+		return JobActionDoneMsg{Text: fmt.Sprintf("Playing job '%s'", job.Name)}
 	}
 }
 

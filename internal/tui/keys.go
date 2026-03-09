@@ -35,6 +35,10 @@ const (
 	// Pipeline-specific
 	KeyRetry  = "R"
 	KeyCancel = "C"
+	KeyRun    = "p" // run/trigger new pipeline
+
+	// Job-specific (inside job view)
+	KeyPlayJob = "p" // play manual job
 )
 
 // isNavigateUp checks if the key is an up-navigation key.
