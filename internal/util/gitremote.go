@@ -31,7 +31,8 @@ func ParseGitLabRemote(remoteURL string) (host, path string) {
 	if matches := sshRemoteRegex.FindStringSubmatch(remoteURL); matches != nil {
 		host = matches[1]
 		path = strings.TrimSuffix(matches[2], ".git")
-		if host == "" || path == "" {
+		path = strings.TrimPrefix(path, "/")
+		if host == "" || path == "" || strings.Contains(path, "..") {
 			return "", ""
 		}
 		return host, path
@@ -51,7 +52,7 @@ func ParseGitLabRemote(remoteURL string) (host, path string) {
 	path = strings.TrimSuffix(path, ".git")
 	path = strings.TrimSuffix(path, "/")
 
-	if path == "" {
+	if path == "" || strings.Contains(path, "..") {
 		return "", ""
 	}
 

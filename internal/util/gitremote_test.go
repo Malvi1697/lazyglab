@@ -135,6 +135,9 @@ func TestParseGitLabRemote_Invalid(t *testing.T) {
 		"git@",
 		"git@:no-host",
 		"https://",
+		"ssh://git@gitlab.com:2222/owner/project.git",
+		"git@gitlab.com:../../../etc/passwd",
+		"https://gitlab.com/../../../etc/passwd",
 	}
 
 	for _, url := range tests {
@@ -144,6 +147,16 @@ func TestParseGitLabRemote_Invalid(t *testing.T) {
 				t.Errorf("expected empty strings for invalid URL %q, got host=%q path=%q", url, host, path)
 			}
 		})
+	}
+}
+
+func TestParseGitLabRemote_SSHLeadingSlash(t *testing.T) {
+	host, path := ParseGitLabRemote("git@gitlab.com:/owner/project.git")
+	if host != "gitlab.com" {
+		t.Errorf("expected host=gitlab.com, got %q", host)
+	}
+	if path != "owner/project" {
+		t.Errorf("expected path=owner/project (no leading slash), got %q", path)
 	}
 }
 
