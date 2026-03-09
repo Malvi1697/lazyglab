@@ -78,7 +78,7 @@ func NewApp(clients map[string]*gitlab.Client, hostNames []string, detectedHost,
 		clients:      clients,
 		hostNames:    hostNames,
 		activeHost:   activeHost,
-		activePanel:  PanelProjects,
+		activePanel:  PanelPipelines,
 		detectedHost: detectedHost,
 		detectedPath: detectedPath,
 	}
@@ -668,15 +668,15 @@ func (a *App) pipelinePanelTitle() string {
 }
 
 func (a *App) renderSidePanelSmart(id PanelID, title string, items []string, collapsedLine string) string {
-	if a.activePanel == id {
-		return a.renderSidePanel(id, title, items)
+	// Only the Projects panel collapses (when not focused)
+	if id == PanelProjects && a.activePanel != PanelProjects {
+		totalWidth := a.layout.SidebarWidth
+		panelHeight := a.layout.PanelHeights[id]
+		titleText := fmt.Sprintf("[%d] %s", int(id)+1, title)
+		line := truncate(collapsedLine, totalWidth-4)
+		return renderBox(titleText, []string{line}, totalWidth, panelHeight, ColorSecondary, ColorSecondary)
 	}
-	// Collapsed: 3 lines total (top border + 1 content + bottom border)
-	totalWidth := a.layout.SidebarWidth
-	panelHeight := a.layout.PanelHeights[id]
-	titleText := fmt.Sprintf("[%d] %s", int(id)+1, title)
-	line := truncate(collapsedLine, totalWidth-4)
-	return renderBox(titleText, []string{line}, totalWidth, panelHeight, ColorSecondary, ColorSecondary)
+	return a.renderSidePanel(id, title, items)
 }
 
 func (a *App) renderSidePanel(id PanelID, title string, items []string) string {

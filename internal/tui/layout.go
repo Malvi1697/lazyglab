@@ -51,25 +51,33 @@ func ComputeLayout(width, height int, activePanel PanelID) Layout {
 		usableHeight = 12
 	}
 
-	// Collapsed panels get 3 lines (top border + 1 content + bottom border)
-	collapsedHeight := 3
-	numCollapsed := 3 // 3 of 4 panels are collapsed
-	expandedHeight := usableHeight - (collapsedHeight * numCollapsed)
-	if expandedHeight < collapsedHeight {
-		expandedHeight = collapsedHeight
-	}
+	if activePanel == PanelProjects {
+		// Projects focused: all 4 panels share space equally
+		panelHeight := usableHeight / 4
+		remainder := usableHeight - (panelHeight * 4)
+		for i := range l.PanelHeights {
+			l.PanelHeights[i] = panelHeight
+			if i < remainder {
+				l.PanelHeights[i]++
+			}
+		}
+	} else {
+		// Projects not focused: collapsed to 3 lines, other 3 share the rest
+		collapsedHeight := 3
+		remaining := usableHeight - collapsedHeight
+		panelHeight := remaining / 3
+		remainder := remaining - (panelHeight * 3)
 
-	for i := range l.PanelHeights {
-		if PanelID(i) == activePanel {
-			l.PanelHeights[i] = expandedHeight
-		} else {
-			l.PanelHeights[i] = collapsedHeight
+		l.PanelHeights[PanelProjects] = collapsedHeight
+		for i := 1; i < 4; i++ {
+			l.PanelHeights[i] = panelHeight
+			if i-1 < remainder {
+				l.PanelHeights[i]++
+			}
 		}
 	}
 
-	// Ensure ContentHeight matches actual panel sum (may differ from usableHeight
-	// if expandedHeight was clamped on very small terminals)
-	l.ContentHeight = expandedHeight + (collapsedHeight * numCollapsed)
+	l.ContentHeight = usableHeight
 
 	return l
 }
