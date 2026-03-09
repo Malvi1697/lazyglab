@@ -43,8 +43,8 @@ type App struct {
 	loading     bool
 
 	// Detail/overlay state
-	viewingJobs     bool // true when viewing pipeline jobs in detail panel
-	jobCursor       int
+	viewingJobs      bool // true when viewing pipeline jobs in detail panel
+	jobCursor        int
 	showBranchPicker bool
 	branchCursor     int
 
@@ -533,11 +533,12 @@ func (a *App) activeListLen() int {
 
 func (a *App) View() tea.View {
 	var content string
-	if a.width == 0 {
+	switch {
+	case a.width == 0:
 		content = "Loading..."
-	} else if a.showHelp {
+	case a.showHelp:
 		content = a.renderHelp()
-	} else {
+	default:
 		// Recompute layout each frame (active panel affects proportions)
 		a.layout = ComputeLayout(a.width, a.height, a.activePanel)
 
@@ -653,7 +654,7 @@ func (a *App) renderDetail() string {
 			content = a.mrDetail()
 		case PanelPipelines:
 			if a.viewingJobs {
-				content = a.jobsDetail(contentWidth)
+				content = a.jobsDetail()
 			} else {
 				content = a.pipelineDetail()
 			}
@@ -765,13 +766,14 @@ func (a *App) renderKeybindBar() string {
 	// Context-specific hints
 	var ctx []hint
 
-	if a.showBranchPicker {
+	switch {
+	case a.showBranchPicker:
 		ctx = []hint{
 			{"Enter", "select"},
 			{"Esc", "cancel"},
 			{"g/G", "top/bottom"},
 		}
-	} else if a.viewingJobs && a.activePanel == PanelPipelines {
+	case a.viewingJobs && a.activePanel == PanelPipelines:
 		ctx = []hint{
 			{"R", "retry job"},
 			{"C", "cancel job"},
@@ -779,7 +781,7 @@ func (a *App) renderKeybindBar() string {
 			{"o", "open"},
 			{"Esc", "back"},
 		}
-	} else {
+	default:
 		switch a.activePanel {
 		case PanelProjects:
 			ctx = []hint{
@@ -1086,7 +1088,7 @@ func (a *App) pipelineDetail() string {
 	return strings.Join(lines, "\n")
 }
 
-func (a *App) jobsDetail(width int) string {
+func (a *App) jobsDetail() string {
 	if len(a.pipelines) == 0 {
 		return ""
 	}

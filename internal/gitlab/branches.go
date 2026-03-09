@@ -2,6 +2,7 @@ package gitlab
 
 import (
 	"sort"
+
 	gogitlab "gitlab.com/gitlab-org/api/client-go"
 )
 
