@@ -61,7 +61,7 @@ lazyglab/
 
 ### Key Design Decisions
 
-1. **Direct GitLab API** — Uses `client-go` SDK, not `glab` CLI subprocess calls. Auth tokens read from glab's config (`~/.config/glab-cli/config.yml` or `~/Library/Application Support/glab-cli/config.yml`).
+1. **Direct GitLab API** — Uses `client-go` SDK, not `glab` CLI subprocess calls. Auth tokens read from glab's config (`~/.config/glab-cli/config.yml` or `~/Library/Application Support/glab-cli/config.yml`). Hosts with empty tokens are skipped.
 
 2. **Root Model as Message Router** — `tui/app.go` owns all panel sub-models and dispatches messages. Global keys handled at root, panel-specific keys forwarded to active panel.
 

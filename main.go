@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/janvseticek/lazyglab/internal/app"
+	"github.com/Malvi1697/lazyglab/internal/app"
 )
 
 var version = "0.1.0-dev"

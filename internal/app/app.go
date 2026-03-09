@@ -5,8 +5,8 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/janvseticek/lazyglab/internal/gitlab"
-	"github.com/janvseticek/lazyglab/internal/tui"
+	"github.com/Malvi1697/lazyglab/internal/gitlab"
+	"github.com/Malvi1697/lazyglab/internal/tui"
 )
 
 // Run initializes the application and starts the TUI.

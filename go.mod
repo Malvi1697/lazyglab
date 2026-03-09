@@ -1,4 +1,4 @@
-module github.com/janvseticek/lazyglab
+module github.com/Malvi1697/lazyglab
 
 go 1.26.1
 

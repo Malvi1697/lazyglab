@@ -21,13 +21,13 @@ Manage merge requests, pipelines, and issues without leaving your terminal.
 ## Install
 
 ```bash
-go install github.com/janvseticek/lazyglab@latest
+go install github.com/Malvi1697/lazyglab@latest
 ```
 
 Or build from source:
 
 ```bash
-git clone https://github.com/janvseticek/lazyglab.git
+git clone https://github.com/Malvi1697/lazyglab.git
 cd lazyglab
 go build -o lazyglab .
 ```

@@ -1,6 +1,6 @@
 package tui
 
-import "github.com/janvseticek/lazyglab/internal/gitlab"
+import "github.com/Malvi1697/lazyglab/internal/gitlab"
 
 // PanelID identifies which side panel is active.
 type PanelID int
