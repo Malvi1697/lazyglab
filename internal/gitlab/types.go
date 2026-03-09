@@ -7,6 +7,7 @@ type Project struct {
 	ID                int
 	Name              string
 	NameWithNamespace string
+	PathWithNamespace string
 	WebURL            string
 	DefaultBranch     string
 }

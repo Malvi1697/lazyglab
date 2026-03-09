@@ -22,6 +22,10 @@ type App struct {
 	// Active project
 	activeProject *gitlab.Project
 
+	// Auto-detected project from git remote
+	detectedHost string
+	detectedPath string
+
 	// Data
 	projects  []gitlab.Project
 	mrs       []gitlab.MergeRequest
@@ -63,16 +67,20 @@ type confirmAction struct {
 }
 
 // NewApp creates the root application model.
-func NewApp(clients map[string]*gitlab.Client, hostNames []string) *App {
+func NewApp(clients map[string]*gitlab.Client, hostNames []string, detectedHost, detectedPath string) *App {
 	activeHost := ""
-	if len(hostNames) > 0 {
+	if detectedHost != "" {
+		activeHost = detectedHost
+	} else if len(hostNames) > 0 {
 		activeHost = hostNames[0]
 	}
 	return &App{
-		clients:     clients,
-		hostNames:   hostNames,
-		activeHost:  activeHost,
-		activePanel: PanelProjects,
+		clients:      clients,
+		hostNames:    hostNames,
+		activeHost:   activeHost,
+		activePanel:  PanelPipelines,
+		detectedHost: detectedHost,
+		detectedPath: detectedPath,
 	}
 }
 
@@ -117,6 +125,20 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.projects = msg.Projects
 		a.statusText = fmt.Sprintf("Loaded %d projects", len(msg.Projects))
 		a.statusIsErr = false
+
+		// Auto-select project from git remote detection
+		if a.detectedPath != "" && a.activeProject == nil {
+			for i, p := range a.projects {
+				if strings.EqualFold(p.PathWithNamespace, a.detectedPath) {
+					a.cursor[PanelProjects] = i
+					a.detectedPath = "" // clear so it doesn't re-trigger
+					return a, func() tea.Msg {
+						return ProjectSelectedMsg{Project: p}
+					}
+				}
+			}
+		}
+
 		return a, nil
 
 	case ProjectSelectedMsg:
@@ -615,10 +637,10 @@ func (a *App) View() tea.View {
 		a.layout = ComputeLayout(a.width, a.height, a.activePanel)
 
 		sidebar := lipgloss.JoinVertical(lipgloss.Left,
-			a.renderSidePanel(PanelProjects, "Projects", a.projectItems()),
-			a.renderSidePanel(PanelMergeRequests, "Merge Requests", a.mrItems()),
-			a.renderSidePanel(PanelPipelines, a.pipelinePanelTitle(), a.pipelineItems()),
-			a.renderSidePanel(PanelIssues, "Issues", a.issueItems()),
+			a.renderSidePanelSmart(PanelProjects, "Projects", a.projectItems(), a.collapsedProjectLine()),
+			a.renderSidePanelSmart(PanelMergeRequests, "Merge Requests", a.mrItems(), a.collapsedMRLine()),
+			a.renderSidePanelSmart(PanelPipelines, a.pipelinePanelTitle(), a.pipelineItems(), a.collapsedPipelineLine()),
+			a.renderSidePanelSmart(PanelIssues, "Issues", a.issueItems(), a.collapsedIssueLine()),
 		)
 
 		detail := a.renderDetail()
@@ -643,6 +665,18 @@ func (a *App) pipelinePanelTitle() string {
 		return fmt.Sprintf("Pipelines [%s]", truncate(a.activeBranch.Name, 15))
 	}
 	return "Pipelines"
+}
+
+func (a *App) renderSidePanelSmart(id PanelID, title string, items []string, collapsedLine string) string {
+	// Only the Projects panel collapses (when not focused)
+	if id == PanelProjects && a.activePanel != PanelProjects {
+		totalWidth := a.layout.SidebarWidth
+		panelHeight := a.layout.PanelHeights[id]
+		titleText := fmt.Sprintf("[%d] %s", int(id)+1, title)
+		line := truncate(collapsedLine, totalWidth-4)
+		return renderBox(titleText, []string{line}, totalWidth, panelHeight, ColorSecondary, ColorSecondary)
+	}
+	return a.renderSidePanel(id, title, items)
 }
 
 func (a *App) renderSidePanel(id PanelID, title string, items []string) string {
@@ -1066,6 +1100,54 @@ func (a *App) projectItems() []string {
 		items[i] = marker + p.NameWithNamespace
 	}
 	return items
+}
+
+func (a *App) collapsedProjectLine() string {
+	if a.activeProject == nil {
+		return "No project selected"
+	}
+	branch := a.activeProject.DefaultBranch
+	if a.activeBranch != nil {
+		branch = a.activeBranch.Name
+	}
+	return a.activeProject.NameWithNamespace + " → " + branch
+}
+
+func (a *App) collapsedMRLine() string {
+	idx := a.cursor[PanelMergeRequests]
+	if idx >= 0 && idx < len(a.mrs) {
+		mr := a.mrs[idx]
+		return fmt.Sprintf("!%d %s", mr.IID, mr.Title)
+	}
+	if len(a.mrs) == 0 {
+		return "No merge requests"
+	}
+	return fmt.Sprintf("!%d %s", a.mrs[0].IID, a.mrs[0].Title)
+}
+
+func (a *App) collapsedPipelineLine() string {
+	idx := a.cursor[PanelPipelines]
+	if idx >= 0 && idx < len(a.pipelines) {
+		p := a.pipelines[idx]
+		return fmt.Sprintf("#%d %s %s (%s)", p.ID, PipelineStatusIcon(p.Status), p.Status, p.Ref)
+	}
+	if len(a.pipelines) == 0 {
+		return "No pipelines"
+	}
+	p := a.pipelines[0]
+	return fmt.Sprintf("#%d %s %s", p.ID, PipelineStatusIcon(p.Status), p.Status)
+}
+
+func (a *App) collapsedIssueLine() string {
+	idx := a.cursor[PanelIssues]
+	if idx >= 0 && idx < len(a.issues) {
+		issue := a.issues[idx]
+		return fmt.Sprintf("#%d %s", issue.IID, issue.Title)
+	}
+	if len(a.issues) == 0 {
+		return "No issues"
+	}
+	return fmt.Sprintf("#%d %s", a.issues[0].IID, a.issues[0].Title)
 }
 
 func (a *App) mrItems() []string {
