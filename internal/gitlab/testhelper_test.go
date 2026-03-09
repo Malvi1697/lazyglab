@@ -10,8 +10,6 @@ import (
 
 // setupTestClient creates an httptest server with the given handler and returns
 // a Client pointing at that server. The caller must call srv.Close() when done.
-//
-//nolint:unused // test helper prepared for upcoming gitlab package tests
 func setupTestClient(t *testing.T, handler http.Handler) (*Client, *httptest.Server) {
 	t.Helper()
 	srv := httptest.NewServer(handler)
