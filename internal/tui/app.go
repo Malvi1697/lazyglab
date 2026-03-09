@@ -1129,13 +1129,12 @@ func (a *App) collapsedPipelineLine() string {
 	idx := a.cursor[PanelPipelines]
 	if idx >= 0 && idx < len(a.pipelines) {
 		p := a.pipelines[idx]
-		return fmt.Sprintf("#%d %s %s (%s)", p.ID, PipelineStatusIcon(p.Status), p.Status, p.Ref)
+		return fmt.Sprintf("#%d %s (%s)", p.ID, p.Status, p.Ref)
 	}
 	if len(a.pipelines) == 0 {
 		return "No pipelines"
 	}
-	p := a.pipelines[0]
-	return fmt.Sprintf("#%d %s %s", p.ID, PipelineStatusIcon(p.Status), p.Status)
+	return fmt.Sprintf("#%d %s", a.pipelines[0].ID, a.pipelines[0].Status)
 }
 
 func (a *App) collapsedIssueLine() string {
