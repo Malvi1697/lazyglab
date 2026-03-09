@@ -8,13 +8,14 @@ import (
 	"charm.land/lipgloss/v2"
 
 	"github.com/Malvi1697/lazyglab/internal/gitlab"
+	"github.com/Malvi1697/lazyglab/internal/util"
 )
 
 // App is the root Bubble Tea model.
 type App struct {
 	// GitLab clients per host
-	clients   map[string]*gitlab.Client
-	hostNames []string
+	clients    map[string]*gitlab.Client
+	hostNames  []string
 	activeHost string
 
 	// Active project
@@ -25,6 +26,11 @@ type App struct {
 	mrs       []gitlab.MergeRequest
 	pipelines []gitlab.Pipeline
 	issues    []gitlab.Issue
+	jobs      []gitlab.Job // jobs for selected pipeline
+	branches  []gitlab.Branch
+
+	// Branch filter
+	activeBranch *gitlab.Branch // nil = all branches
 
 	// UI state
 	activePanel PanelID
@@ -34,6 +40,12 @@ type App struct {
 	statusText  string
 	statusIsErr bool
 	loading     bool
+
+	// Detail/overlay state
+	viewingJobs     bool // true when viewing pipeline jobs in detail panel
+	jobCursor       int
+	showBranchPicker bool
+	branchCursor     int
 
 	// Dimensions
 	width  int
@@ -55,7 +67,6 @@ func NewApp(clients map[string]*gitlab.Client, hostNames []string) *App {
 }
 
 func (a *App) Init() tea.Cmd {
-	// Load projects on startup
 	return a.loadProjects()
 }
 
@@ -72,6 +83,11 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if a.showHelp {
 			a.showHelp = false
 			return a, nil
+		}
+
+		// Branch picker takes precedence
+		if a.showBranchPicker {
+			return a.handleBranchPickerKey(msg)
 		}
 
 		return a.handleKeyMsg(msg)
@@ -91,9 +107,9 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case ProjectSelectedMsg:
 		a.activeProject = &msg.Project
+		a.activeBranch = nil // reset branch filter
 		a.statusText = fmt.Sprintf("Selected: %s", msg.Project.NameWithNamespace)
 		a.statusIsErr = false
-		// Load MRs, pipelines, issues in parallel
 		return a, tea.Batch(
 			a.loadMRs(),
 			a.loadPipelines(),
@@ -116,6 +132,19 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return a, nil
 		}
 		a.pipelines = msg.Pipelines
+		a.viewingJobs = false
+		a.jobs = nil
+		return a, nil
+
+	case JobsLoadedMsg:
+		if msg.Err != nil {
+			a.statusText = fmt.Sprintf("Error loading jobs: %v", msg.Err)
+			a.statusIsErr = true
+			return a, nil
+		}
+		a.jobs = msg.Jobs
+		a.viewingJobs = true
+		a.jobCursor = 0
 		return a, nil
 
 	case IssuesLoadedMsg:
@@ -126,6 +155,25 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		a.issues = msg.Issues
 		return a, nil
+
+	case BranchesLoadedMsg:
+		if msg.Err != nil {
+			a.statusText = fmt.Sprintf("Error loading branches: %v", msg.Err)
+			a.statusIsErr = true
+			return a, nil
+		}
+		a.branches = msg.Branches
+		a.showBranchPicker = true
+		a.branchCursor = 0
+		return a, nil
+
+	case BranchSelectedMsg:
+		a.showBranchPicker = false
+		a.activeBranch = &msg.Branch
+		a.cursor[PanelPipelines] = 0
+		a.statusText = fmt.Sprintf("Branch: %s", msg.Branch.Name)
+		a.statusIsErr = false
+		return a, a.loadPipelines()
 
 	case StatusMsg:
 		a.statusText = msg.Text
@@ -166,6 +214,30 @@ func (a *App) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return a, nil
 	case KeyRefresh:
 		return a, a.refreshActivePanel()
+	case KeyBranch:
+		return a, a.loadBranches()
+	}
+
+	// Escape: go back from job view, or clear branch filter
+	if key == KeyEscape {
+		if a.viewingJobs {
+			a.viewingJobs = false
+			a.jobs = nil
+			return a, nil
+		}
+		if a.activeBranch != nil {
+			a.activeBranch = nil
+			a.statusText = "Branch filter cleared"
+			a.statusIsErr = false
+			a.cursor[PanelPipelines] = 0
+			return a, a.loadPipelines()
+		}
+		return a, nil
+	}
+
+	// When viewing jobs in the detail panel, handle job navigation
+	if a.viewingJobs && a.activePanel == PanelPipelines {
+		return a.handleJobViewKey(msg)
 	}
 
 	// Navigation keys
@@ -198,6 +270,90 @@ func (a *App) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return a.handlePanelKey(key)
 }
 
+func (a *App) handleJobViewKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	key := msg.String()
+
+	if isNavigateUp(msg) {
+		if a.jobCursor > 0 {
+			a.jobCursor--
+		}
+		return a, nil
+	}
+	if isNavigateDown(msg) {
+		if a.jobCursor < len(a.jobs)-1 {
+			a.jobCursor++
+		}
+		return a, nil
+	}
+	if key == KeyTop {
+		a.jobCursor = 0
+		return a, nil
+	}
+	if key == KeyBottom {
+		a.jobCursor = len(a.jobs) - 1
+		if a.jobCursor < 0 {
+			a.jobCursor = 0
+		}
+		return a, nil
+	}
+	if key == KeyOpenBrowse && a.jobCursor < len(a.jobs) {
+		url := a.jobs[a.jobCursor].WebURL
+		if url != "" {
+			return a, tea.ExecProcess(openBrowserCmd(url), func(err error) tea.Msg {
+				if err != nil {
+					return StatusMsg{Text: fmt.Sprintf("Failed to open browser: %v", err), IsErr: true}
+				}
+				return nil
+			})
+		}
+		return a, nil
+	}
+
+	// Fall through to list navigation for pipeline list keys
+	if isNavigateUp(msg) || isNavigateDown(msg) {
+		return a, nil
+	}
+	return a.handlePanelKey(key)
+}
+
+func (a *App) handleBranchPickerKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	key := msg.String()
+
+	switch {
+	case key == KeyEscape || key == KeyQuit:
+		a.showBranchPicker = false
+		return a, nil
+	case isNavigateUp(msg):
+		if a.branchCursor > 0 {
+			a.branchCursor--
+		}
+		return a, nil
+	case isNavigateDown(msg):
+		if a.branchCursor < len(a.branches)-1 {
+			a.branchCursor++
+		}
+		return a, nil
+	case key == KeyTop:
+		a.branchCursor = 0
+		return a, nil
+	case key == KeyBottom:
+		a.branchCursor = len(a.branches) - 1
+		if a.branchCursor < 0 {
+			a.branchCursor = 0
+		}
+		return a, nil
+	case key == KeyEnter:
+		if a.branchCursor < len(a.branches) {
+			branch := a.branches[a.branchCursor]
+			return a, func() tea.Msg {
+				return BranchSelectedMsg{Branch: branch}
+			}
+		}
+		return a, nil
+	}
+	return a, nil
+}
+
 func (a *App) handleEnter() tea.Cmd {
 	switch a.activePanel {
 	case PanelProjects:
@@ -207,10 +363,13 @@ func (a *App) handleEnter() tea.Cmd {
 				return ProjectSelectedMsg{Project: proj}
 			}
 		}
+	case PanelPipelines:
+		// Enter on pipeline: load its jobs
+		if len(a.pipelines) > 0 && a.cursor[PanelPipelines] < len(a.pipelines) {
+			return a.loadJobs()
+		}
 	case PanelMergeRequests:
 		// TODO: open MR detail view
-	case PanelPipelines:
-		// TODO: open pipeline detail view
 	case PanelIssues:
 		// TODO: open issue detail view
 	}
@@ -276,6 +435,10 @@ func (a *App) activeListLen() int {
 	return 0
 }
 
+// ============================================================================
+// View
+// ============================================================================
+
 func (a *App) View() tea.View {
 	var content string
 	if a.width == 0 {
@@ -283,29 +446,29 @@ func (a *App) View() tea.View {
 	} else if a.showHelp {
 		content = a.renderHelp()
 	} else {
-		// Render sidebar panels
 		sidebar := lipgloss.JoinVertical(lipgloss.Left,
 			a.renderSidePanel(PanelProjects, "Projects", a.projectItems()),
 			a.renderSidePanel(PanelMergeRequests, "Merge Requests", a.mrItems()),
-			a.renderSidePanel(PanelPipelines, "Pipelines", a.pipelineItems()),
+			a.renderSidePanel(PanelPipelines, a.pipelinePanelTitle(), a.pipelineItems()),
 			a.renderSidePanel(PanelIssues, "Issues", a.issueItems()),
 		)
 
-		// Render detail panel
 		detail := a.renderDetail()
-
-		// Join sidebar and detail
 		main := lipgloss.JoinHorizontal(lipgloss.Top, sidebar, detail)
-
-		// Status bar
 		statusBar := a.renderStatusBar()
-
 		content = lipgloss.JoinVertical(lipgloss.Left, main, statusBar)
 	}
 
 	v := tea.NewView(content)
 	v.AltScreen = true
 	return v
+}
+
+func (a *App) pipelinePanelTitle() string {
+	if a.activeBranch != nil {
+		return fmt.Sprintf("Pipelines [%s]", truncate(a.activeBranch.Name, 15))
+	}
+	return "Pipelines"
 }
 
 func (a *App) renderSidePanel(id PanelID, title string, items []string) string {
@@ -315,8 +478,8 @@ func (a *App) renderSidePanel(id PanelID, title string, items []string) string {
 	}
 
 	panelHeight := a.layout.PanelHeights[id]
-	innerWidth := a.layout.SidebarWidth - 4 // borders + padding
-	innerHeight := panelHeight - 2          // borders
+	innerWidth := a.layout.SidebarWidth - 4
+	innerHeight := panelHeight - 2
 
 	if innerWidth < 1 {
 		innerWidth = 1
@@ -325,17 +488,23 @@ func (a *App) renderSidePanel(id PanelID, title string, items []string) string {
 		innerHeight = 1
 	}
 
-	// Build content
 	header := TitleStyle.Render(fmt.Sprintf("[%d] %s", int(id)+1, title))
 	lines := []string{header}
 
 	cursor := a.cursor[id]
-	for i, item := range items {
+
+	// Scroll offset: keep cursor visible
+	visibleRows := innerHeight - 1 // minus header
+	scrollOffset := 0
+	if cursor >= visibleRows {
+		scrollOffset = cursor - visibleRows + 1
+	}
+
+	for i := scrollOffset; i < len(items); i++ {
 		if len(lines) >= innerHeight {
 			break
 		}
-		// Truncate item to fit
-		displayItem := truncate(item, innerWidth)
+		displayItem := truncate(items[i], innerWidth)
 		if i == cursor && a.activePanel == id {
 			displayItem = SelectedItemStyle.Render(displayItem)
 		}
@@ -362,15 +531,23 @@ func (a *App) renderDetail() string {
 	}
 
 	var content string
-	switch a.activePanel {
-	case PanelProjects:
-		content = a.projectDetail()
-	case PanelMergeRequests:
-		content = a.mrDetail()
-	case PanelPipelines:
-		content = a.pipelineDetail()
-	case PanelIssues:
-		content = a.issueDetail()
+	if a.showBranchPicker {
+		content = a.renderBranchPicker(innerHeight)
+	} else {
+		switch a.activePanel {
+		case PanelProjects:
+			content = a.projectDetail()
+		case PanelMergeRequests:
+			content = a.mrDetail()
+		case PanelPipelines:
+			if a.viewingJobs {
+				content = a.jobsDetail(innerWidth)
+			} else {
+				content = a.pipelineDetail()
+			}
+		case PanelIssues:
+			content = a.issueDetail()
+		}
 	}
 
 	if content == "" {
@@ -389,14 +566,17 @@ func (a *App) renderStatusBar() string {
 	if a.activeProject != nil {
 		project = a.activeProject.NameWithNamespace
 	}
+	branch := ""
+	if a.activeBranch != nil {
+		branch = " | " + a.activeBranch.Name
+	}
 
-	left := fmt.Sprintf(" %s | %s", host, project)
+	left := fmt.Sprintf(" %s | %s%s", host, project, branch)
 	right := ""
 	if a.statusText != "" {
 		right = a.statusText
 	}
 
-	// Pad to fill width
 	gap := a.width - len(left) - len(right) - 2
 	if gap < 0 {
 		gap = 0
@@ -418,16 +598,18 @@ func (a *App) renderHelp() string {
 		{"Tab/S-Tab", "Next/prev panel"},
 		{"j/k", "Navigate down/up"},
 		{"g/G", "Go to top/bottom"},
-		{"Enter", "Select/open detail"},
-		{"Esc", "Go back"},
+		{"Enter", "Select / view jobs"},
+		{"Esc", "Go back / clear filter"},
 		{"r", "Refresh"},
 		{"o", "Open in browser"},
+		{"b", "Select branch"},
 		{"", ""},
 		{"--- MR ---", ""},
 		{"a", "Approve MR"},
 		{"m", "Merge MR"},
 		{"", ""},
 		{"--- Pipeline ---", ""},
+		{"Enter", "View jobs"},
 		{"R", "Retry pipeline"},
 		{"C", "Cancel pipeline"},
 		{"", ""},
@@ -459,7 +641,59 @@ func (a *App) renderHelp() string {
 	return lipgloss.Place(a.width, a.height, lipgloss.Center, lipgloss.Center, content)
 }
 
-// --- Item renderers ---
+func (a *App) renderBranchPicker(maxHeight int) string {
+	var lines []string
+	lines = append(lines, TitleStyle.Render("Select Branch"))
+	lines = append(lines, "")
+
+	if len(a.branches) == 0 {
+		lines = append(lines, "No branches found")
+		return strings.Join(lines, "\n")
+	}
+
+	// Reserve space for header (2 lines) and footer (2 lines)
+	maxVisible := maxHeight - 4
+	if maxVisible < 3 {
+		maxVisible = 3
+	}
+	scrollOffset := 0
+	if a.branchCursor >= maxVisible {
+		scrollOffset = a.branchCursor - maxVisible + 1
+	}
+
+	for i := scrollOffset; i < len(a.branches) && len(lines)-2 < maxVisible; i++ {
+		b := a.branches[i]
+		marker := "  "
+		if b.Default {
+			marker = "* "
+		} else if b.Protected {
+			marker = "P "
+		}
+
+		activity := ""
+		if !b.LastActivity.IsZero() {
+			activity = HelpDescStyle.Render(" " + util.TimeAgo(b.LastActivity))
+		}
+
+		line := fmt.Sprintf("%s%s%s", marker, b.Name, activity)
+		if i == a.branchCursor {
+			line = SelectedItemStyle.Render(fmt.Sprintf("%s%s", marker, b.Name))
+			if activity != "" {
+				line += activity
+			}
+		}
+		lines = append(lines, line)
+	}
+
+	lines = append(lines, "")
+	lines = append(lines, HelpDescStyle.Render("Enter: select  Esc: cancel  j/k: navigate"))
+
+	return strings.Join(lines, "\n")
+}
+
+// ============================================================================
+// Item renderers (sidebar lists)
+// ============================================================================
 
 func (a *App) projectItems() []string {
 	items := make([]string, len(a.projects))
@@ -510,7 +744,9 @@ func (a *App) issueItems() []string {
 	return items
 }
 
-// --- Detail renderers ---
+// ============================================================================
+// Detail renderers (right panel)
+// ============================================================================
 
 func (a *App) projectDetail() string {
 	if len(a.projects) == 0 {
@@ -569,13 +805,99 @@ func (a *App) pipelineDetail() string {
 	}
 	p := a.pipelines[idx]
 
-	return fmt.Sprintf("%s\n\nStatus: %s\nRef: %s\nSHA: %s\n\n%s",
-		TitleStyle.Render(fmt.Sprintf("Pipeline #%d", p.ID)),
-		p.Status,
-		p.Ref,
-		p.SHA[:8],
-		HelpDescStyle.Render(p.WebURL),
+	sha := p.SHA
+	if len(sha) > 8 {
+		sha = sha[:8]
+	}
+
+	var lines []string
+	lines = append(lines, TitleStyle.Render(fmt.Sprintf("Pipeline #%d", p.ID)))
+	lines = append(lines, "")
+	lines = append(lines,
+		fmt.Sprintf("Status:  %s %s",
+			PipelineStatusIcon(p.Status),
+			lipgloss.NewStyle().Foreground(PipelineStatusColor(p.Status)).Render(p.Status),
+		),
 	)
+	lines = append(lines, fmt.Sprintf("Ref:     %s", p.Ref))
+	lines = append(lines, fmt.Sprintf("SHA:     %s", sha))
+	if !p.CreatedAt.IsZero() {
+		lines = append(lines, fmt.Sprintf("Created: %s", util.TimeAgo(p.CreatedAt)))
+	}
+	if !p.UpdatedAt.IsZero() {
+		lines = append(lines, fmt.Sprintf("Updated: %s", util.TimeAgo(p.UpdatedAt)))
+	}
+	lines = append(lines, "")
+	lines = append(lines, HelpDescStyle.Render("Press Enter to view jobs"))
+	lines = append(lines, "")
+	lines = append(lines, HelpDescStyle.Render(p.WebURL))
+
+	return strings.Join(lines, "\n")
+}
+
+func (a *App) jobsDetail(width int) string {
+	if len(a.pipelines) == 0 {
+		return ""
+	}
+	idx := a.cursor[PanelPipelines]
+	if idx >= len(a.pipelines) {
+		return ""
+	}
+	p := a.pipelines[idx]
+
+	var lines []string
+	lines = append(lines, TitleStyle.Render(fmt.Sprintf("Pipeline #%d - Jobs", p.ID)))
+	lines = append(lines, "")
+
+	if len(a.jobs) == 0 {
+		lines = append(lines, "No jobs found")
+		return strings.Join(lines, "\n")
+	}
+
+	// Group jobs by stage
+	currentStage := ""
+	for i, job := range a.jobs {
+		if job.Stage != currentStage {
+			currentStage = job.Stage
+			if i > 0 {
+				lines = append(lines, "")
+			}
+			lines = append(lines, lipgloss.NewStyle().Bold(true).Foreground(ColorSecondary).Render(
+				fmt.Sprintf("  Stage: %s", currentStage),
+			))
+		}
+
+		icon := PipelineStatusIcon(job.Status)
+		statusColor := PipelineStatusColor(job.Status)
+		coloredStatus := lipgloss.NewStyle().Foreground(statusColor).Render(job.Status)
+		duration := ""
+		if job.Duration > 0 {
+			mins := int(job.Duration) / 60
+			secs := int(job.Duration) % 60
+			if mins > 0 {
+				duration = fmt.Sprintf(" (%dm%ds)", mins, secs)
+			} else {
+				duration = fmt.Sprintf(" (%ds)", secs)
+			}
+		}
+
+		line := fmt.Sprintf("    %s %-20s %s%s",
+			icon,
+			truncate(job.Name, 20),
+			coloredStatus,
+			duration,
+		)
+
+		if i == a.jobCursor {
+			line = SelectedItemStyle.Render(line)
+		}
+		lines = append(lines, line)
+	}
+
+	lines = append(lines, "")
+	lines = append(lines, HelpDescStyle.Render("j/k: navigate  o: open in browser  Esc: back"))
+
+	return strings.Join(lines, "\n")
 }
 
 func (a *App) issueDetail() string {
@@ -607,7 +929,9 @@ func (a *App) issueDetail() string {
 	)
 }
 
-// --- Commands ---
+// ============================================================================
+// Commands (async API calls)
+// ============================================================================
 
 func (a *App) loadProjects() tea.Cmd {
 	client := a.clients[a.activeHost]
@@ -639,6 +963,16 @@ func (a *App) loadPipelines() tea.Cmd {
 	}
 	client := a.clients[a.activeHost]
 	projectID := a.activeProject.ID
+
+	// If branch is selected, filter by ref
+	if a.activeBranch != nil {
+		ref := a.activeBranch.Name
+		return func() tea.Msg {
+			pipelines, err := client.ListPipelinesByRef(projectID, ref)
+			return PipelinesLoadedMsg{Pipelines: pipelines, Err: err}
+		}
+	}
+
 	return func() tea.Msg {
 		pipelines, err := client.ListPipelines(projectID)
 		return PipelinesLoadedMsg{Pipelines: pipelines, Err: err}
@@ -654,6 +988,35 @@ func (a *App) loadIssues() tea.Cmd {
 	return func() tea.Msg {
 		issues, err := client.ListIssues(projectID)
 		return IssuesLoadedMsg{Issues: issues, Err: err}
+	}
+}
+
+func (a *App) loadJobs() tea.Cmd {
+	if a.activeProject == nil || len(a.pipelines) == 0 {
+		return nil
+	}
+	idx := a.cursor[PanelPipelines]
+	if idx >= len(a.pipelines) {
+		return nil
+	}
+	client := a.clients[a.activeHost]
+	projectID := a.activeProject.ID
+	pipelineID := a.pipelines[idx].ID
+	return func() tea.Msg {
+		jobs, err := client.ListPipelineJobs(projectID, pipelineID)
+		return JobsLoadedMsg{Jobs: jobs, Err: err}
+	}
+}
+
+func (a *App) loadBranches() tea.Cmd {
+	if a.activeProject == nil {
+		return nil
+	}
+	client := a.clients[a.activeHost]
+	projectID := a.activeProject.ID
+	return func() tea.Msg {
+		branches, err := client.ListBranches(projectID)
+		return BranchesLoadedMsg{Branches: branches, Err: err}
 	}
 }
 

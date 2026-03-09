@@ -5,46 +5,51 @@
 ### Foundation
 - [x] Project scaffold (directory structure, go.mod)
 - [x] Documentation (CLAUDE.md, README.md, TODO.md)
-- [ ] Makefile (build, run, test, install targets)
-- [ ] main.go entry point
+- [x] Makefile (build, run, test, install targets)
+- [x] main.go entry point
 
 ### Config & Auth (Step 2)
-- [ ] Read glab config file (YAML parsing)
-- [ ] Support macOS path (`~/Library/Application Support/glab-cli/config.yml`)
-- [ ] Support Linux path (`~/.config/glab-cli/config.yml`)
-- [ ] Multi-host support (multiple GitLab instances)
+- [x] Read glab config file (YAML parsing)
+- [x] Support macOS path (`~/Library/Application Support/glab-cli/config.yml`)
+- [x] Support Linux path (`~/.config/glab-cli/config.yml`)
+- [x] Multi-host support (multiple GitLab instances)
+- [x] Skip hosts with empty tokens
 - [ ] Fallback: prompt for token if glab not configured
 
 ### GitLab Client (Step 3)
-- [ ] Client wrapper with authentication (`internal/gitlab/client.go`)
-- [ ] Domain types decoupled from API structs (`internal/gitlab/types.go`)
-- [ ] Project listing (`internal/gitlab/projects.go`)
-- [ ] MR operations: list, get detail, approve, merge (`internal/gitlab/mergerequests.go`)
-- [ ] Pipeline operations: list, get jobs, retry, cancel (`internal/gitlab/pipelines.go`)
-- [ ] Issue operations: list, get detail, close/reopen (`internal/gitlab/issues.go`)
+- [x] Client wrapper with authentication (`internal/gitlab/client.go`)
+- [x] Domain types decoupled from API structs (`internal/gitlab/types.go`)
+- [x] Project listing (`internal/gitlab/projects.go`)
+- [x] MR operations: list, get detail, approve, merge (`internal/gitlab/mergerequests.go`)
+- [x] Pipeline operations: list, get jobs, retry, cancel (`internal/gitlab/pipelines.go`)
+- [x] Issue operations: list, get detail, close/reopen (`internal/gitlab/issues.go`)
+- [x] Branch listing (`internal/gitlab/branches.go`)
+- [x] Pipeline filtering by branch ref
 
 ### Core TUI (Step 4)
-- [ ] Root model with layout computation (`internal/tui/app.go`)
-- [ ] Lipgloss styles and color palette (`internal/tui/styles.go`)
-- [ ] Keybinding definitions (`internal/tui/keys.go`)
-- [ ] Custom message types (`internal/tui/messages.go`)
+- [x] Root model with layout computation (`internal/tui/app.go`)
+- [x] Lipgloss styles and color palette (`internal/tui/styles.go`)
+- [x] Keybinding definitions (`internal/tui/keys.go`)
+- [x] Custom message types (`internal/tui/messages.go`)
+- [x] Panel switching (Tab, number keys)
+- [x] Scrolling in sidebar panels
 - [ ] Generic list panel component (`internal/tui/components/listpanel.go`)
 - [ ] Detail viewport component (`internal/tui/components/detailpanel.go`)
 - [ ] Status bar component (`internal/tui/components/statusbar.go`)
-- [ ] Panel switching (Tab, number keys)
-- [ ] Context stack navigation (Enter to push, Esc to pop)
 
 ### Domain Panels (Steps 5-7)
-- [ ] Projects panel — list, select, set as active
-- [ ] MRs panel — list open MRs, view detail, approve, merge
-- [ ] Pipelines panel — list pipelines, view stages/jobs, retry, cancel
-- [ ] Issues panel — list issues, view detail, close/reopen
+- [x] Projects panel — list, select, set as active
+- [x] MRs panel — list open MRs, view detail, approve, merge
+- [x] Pipelines panel — list pipelines, view stages/jobs, retry, cancel
+- [x] Pipeline jobs detail — grouped by stage, colored status, duration
+- [x] Branch selector — `b` key opens picker, filters pipelines by branch
+- [x] Issues panel — list issues, view detail, close/reopen
 
 ### Polish (Step 8)
-- [ ] Help overlay (`?` key)
+- [x] Help overlay (`?` key)
 - [ ] Search/filter overlay (`/` key)
 - [ ] Confirmation dialogs for destructive actions (merge, close)
-- [ ] Error display and handling
+- [x] Error display in status bar
 - [ ] Loading spinners during API calls
 
 ## Phase 2: Post-MVP

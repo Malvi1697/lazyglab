@@ -4,11 +4,12 @@ A terminal UI for GitLab, inspired by [lazygit](https://github.com/jesseduffield
 
 Manage merge requests, pipelines, and issues without leaving your terminal.
 
-## Features (planned)
+## Features
 
 - Browse and switch between GitLab projects
 - View, approve, and merge MRs
-- Monitor pipelines, retry failed jobs, cancel running ones
+- Monitor pipelines, view jobs per stage, retry/cancel
+- Filter pipelines by branch
 - Browse and manage issues
 - Vim-style keyboard navigation
 - Reads auth from existing `glab` CLI config — zero setup
@@ -49,9 +50,9 @@ If run inside a git repo with a GitLab remote, lazyglab will auto-detect the pro
 | `1-4` | Switch panel |
 | `Tab` | Next panel |
 | `j/k` | Navigate up/down |
-| `Enter` | View details |
-| `Esc` | Go back |
-| `/` | Search/filter |
+| `Enter` | Select / view jobs |
+| `Esc` | Go back / clear filter |
+| `b` | Select branch |
 | `r` | Refresh |
 
 ### MR-specific
@@ -64,8 +65,10 @@ If run inside a git repo with a GitLab remote, lazyglab will auto-detect the pro
 ### Pipeline-specific
 | Key | Action |
 |-----|--------|
+| `Enter` | View jobs |
 | `R` | Retry pipeline |
 | `C` | Cancel pipeline |
+| `o` | Open in browser |
 
 ## License
 

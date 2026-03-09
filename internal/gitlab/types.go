@@ -58,6 +58,16 @@ type Job struct {
 	StartedAt time.Time
 }
 
+// Branch represents a GitLab repository branch.
+type Branch struct {
+	Name         string
+	Protected    bool
+	Merged       bool
+	Default      bool
+	WebURL       string
+	LastActivity time.Time // commit date for sorting
+}
+
 // Issue represents a GitLab issue.
 type Issue struct {
 	IID         int

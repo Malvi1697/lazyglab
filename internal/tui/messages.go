@@ -53,10 +53,27 @@ type PipelinesLoadedMsg struct {
 	Err       error
 }
 
+// JobsLoadedMsg is sent when pipeline jobs have been fetched.
+type JobsLoadedMsg struct {
+	Jobs []gitlab.Job
+	Err  error
+}
+
 // IssuesLoadedMsg is sent when issues have been fetched.
 type IssuesLoadedMsg struct {
 	Issues []gitlab.Issue
 	Err    error
+}
+
+// BranchesLoadedMsg is sent when branches have been fetched.
+type BranchesLoadedMsg struct {
+	Branches []gitlab.Branch
+	Err      error
+}
+
+// BranchSelectedMsg is sent when a branch is selected from the picker.
+type BranchSelectedMsg struct {
+	Branch gitlab.Branch
 }
 
 // StatusMsg is sent to display a status message in the status bar.

@@ -19,6 +19,7 @@ const (
 	KeyTop        = "g"
 	KeyBottom     = "G"
 	KeyOpenBrowse = "o"
+	KeyBranch     = "b"
 
 	// Panel selection
 	KeyPanel1 = "1"

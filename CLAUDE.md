@@ -97,10 +97,10 @@ lazyglab/
 
 ### Keybindings
 
-**Global:** `q` quit, `?` help, `1-4` panel switch, `Tab`/`S-Tab` next/prev panel, `/` search, `r` refresh
+**Global:** `q` quit, `?` help, `1-4` panel switch, `Tab`/`S-Tab` next/prev panel, `/` search, `r` refresh, `b` branch picker
 **Lists:** `j`/`k` up/down, `g`/`G` top/bottom, `Enter` detail view, `Esc` back
 **MRs:** `a` approve, `m` merge, `c` comment, `o` open in browser
-**Pipelines:** `R` retry, `C` cancel
+**Pipelines:** `Enter` view jobs, `R` retry, `C` cancel, `o` open in browser
 **Issues:** `c` close/reopen, `o` open in browser
 
 ## Build & Run
