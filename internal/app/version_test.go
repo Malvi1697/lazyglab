@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -34,37 +35,129 @@ func TestIsNewer(t *testing.T) {
 }
 
 func TestCheckForUpdate_NewerVersion(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = fmt.Fprint(w, `{"tag_name": "v0.2.0"}`)
 	}))
 	defer server.Close()
 
-	// Override releaseURL for test — can't override const, so just test isNewer
-	// The integration is tested implicitly via the function structure
+	msg := checkForUpdateFrom(server.URL, "0.1.0")
+	if msg == "" {
+		t.Fatal("expected update message, got empty")
+	}
+	if !strings.Contains(msg, "v0.1.0") || !strings.Contains(msg, "v0.2.0") {
+		t.Errorf("unexpected message: %s", msg)
+	}
 }
 
 func TestCheckForUpdate_SameVersion(t *testing.T) {
-	// Same version should not print anything — tested via isNewer returning false
-	if isNewer("0.1.0", "0.1.0") {
-		t.Error("same version should not be newer")
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = fmt.Fprint(w, `{"tag_name": "v0.1.0"}`)
+	}))
+	defer server.Close()
+
+	msg := checkForUpdateFrom(server.URL, "0.1.0")
+	if msg != "" {
+		t.Errorf("expected no message for same version, got: %s", msg)
+	}
+}
+
+func TestCheckForUpdate_OlderRemote(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = fmt.Fprint(w, `{"tag_name": "v0.0.9"}`)
+	}))
+	defer server.Close()
+
+	msg := checkForUpdateFrom(server.URL, "0.1.0")
+	if msg != "" {
+		t.Errorf("expected no message when remote is older, got: %s", msg)
 	}
 }
 
 func TestCheckForUpdate_DevSuffix(t *testing.T) {
-	// "-dev" suffix should be stripped before comparison
-	// This is tested by verifying the stripping logic in isNewer context
-	if isNewer("0.1.0", "0.1.0") {
-		t.Error("same version should not be newer after dev strip")
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = fmt.Fprint(w, `{"tag_name": "v0.2.0"}`)
+	}))
+	defer server.Close()
+
+	msg := checkForUpdateFrom(server.URL, "0.1.0-dev")
+	if msg == "" {
+		t.Fatal("expected update message for dev version, got empty")
+	}
+	if !strings.Contains(msg, "v0.1.0") {
+		t.Errorf("dev suffix should be stripped, got: %s", msg)
+	}
+}
+
+func TestCheckForUpdate_DevSuffixSameVersion(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = fmt.Fprint(w, `{"tag_name": "v0.1.0"}`)
+	}))
+	defer server.Close()
+
+	msg := checkForUpdateFrom(server.URL, "0.1.0-dev")
+	if msg != "" {
+		t.Errorf("expected no message for dev of same version, got: %s", msg)
+	}
+}
+
+func TestCheckForUpdate_VPrefix(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = fmt.Fprint(w, `{"tag_name": "v0.2.0"}`)
+	}))
+	defer server.Close()
+
+	msg := checkForUpdateFrom(server.URL, "v0.1.0")
+	if msg == "" {
+		t.Fatal("expected update message with v-prefixed current version")
 	}
 }
 
 func TestCheckForUpdate_ServerError(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 	}))
 	defer server.Close()
 
-	// Should not panic on server error — CheckForUpdate silently returns
-	// Can't easily test without making releaseURL configurable, but isNewer is the core logic
+	msg := checkForUpdateFrom(server.URL, "0.1.0")
+	if msg != "" {
+		t.Errorf("expected no message on server error, got: %s", msg)
+	}
+}
+
+func TestCheckForUpdate_InvalidJSON(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = fmt.Fprint(w, `not json`)
+	}))
+	defer server.Close()
+
+	msg := checkForUpdateFrom(server.URL, "0.1.0")
+	if msg != "" {
+		t.Errorf("expected no message on invalid JSON, got: %s", msg)
+	}
+}
+
+func TestCheckForUpdate_EmptyTagName(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = fmt.Fprint(w, `{"tag_name": ""}`)
+	}))
+	defer server.Close()
+
+	msg := checkForUpdateFrom(server.URL, "0.1.0")
+	if msg != "" {
+		t.Errorf("expected no message on empty tag, got: %s", msg)
+	}
+}
+
+func TestCheckForUpdate_Unreachable(t *testing.T) {
+	msg := checkForUpdateFrom("http://192.0.2.1:1", "0.1.0")
+	if msg != "" {
+		t.Errorf("expected no message on unreachable server, got: %s", msg)
+	}
 }

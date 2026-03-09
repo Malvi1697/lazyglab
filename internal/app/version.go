@@ -22,31 +22,40 @@ type githubRelease struct {
 // CheckForUpdate checks GitHub for a newer release and prints a notice to stderr.
 // Silently returns on any error (timeout, network, parse failure).
 func CheckForUpdate(currentVersion string) {
+	msg := checkForUpdateFrom(releaseURL, currentVersion)
+	if msg != "" {
+		fmt.Fprintln(os.Stderr, msg)
+	}
+}
+
+// checkForUpdateFrom fetches the latest release from the given URL and returns
+// an update message if a newer version is available. Returns "" on any error
+// or if already up to date.
+func checkForUpdateFrom(url, currentVersion string) string {
 	client := &http.Client{Timeout: checkTimeout}
-	resp, err := client.Get(releaseURL)
+	resp, err := client.Get(url)
 	if err != nil {
-		return
+		return ""
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
-		return
+		return ""
 	}
 
 	var release githubRelease
 	if err := json.NewDecoder(resp.Body).Decode(&release); err != nil {
-		return
+		return ""
 	}
 
 	latest := strings.TrimPrefix(release.TagName, "v")
 	current := strings.TrimPrefix(currentVersion, "v")
-
-	// Strip -dev suffix for comparison
 	current = strings.TrimSuffix(current, "-dev")
 
 	if latest != "" && latest != current && isNewer(latest, current) {
-		fmt.Fprintf(os.Stderr, "  Update available: v%s → v%s (%s)\n", current, latest, releasesPage)
+		return fmt.Sprintf("  Update available: v%s → v%s (%s)", current, latest, releasesPage)
 	}
+	return ""
 }
 
 // isNewer returns true if version a is newer than version b.
