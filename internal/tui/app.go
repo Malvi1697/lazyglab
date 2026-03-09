@@ -127,7 +127,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Auto-select project from git remote detection
 		if a.detectedPath != "" && a.activeProject == nil {
 			for _, p := range a.projects {
-				if strings.EqualFold(p.NameWithNamespace, a.detectedPath) {
+				if strings.EqualFold(p.PathWithNamespace, a.detectedPath) {
 					a.detectedPath = "" // clear so it doesn't re-trigger
 					return a, func() tea.Msg {
 						return ProjectSelectedMsg{Project: p}

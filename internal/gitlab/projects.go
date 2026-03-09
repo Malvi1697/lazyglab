@@ -29,6 +29,7 @@ func (c *Client) ListProjects() ([]Project, error) {
 			ID:                int(p.ID),
 			Name:              util.StripANSI(p.Name),
 			NameWithNamespace: util.StripANSI(p.NameWithNamespace),
+			PathWithNamespace: util.StripANSI(p.PathWithNamespace),
 			WebURL:            util.StripANSI(p.WebURL),
 			DefaultBranch:     util.StripANSI(p.DefaultBranch),
 		}
