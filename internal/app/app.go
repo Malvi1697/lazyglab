@@ -26,6 +26,9 @@ func Run() error {
 		if protocol == "" {
 			protocol = "https"
 		}
+		if protocol != "https" {
+			return fmt.Errorf("refusing to connect to %s over insecure protocol %q (only https is supported)", host, protocol)
+		}
 		apiHost := hostCfg.APIHost
 		if apiHost == "" {
 			apiHost = host

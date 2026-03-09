@@ -4,6 +4,8 @@ import (
 	"sort"
 
 	gogitlab "gitlab.com/gitlab-org/api/client-go"
+
+	"github.com/Malvi1697/lazyglab/internal/util"
 )
 
 // ListBranches returns branches for a project, sorted by most recent activity.
@@ -22,11 +24,11 @@ func (c *Client) ListBranches(projectID int) ([]Branch, error) {
 	branches := make([]Branch, len(apiBranches))
 	for i, b := range apiBranches {
 		branches[i] = Branch{
-			Name:      b.Name,
+			Name:      util.StripANSI(b.Name),
 			Protected: b.Protected,
 			Merged:    b.Merged,
 			Default:   b.Default,
-			WebURL:    b.WebURL,
+			WebURL:    util.StripANSI(b.WebURL),
 		}
 		if b.Commit != nil && b.Commit.CommittedDate != nil {
 			branches[i].LastActivity = *b.Commit.CommittedDate
@@ -64,10 +66,10 @@ func (c *Client) ListPipelinesByRef(projectID int, ref string) ([]Pipeline, erro
 	for i, p := range apiPipelines {
 		pipelines[i] = Pipeline{
 			ID:     int(p.ID),
-			Status: p.Status,
-			Ref:    p.Ref,
-			SHA:    p.SHA,
-			WebURL: p.WebURL,
+			Status: util.StripANSI(p.Status),
+			Ref:    util.StripANSI(p.Ref),
+			SHA:    util.StripANSI(p.SHA),
+			WebURL: util.StripANSI(p.WebURL),
 		}
 		if p.CreatedAt != nil {
 			pipelines[i].CreatedAt = *p.CreatedAt

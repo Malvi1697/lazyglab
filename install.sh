@@ -35,15 +35,48 @@ TARBALL="${BINARY}_${VERSION}_${OS}_${ARCH}.tar.gz"
 URL="https://github.com/${REPO}/releases/download/v${VERSION}/${TARBALL}"
 
 TMPDIR=$(mktemp -d)
+chmod 700 "$TMPDIR"
 trap 'rm -rf "$TMPDIR"' EXIT
 
 curl -sL "$URL" -o "${TMPDIR}/${TARBALL}"
+
+# Verify checksum (mandatory)
+CHECKSUMS_URL="https://github.com/${REPO}/releases/download/v${VERSION}/checksums.txt"
+if ! curl -sL --fail "$CHECKSUMS_URL" -o "${TMPDIR}/checksums.txt" 2>/dev/null; then
+    echo "Error: failed to download checksums file"
+    exit 1
+fi
+
+EXPECTED=$(grep "${TARBALL}" "${TMPDIR}/checksums.txt" | awk '{print $1}')
+if [ -z "$EXPECTED" ]; then
+    echo "Error: no checksum found for ${TARBALL}"
+    exit 1
+fi
+
+if command -v sha256sum >/dev/null 2>&1; then
+    ACTUAL=$(sha256sum "${TMPDIR}/${TARBALL}" | awk '{print $1}')
+elif command -v shasum >/dev/null 2>&1; then
+    ACTUAL=$(shasum -a 256 "${TMPDIR}/${TARBALL}" | awk '{print $1}')
+else
+    echo "Error: no sha256sum or shasum found, cannot verify checksum"
+    exit 1
+fi
+
+if [ "$ACTUAL" != "$EXPECTED" ]; then
+    echo "Error: checksum verification failed"
+    echo "  Expected: $EXPECTED"
+    echo "  Got:      $ACTUAL"
+    exit 1
+fi
+echo "Checksum verified."
+
 tar -xzf "${TMPDIR}/${TARBALL}" -C "$TMPDIR"
 
 # Install
 if [ -w "$INSTALL_DIR" ]; then
     mv "${TMPDIR}/${BINARY}" "${INSTALL_DIR}/${BINARY}"
 else
+    echo "Installing to ${INSTALL_DIR} requires elevated permissions."
     sudo mv "${TMPDIR}/${BINARY}" "${INSTALL_DIR}/${BINARY}"
 fi
 

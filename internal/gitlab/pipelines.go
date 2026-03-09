@@ -2,6 +2,8 @@ package gitlab
 
 import (
 	gogitlab "gitlab.com/gitlab-org/api/client-go"
+
+	"github.com/Malvi1697/lazyglab/internal/util"
 )
 
 // ListPipelines returns recent pipelines for a project.
@@ -23,10 +25,10 @@ func (c *Client) ListPipelines(projectID int) ([]Pipeline, error) {
 	for i, p := range apiPipelines {
 		pipelines[i] = Pipeline{
 			ID:     int(p.ID),
-			Status: p.Status,
-			Ref:    p.Ref,
-			SHA:    p.SHA,
-			WebURL: p.WebURL,
+			Status: util.StripANSI(p.Status),
+			Ref:    util.StripANSI(p.Ref),
+			SHA:    util.StripANSI(p.SHA),
+			WebURL: util.StripANSI(p.WebURL),
 		}
 		if p.CreatedAt != nil {
 			pipelines[i].CreatedAt = *p.CreatedAt
@@ -55,10 +57,10 @@ func (c *Client) ListPipelineJobs(projectID, pipelineID int) ([]Job, error) {
 	for i, j := range apiJobs {
 		jobs[i] = Job{
 			ID:       int(j.ID),
-			Name:     j.Name,
-			Stage:    j.Stage,
-			Status:   j.Status,
-			WebURL:   j.WebURL,
+			Name:     util.StripANSI(j.Name),
+			Stage:    util.StripANSI(j.Stage),
+			Status:   util.StripANSI(j.Status),
+			WebURL:   util.StripANSI(j.WebURL),
 			Duration: j.Duration,
 		}
 		if j.CreatedAt != nil {
@@ -94,10 +96,10 @@ func (c *Client) RunPipeline(projectID int, ref string) (*Pipeline, error) {
 	}
 	result := &Pipeline{
 		ID:     int(p.ID),
-		Status: p.Status,
-		Ref:    p.Ref,
-		SHA:    p.SHA,
-		WebURL: p.WebURL,
+		Status: util.StripANSI(p.Status),
+		Ref:    util.StripANSI(p.Ref),
+		SHA:    util.StripANSI(p.SHA),
+		WebURL: util.StripANSI(p.WebURL),
 	}
 	if p.CreatedAt != nil {
 		result.CreatedAt = *p.CreatedAt

@@ -2,6 +2,8 @@ package gitlab
 
 import (
 	gogitlab "gitlab.com/gitlab-org/api/client-go"
+
+	"github.com/Malvi1697/lazyglab/internal/util"
 )
 
 // ListMergeRequests returns open merge requests for a project.
@@ -22,18 +24,26 @@ func (c *Client) ListMergeRequests(projectID int) ([]MergeRequest, error) {
 
 	mrs := make([]MergeRequest, len(apiMRs))
 	for i, mr := range apiMRs {
+		author := ""
+		if mr.Author != nil {
+			author = util.StripANSI(mr.Author.Username)
+		}
 		mrs[i] = MergeRequest{
 			IID:          int(mr.IID),
-			Title:        mr.Title,
-			Author:       mr.Author.Username,
-			SourceBranch: mr.SourceBranch,
-			TargetBranch: mr.TargetBranch,
-			State:        mr.State,
+			Title:        util.StripANSI(mr.Title),
+			Author:       author,
+			SourceBranch: util.StripANSI(mr.SourceBranch),
+			TargetBranch: util.StripANSI(mr.TargetBranch),
+			State:        util.StripANSI(mr.State),
 			Draft:        mr.Draft,
-			WebURL:       mr.WebURL,
-			Description:  mr.Description,
-			CreatedAt:    *mr.CreatedAt,
-			UpdatedAt:    *mr.UpdatedAt,
+			WebURL:       util.StripANSI(mr.WebURL),
+			Description:  util.StripANSI(mr.Description),
+		}
+		if mr.CreatedAt != nil {
+			mrs[i].CreatedAt = *mr.CreatedAt
+		}
+		if mr.UpdatedAt != nil {
+			mrs[i].UpdatedAt = *mr.UpdatedAt
 		}
 		// BasicMergeRequest doesn't have Pipeline; skip it for list view
 	}
@@ -47,24 +57,32 @@ func (c *Client) GetMergeRequest(projectID, mrIID int) (*MergeRequest, error) {
 		return nil, err
 	}
 
+	author := ""
+	if mr.Author != nil {
+		author = util.StripANSI(mr.Author.Username)
+	}
 	result := &MergeRequest{
 		IID:          int(mr.IID),
-		Title:        mr.Title,
-		Author:       mr.Author.Username,
-		SourceBranch: mr.SourceBranch,
-		TargetBranch: mr.TargetBranch,
-		State:        mr.State,
+		Title:        util.StripANSI(mr.Title),
+		Author:       author,
+		SourceBranch: util.StripANSI(mr.SourceBranch),
+		TargetBranch: util.StripANSI(mr.TargetBranch),
+		State:        util.StripANSI(mr.State),
 		Draft:        mr.Draft,
-		WebURL:       mr.WebURL,
-		Description:  mr.Description,
-		CreatedAt:    *mr.CreatedAt,
-		UpdatedAt:    *mr.UpdatedAt,
+		WebURL:       util.StripANSI(mr.WebURL),
+		Description:  util.StripANSI(mr.Description),
+	}
+	if mr.CreatedAt != nil {
+		result.CreatedAt = *mr.CreatedAt
+	}
+	if mr.UpdatedAt != nil {
+		result.UpdatedAt = *mr.UpdatedAt
 	}
 	if mr.Pipeline != nil {
 		result.Pipeline = &PipelineInfo{
 			ID:     int(mr.Pipeline.ID),
-			Status: mr.Pipeline.Status,
-			WebURL: mr.Pipeline.WebURL,
+			Status: util.StripANSI(mr.Pipeline.Status),
+			WebURL: util.StripANSI(mr.Pipeline.WebURL),
 		}
 	}
 	return result, nil

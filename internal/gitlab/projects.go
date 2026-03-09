@@ -2,6 +2,8 @@ package gitlab
 
 import (
 	gogitlab "gitlab.com/gitlab-org/api/client-go"
+
+	"github.com/Malvi1697/lazyglab/internal/util"
 )
 
 // ListProjects returns projects the authenticated user is a member of.
@@ -25,10 +27,10 @@ func (c *Client) ListProjects() ([]Project, error) {
 	for i, p := range apiProjects {
 		projects[i] = Project{
 			ID:                int(p.ID),
-			Name:              p.Name,
-			NameWithNamespace: p.NameWithNamespace,
-			WebURL:            p.WebURL,
-			DefaultBranch:     p.DefaultBranch,
+			Name:              util.StripANSI(p.Name),
+			NameWithNamespace: util.StripANSI(p.NameWithNamespace),
+			WebURL:            util.StripANSI(p.WebURL),
+			DefaultBranch:     util.StripANSI(p.DefaultBranch),
 		}
 	}
 	return projects, nil

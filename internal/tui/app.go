@@ -362,8 +362,9 @@ func (a *App) handleJobViewKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case KeyOpenBrowse:
 		if a.jobCursor < len(a.jobs) {
 			url := a.jobs[a.jobCursor].WebURL
-			if url != "" {
-				return a, tea.ExecProcess(openBrowserCmd(url), func(err error) tea.Msg {
+			cmd := openBrowserCmd(url)
+			if cmd != nil {
+				return a, tea.ExecProcess(cmd, func(err error) tea.Msg {
 					if err != nil {
 						return StatusMsg{Text: fmt.Sprintf("Failed to open browser: %v", err), IsErr: true}
 					}
@@ -1496,10 +1497,11 @@ func (a *App) openInBrowser() tea.Cmd {
 			url = a.issues[idx].WebURL
 		}
 	}
-	if url == "" {
+	cmd := openBrowserCmd(url)
+	if cmd == nil {
 		return nil
 	}
-	return tea.ExecProcess(openBrowserCmd(url), func(err error) tea.Msg {
+	return tea.ExecProcess(cmd, func(err error) tea.Msg {
 		if err != nil {
 			return StatusMsg{Text: fmt.Sprintf("Failed to open browser: %v", err), IsErr: true}
 		}
