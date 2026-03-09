@@ -55,8 +55,8 @@ func ComputeLayout(width, height int, activePanel PanelID) Layout {
 	collapsedHeight := 3
 	numCollapsed := 3 // 3 of 4 panels are collapsed
 	expandedHeight := usableHeight - (collapsedHeight * numCollapsed)
-	if expandedHeight < 5 {
-		expandedHeight = 5
+	if expandedHeight < collapsedHeight {
+		expandedHeight = collapsedHeight
 	}
 
 	for i := range l.PanelHeights {
@@ -67,7 +67,9 @@ func ComputeLayout(width, height int, activePanel PanelID) Layout {
 		}
 	}
 
-	l.ContentHeight = usableHeight
+	// Ensure ContentHeight matches actual panel sum (may differ from usableHeight
+	// if expandedHeight was clamped on very small terminals)
+	l.ContentHeight = expandedHeight + (collapsedHeight * numCollapsed)
 
 	return l
 }
