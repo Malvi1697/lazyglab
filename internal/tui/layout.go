@@ -51,13 +51,19 @@ func ComputeLayout(width, height int, activePanel PanelID) Layout {
 		usableHeight = 12
 	}
 
-	// Equal distribution across 4 panels
-	panelHeight := usableHeight / 4
-	remainder := usableHeight - (panelHeight * 4)
+	// Collapsed panels get 3 lines (top border + 1 content + bottom border)
+	collapsedHeight := 3
+	numCollapsed := 3 // 3 of 4 panels are collapsed
+	expandedHeight := usableHeight - (collapsedHeight * numCollapsed)
+	if expandedHeight < 5 {
+		expandedHeight = 5
+	}
+
 	for i := range l.PanelHeights {
-		l.PanelHeights[i] = panelHeight
-		if i < remainder {
-			l.PanelHeights[i]++
+		if PanelID(i) == activePanel {
+			l.PanelHeights[i] = expandedHeight
+		} else {
+			l.PanelHeights[i] = collapsedHeight
 		}
 	}
 
