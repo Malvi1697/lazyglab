@@ -7,8 +7,8 @@ type PanelID int
 
 const (
 	PanelProjects PanelID = iota
-	PanelMergeRequests
 	PanelPipelines
+	PanelMergeRequests
 	PanelIssues
 )
 

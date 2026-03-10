@@ -47,10 +47,13 @@ var (
 
 	HelpKeyStyle = lipgloss.NewStyle().
 			Bold(true).
-			Foreground(ColorPrimary)
+			Foreground(lipgloss.Color("#00CFCF")) // cyan, like lazygit
 
 	HelpDescStyle = lipgloss.NewStyle().
-			Foreground(ColorSecondary)
+			Foreground(lipgloss.Color("#FFFFFF"))
+
+	HelpSepStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#555555"))
 
 	ErrorStyle = lipgloss.NewStyle().
 			Foreground(ColorError).
@@ -77,24 +80,24 @@ func PipelineStatusColor(status string) color.Color {
 	}
 }
 
-// PipelineStatusIcon returns a text icon for a pipeline status.
+// PipelineStatusIcon returns a colored icon for a pipeline status.
 func PipelineStatusIcon(status string) string {
 	switch status {
 	case "success":
-		return "v"
+		return lipgloss.NewStyle().Foreground(ColorSuccess).Render("✓")
 	case "failed":
-		return "x"
+		return lipgloss.NewStyle().Foreground(ColorError).Render("✗")
 	case "running":
-		return ">"
+		return lipgloss.NewStyle().Foreground(ColorRunning).Render("◉")
 	case "pending":
-		return "o"
+		return lipgloss.NewStyle().Foreground(ColorPending).Render("○")
 	case "canceled":
-		return "-"
+		return lipgloss.NewStyle().Foreground(ColorCanceled).Render("⊘")
 	case "skipped":
-		return "~"
+		return lipgloss.NewStyle().Foreground(ColorCanceled).Render("⊘")
 	case "manual":
-		return "||"
+		return lipgloss.NewStyle().Foreground(ColorManual).Render("❚❚")
 	default:
-		return "?"
+		return lipgloss.NewStyle().Foreground(ColorSecondary).Render("?")
 	}
 }

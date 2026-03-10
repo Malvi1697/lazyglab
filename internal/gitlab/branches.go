@@ -78,5 +78,7 @@ func (c *Client) ListPipelinesByRef(projectID int, ref string) ([]Pipeline, erro
 			pipelines[i].UpdatedAt = *p.UpdatedAt
 		}
 	}
+
+	c.fillCommitTitles(projectID, pipelines)
 	return pipelines, nil
 }

@@ -350,3 +350,37 @@ func TestPlayJob_success(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
+
+func TestPlayJob_forbidden(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v4/projects/42/jobs/1001/play", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusForbidden)
+		_, _ = fmt.Fprint(w, `{"message": "403 Forbidden"}`)
+	})
+
+	client, srv := setupTestClient(t, mux)
+	defer srv.Close()
+
+	err := client.PlayJob(42, 1001)
+	if err == nil {
+		t.Fatal("expected error for 403 response, got nil")
+	}
+}
+
+func TestPlayJob_notFound(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v4/projects/42/jobs/9999/play", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = fmt.Fprint(w, `{"message": "404 Not Found"}`)
+	})
+
+	client, srv := setupTestClient(t, mux)
+	defer srv.Close()
+
+	err := client.PlayJob(42, 9999)
+	if err == nil {
+		t.Fatal("expected error for 404 response, got nil")
+	}
+}

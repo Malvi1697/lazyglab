@@ -7,6 +7,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/Malvi1697/lazyglab/internal/gitlab"
 	"github.com/Malvi1697/lazyglab/internal/util"
@@ -262,10 +263,10 @@ func (a *App) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		a.activePanel = PanelProjects
 		return a, nil
 	case KeyPanel2:
-		a.activePanel = PanelMergeRequests
+		a.activePanel = PanelPipelines
 		return a, nil
 	case KeyPanel3:
-		a.activePanel = PanelPipelines
+		a.activePanel = PanelMergeRequests
 		return a, nil
 	case KeyPanel4:
 		a.activePanel = PanelIssues
@@ -638,8 +639,8 @@ func (a *App) View() tea.View {
 
 		sidebar := lipgloss.JoinVertical(lipgloss.Left,
 			a.renderSidePanelSmart(PanelProjects, "Projects", a.projectItems(), a.collapsedProjectLine()),
-			a.renderSidePanelSmart(PanelMergeRequests, "Merge Requests", a.mrItems(), a.collapsedMRLine()),
 			a.renderSidePanelSmart(PanelPipelines, a.pipelinePanelTitle(), a.pipelineItems(), a.collapsedPipelineLine()),
+			a.renderSidePanelSmart(PanelMergeRequests, "Merge Requests", a.mrItems(), a.collapsedMRLine()),
 			a.renderSidePanelSmart(PanelIssues, "Issues", a.issueItems(), a.collapsedIssueLine()),
 		)
 
@@ -705,7 +706,12 @@ func (a *App) renderSidePanel(id PanelID, title string, items []string) string {
 	for i := scrollOffset; i < len(items) && len(contentLines) < innerHeight; i++ {
 		displayItem := truncate(items[i], innerWidth)
 		if i == cursor && isActive {
-			displayItem = SelectedItemStyle.Render(displayItem)
+			plain := ansi.Strip(displayItem)
+			visW := lipgloss.Width(plain)
+			if visW < innerWidth {
+				plain += strings.Repeat(" ", innerWidth-visW)
+			}
+			displayItem = SelectedItemStyle.Render(plain)
 		}
 		contentLines = append(contentLines, displayItem)
 	}
@@ -726,6 +732,9 @@ func (a *App) detailTitle() string {
 		return "Select Branch"
 	}
 	if a.viewingJobs && a.activePanel == PanelPipelines {
+		if idx := a.cursor[PanelPipelines]; idx < len(a.pipelines) {
+			return fmt.Sprintf("Jobs (#%d)", a.pipelines[idx].ID)
+		}
 		return "Jobs"
 	}
 	switch a.activePanel {
@@ -734,6 +743,9 @@ func (a *App) detailTitle() string {
 	case PanelMergeRequests:
 		return "Merge Request"
 	case PanelPipelines:
+		if idx := a.cursor[PanelPipelines]; idx < len(a.pipelines) {
+			return fmt.Sprintf("Pipeline (#%d)", a.pipelines[idx].ID)
+		}
 		return "Pipeline"
 	case PanelIssues:
 		return "Issue"
@@ -861,13 +873,13 @@ func (a *App) renderKeybindBar() string {
 
 	// Always-present global hints
 	global := []hint{
-		{"q", "quit"},
-		{"?", "help"},
-		{"h/l", "panel"},
-		{"j/k", "nav"},
-		{"^d/u", "page"},
-		{"r", "refresh"},
-		{"b", "branch"},
+		{"q", "Quit"},
+		{"?", "Help"},
+		{"h/l", "Panel"},
+		{"j/k", "Navigate"},
+		{"^d/u", "Page"},
+		{"r", "Refresh"},
+		{"b", "Branch"},
 	}
 
 	// Context-specific hints
@@ -876,68 +888,67 @@ func (a *App) renderKeybindBar() string {
 	switch {
 	case a.showBranchPicker:
 		ctx = []hint{
-			{"Enter", "select"},
-			{"Esc", "cancel"},
-			{"g/G", "top/bottom"},
+			{"Enter", "Select"},
+			{"Esc", "Cancel"},
+			{"g/G", "Top/bottom"},
 		}
 	case a.viewingJobs && a.activePanel == PanelPipelines:
 		ctx = []hint{
-			{"R", "retry job"},
-			{"C", "cancel job"},
-			{"p", "play manual"},
-			{"o", "open"},
-			{"Esc", "back"},
+			{"R", "Retry job"},
+			{"C", "Cancel job"},
+			{"p", "Play manual"},
+			{"o", "Open"},
+			{"Esc", "Back"},
 		}
 	default:
 		switch a.activePanel {
 		case PanelProjects:
 			ctx = []hint{
-				{"Enter", "select"},
-				{"o", "open"},
+				{"Enter", "Select"},
+				{"o", "Open"},
 			}
 		case PanelMergeRequests:
 			ctx = []hint{
-				{"a", "approve"},
-				{"m", "merge"},
-				{"o", "open"},
+				{"a", "Approve"},
+				{"m", "Merge"},
+				{"o", "Open"},
 			}
 		case PanelPipelines:
 			ctx = []hint{
-				{"Enter", "jobs"},
-				{"p", "run new"},
-				{"R", "retry"},
-				{"C", "cancel"},
-				{"o", "open"},
+				{"Enter", "Jobs"},
+				{"p", "Run new"},
+				{"R", "Retry"},
+				{"C", "Cancel"},
+				{"o", "Open"},
 			}
 			if a.activeBranch != nil {
-				ctx = append(ctx, hint{"Esc", "clear branch"})
+				ctx = append(ctx, hint{"Esc", "Clear branch"})
 			}
 		case PanelIssues:
 			ctx = []hint{
-				{"c", "close/reopen"},
-				{"o", "open"},
+				{"c", "Close/reopen"},
+				{"o", "Open"},
 			}
 		}
 	}
 
 	var parts []string
 	for _, h := range global {
-		parts = append(parts, fmt.Sprintf("%s %s",
-			HelpKeyStyle.Render(h.key),
+		parts = append(parts, fmt.Sprintf("%s: %s",
 			HelpDescStyle.Render(h.desc),
+			HelpKeyStyle.Render(h.key),
 		))
 	}
-	parts = append(parts, HelpDescStyle.Render("|"))
 	for _, h := range ctx {
-		parts = append(parts, fmt.Sprintf("%s %s",
-			HelpKeyStyle.Render(h.key),
+		parts = append(parts, fmt.Sprintf("%s: %s",
 			HelpDescStyle.Render(h.desc),
+			HelpKeyStyle.Render(h.key),
 		))
 	}
 
-	bar := " " + strings.Join(parts, "  ")
-	return StatusBarStyle.
-		Background(lipgloss.Color("#222222")).
+	sep := HelpSepStyle.Render(" | ")
+	bar := " " + strings.Join(parts, sep)
+	return lipgloss.NewStyle().
 		Width(a.width).
 		Render(bar)
 }
@@ -1169,12 +1180,25 @@ func (a *App) mrItems() []string {
 func (a *App) pipelineItems() []string {
 	items := make([]string, len(a.pipelines))
 	for i, p := range a.pipelines {
-		items[i] = fmt.Sprintf("#%d %s %s (%s)",
-			p.ID,
-			PipelineStatusIcon(p.Status),
-			p.Status,
-			p.Ref,
-		)
+		desc := p.CommitTitle
+		if desc == "" {
+			desc = p.Ref
+		}
+		if a.activeBranch != nil {
+			// Branch already shown in panel title, skip ref
+			items[i] = fmt.Sprintf("%s %s %s",
+				util.TimeAgoShort(p.CreatedAt),
+				PipelineStatusIcon(p.Status),
+				desc,
+			)
+		} else {
+			items[i] = fmt.Sprintf("%s %s %s — %s",
+				util.TimeAgoShort(p.CreatedAt),
+				PipelineStatusIcon(p.Status),
+				p.Ref,
+				desc,
+			)
+		}
 	}
 	return items
 }
@@ -1248,14 +1272,7 @@ func (a *App) pipelineDetail() string {
 	}
 	p := a.pipelines[idx]
 
-	sha := p.SHA
-	if len(sha) > 8 {
-		sha = sha[:8]
-	}
-
 	var lines []string
-	lines = append(lines, TitleStyle.Render(fmt.Sprintf("Pipeline #%d", p.ID)))
-	lines = append(lines, "")
 	lines = append(lines,
 		fmt.Sprintf("Status:  %s %s",
 			PipelineStatusIcon(p.Status),
@@ -1263,7 +1280,9 @@ func (a *App) pipelineDetail() string {
 		),
 	)
 	lines = append(lines, fmt.Sprintf("Ref:     %s", p.Ref))
-	lines = append(lines, fmt.Sprintf("SHA:     %s", sha))
+	if p.CommitTitle != "" {
+		lines = append(lines, fmt.Sprintf("Commit:  %s", p.CommitTitle))
+	}
 	if !p.CreatedAt.IsZero() {
 		lines = append(lines, fmt.Sprintf("Created: %s", util.TimeAgo(p.CreatedAt)))
 	}
@@ -1271,26 +1290,13 @@ func (a *App) pipelineDetail() string {
 		lines = append(lines, fmt.Sprintf("Updated: %s", util.TimeAgo(p.UpdatedAt)))
 	}
 	lines = append(lines, "")
-	lines = append(lines, HelpDescStyle.Render("Enter: view jobs  R: retry  C: cancel  p: run new"))
-	lines = append(lines, "")
 	lines = append(lines, HelpDescStyle.Render(p.WebURL))
 
 	return strings.Join(lines, "\n")
 }
 
 func (a *App) jobsDetail() string {
-	if len(a.pipelines) == 0 {
-		return ""
-	}
-	idx := a.cursor[PanelPipelines]
-	if idx >= len(a.pipelines) {
-		return ""
-	}
-	p := a.pipelines[idx]
-
 	var lines []string
-	lines = append(lines, TitleStyle.Render(fmt.Sprintf("Pipeline #%d - Jobs", p.ID)))
-	lines = append(lines, "")
 
 	if len(a.jobs) == 0 {
 		lines = append(lines, "No jobs found")
@@ -1332,13 +1338,16 @@ func (a *App) jobsDetail() string {
 		)
 
 		if i == a.jobCursor {
-			line = SelectedItemStyle.Render(line)
+			w := a.layout.ContentWidth - 4
+			plain := ansi.Strip(line)
+			visW := lipgloss.Width(plain)
+			if visW < w {
+				plain += strings.Repeat(" ", w-visW)
+			}
+			line = SelectedItemStyle.Render(plain)
 		}
 		lines = append(lines, line)
 	}
-
-	lines = append(lines, "")
-	lines = append(lines, HelpDescStyle.Render("j/k: navigate  R: retry  C: cancel  p: play  o: open  Esc: back"))
 
 	return strings.Join(lines, "\n")
 }
@@ -1707,11 +1716,11 @@ func truncate(s string, maxLen int) string {
 	if maxLen <= 0 {
 		return ""
 	}
-	if len(s) <= maxLen {
+	if lipgloss.Width(s) <= maxLen {
 		return s
 	}
 	if maxLen <= 3 {
-		return s[:maxLen]
+		return ansi.Truncate(s, maxLen, "")
 	}
-	return s[:maxLen-3] + "..."
+	return ansi.Truncate(s, maxLen-3, "") + "..."
 }
