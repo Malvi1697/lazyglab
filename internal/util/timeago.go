@@ -5,21 +5,22 @@ import (
 	"time"
 )
 
-// TimeAgoShort returns a compact relative time string (e.g. "5m", "9h", "3d").
+// TimeAgoShort returns a compact relative time string with a fixed-width
+// numeric part (e.g. " 5m", "27m", " 9h", " 3d") for aligned columns.
 func TimeAgoShort(t time.Time) string {
 	d := time.Since(t)
 
 	switch {
 	case d < time.Minute:
-		return "<1m"
+		return " <1m"
 	case d < time.Hour:
-		return fmt.Sprintf("%dm", int(d.Minutes()))
+		return fmt.Sprintf("%2dm", int(d.Minutes()))
 	case d < 24*time.Hour:
-		return fmt.Sprintf("%dh", int(d.Hours()))
+		return fmt.Sprintf("%2dh", int(d.Hours()))
 	case d < 30*24*time.Hour:
-		return fmt.Sprintf("%dd", int(d.Hours()/24))
+		return fmt.Sprintf("%2dd", int(d.Hours()/24))
 	default:
-		return fmt.Sprintf("%dmo", int(d.Hours()/24/30))
+		return fmt.Sprintf("%2dmo", int(d.Hours()/24/30))
 	}
 }
 
