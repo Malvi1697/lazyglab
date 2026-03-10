@@ -728,7 +728,7 @@ func (a *App) detailTitle() string {
 	}
 	if a.viewingJobs && a.activePanel == PanelPipelines {
 		if idx := a.cursor[PanelPipelines]; idx < len(a.pipelines) {
-			return fmt.Sprintf("Jobs (%d)", a.pipelines[idx].ID)
+			return fmt.Sprintf("Jobs (#%d)", a.pipelines[idx].ID)
 		}
 		return "Jobs"
 	}
@@ -738,6 +738,9 @@ func (a *App) detailTitle() string {
 	case PanelMergeRequests:
 		return "Merge Request"
 	case PanelPipelines:
+		if idx := a.cursor[PanelPipelines]; idx < len(a.pipelines) {
+			return fmt.Sprintf("Pipeline (#%d)", a.pipelines[idx].ID)
+		}
 		return "Pipeline"
 	case PanelIssues:
 		return "Issue"
@@ -1265,8 +1268,6 @@ func (a *App) pipelineDetail() string {
 	p := a.pipelines[idx]
 
 	var lines []string
-	lines = append(lines, TitleStyle.Render(fmt.Sprintf("Pipeline #%d", p.ID)))
-	lines = append(lines, "")
 	lines = append(lines,
 		fmt.Sprintf("Status:  %s %s",
 			PipelineStatusIcon(p.Status),
