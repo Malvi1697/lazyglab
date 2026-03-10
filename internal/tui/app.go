@@ -861,13 +861,13 @@ func (a *App) renderKeybindBar() string {
 
 	// Always-present global hints
 	global := []hint{
-		{"q", "quit"},
-		{"?", "help"},
-		{"h/l", "panel"},
-		{"j/k", "nav"},
-		{"^d/u", "page"},
-		{"r", "refresh"},
-		{"b", "branch"},
+		{"q", "Quit"},
+		{"?", "Help"},
+		{"h/l", "Panel"},
+		{"j/k", "Navigate"},
+		{"^d/u", "Page"},
+		{"r", "Refresh"},
+		{"b", "Branch"},
 	}
 
 	// Context-specific hints
@@ -876,68 +876,67 @@ func (a *App) renderKeybindBar() string {
 	switch {
 	case a.showBranchPicker:
 		ctx = []hint{
-			{"Enter", "select"},
-			{"Esc", "cancel"},
-			{"g/G", "top/bottom"},
+			{"Enter", "Select"},
+			{"Esc", "Cancel"},
+			{"g/G", "Top/bottom"},
 		}
 	case a.viewingJobs && a.activePanel == PanelPipelines:
 		ctx = []hint{
-			{"R", "retry job"},
-			{"C", "cancel job"},
-			{"p", "play manual"},
-			{"o", "open"},
-			{"Esc", "back"},
+			{"R", "Retry job"},
+			{"C", "Cancel job"},
+			{"p", "Play manual"},
+			{"o", "Open"},
+			{"Esc", "Back"},
 		}
 	default:
 		switch a.activePanel {
 		case PanelProjects:
 			ctx = []hint{
-				{"Enter", "select"},
-				{"o", "open"},
+				{"Enter", "Select"},
+				{"o", "Open"},
 			}
 		case PanelMergeRequests:
 			ctx = []hint{
-				{"a", "approve"},
-				{"m", "merge"},
-				{"o", "open"},
+				{"a", "Approve"},
+				{"m", "Merge"},
+				{"o", "Open"},
 			}
 		case PanelPipelines:
 			ctx = []hint{
-				{"Enter", "jobs"},
-				{"p", "run new"},
-				{"R", "retry"},
-				{"C", "cancel"},
-				{"o", "open"},
+				{"Enter", "Jobs"},
+				{"p", "Run new"},
+				{"R", "Retry"},
+				{"C", "Cancel"},
+				{"o", "Open"},
 			}
 			if a.activeBranch != nil {
-				ctx = append(ctx, hint{"Esc", "clear branch"})
+				ctx = append(ctx, hint{"Esc", "Clear branch"})
 			}
 		case PanelIssues:
 			ctx = []hint{
-				{"c", "close/reopen"},
-				{"o", "open"},
+				{"c", "Close/reopen"},
+				{"o", "Open"},
 			}
 		}
 	}
 
 	var parts []string
 	for _, h := range global {
-		parts = append(parts, fmt.Sprintf("%s %s",
-			HelpKeyStyle.Render(h.key),
+		parts = append(parts, fmt.Sprintf("%s: %s",
 			HelpDescStyle.Render(h.desc),
+			HelpKeyStyle.Render(h.key),
 		))
 	}
-	parts = append(parts, HelpDescStyle.Render("|"))
 	for _, h := range ctx {
-		parts = append(parts, fmt.Sprintf("%s %s",
-			HelpKeyStyle.Render(h.key),
+		parts = append(parts, fmt.Sprintf("%s: %s",
 			HelpDescStyle.Render(h.desc),
+			HelpKeyStyle.Render(h.key),
 		))
 	}
 
-	bar := " " + strings.Join(parts, "  ")
-	return StatusBarStyle.
-		Background(lipgloss.Color("#222222")).
+	sep := HelpSepStyle.Render(" | ")
+	bar := " " + strings.Join(parts, sep)
+	return lipgloss.NewStyle().
 		Width(a.width).
 		Render(bar)
 }
@@ -1169,7 +1168,8 @@ func (a *App) mrItems() []string {
 func (a *App) pipelineItems() []string {
 	items := make([]string, len(a.pipelines))
 	for i, p := range a.pipelines {
-		items[i] = fmt.Sprintf("#%d %s %s (%s)",
+		items[i] = fmt.Sprintf("%s #%d %s %s (%s)",
+			util.TimeAgoShort(p.CreatedAt),
 			p.ID,
 			PipelineStatusIcon(p.Status),
 			p.Status,

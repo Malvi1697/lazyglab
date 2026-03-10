@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/Malvi1697/lazyglab/internal/gitlab"
@@ -195,8 +196,7 @@ func TestCollapsedPipelineLine_WithPipelines(t *testing.T) {
 		},
 	}
 	got := a.collapsedPipelineLine()
-	// PipelineStatusIcon("success") = "v"
-	want := "#456 v success (main)"
+	want := fmt.Sprintf("#456 %s success (main)", PipelineStatusIcon("success"))
 	if got != want {
 		t.Errorf("collapsedPipelineLine() = %q, want %q", got, want)
 	}
@@ -209,7 +209,7 @@ func TestCollapsedPipelineLine_FailedPipeline(t *testing.T) {
 		},
 	}
 	got := a.collapsedPipelineLine()
-	want := "#100 x failed (feature/broken)"
+	want := fmt.Sprintf("#100 %s failed (feature/broken)", PipelineStatusIcon("failed"))
 	if got != want {
 		t.Errorf("collapsedPipelineLine() = %q, want %q", got, want)
 	}
@@ -224,7 +224,7 @@ func TestCollapsedPipelineLine_CursorOnSecond(t *testing.T) {
 	}
 	a.cursor[PanelPipelines] = 1
 	got := a.collapsedPipelineLine()
-	want := "#457 > running (develop)"
+	want := fmt.Sprintf("#457 %s running (develop)", PipelineStatusIcon("running"))
 	if got != want {
 		t.Errorf("collapsedPipelineLine() = %q, want %q", got, want)
 	}
@@ -238,8 +238,7 @@ func TestCollapsedPipelineLine_CursorOutOfBounds(t *testing.T) {
 	}
 	a.cursor[PanelPipelines] = 10
 	got := a.collapsedPipelineLine()
-	// Fallback format doesn't include ref
-	want := "#456 v success"
+	want := fmt.Sprintf("#456 %s success", PipelineStatusIcon("success"))
 	if got != want {
 		t.Errorf("collapsedPipelineLine() = %q, want %q", got, want)
 	}
