@@ -727,6 +727,9 @@ func (a *App) detailTitle() string {
 		return "Select Branch"
 	}
 	if a.viewingJobs && a.activePanel == PanelPipelines {
+		if idx := a.cursor[PanelPipelines]; idx < len(a.pipelines) {
+			return fmt.Sprintf("Jobs (%d)", a.pipelines[idx].ID)
+		}
 		return "Jobs"
 	}
 	switch a.activePanel {
@@ -1287,18 +1290,7 @@ func (a *App) pipelineDetail() string {
 }
 
 func (a *App) jobsDetail() string {
-	if len(a.pipelines) == 0 {
-		return ""
-	}
-	idx := a.cursor[PanelPipelines]
-	if idx >= len(a.pipelines) {
-		return ""
-	}
-	p := a.pipelines[idx]
-
 	var lines []string
-	lines = append(lines, TitleStyle.Render(fmt.Sprintf("Pipeline #%d - Jobs", p.ID)))
-	lines = append(lines, "")
 
 	if len(a.jobs) == 0 {
 		lines = append(lines, "No jobs found")
@@ -1344,9 +1336,6 @@ func (a *App) jobsDetail() string {
 		}
 		lines = append(lines, line)
 	}
-
-	lines = append(lines, "")
-	lines = append(lines, HelpDescStyle.Render("j/k: navigate  R: retry  C: cancel  p: play  o: open  Esc: back"))
 
 	return strings.Join(lines, "\n")
 }
