@@ -1,6 +1,7 @@
 package gitlab
 
 import (
+	"bytes"
 	"sync"
 
 	gogitlab "gitlab.com/gitlab-org/api/client-go"
@@ -169,4 +170,18 @@ func (c *Client) CancelJob(projectID, jobID int) error {
 func (c *Client) PlayJob(projectID, jobID int) error {
 	_, _, err := c.api.Jobs.PlayJob(projectID, int64(jobID), nil)
 	return err
+}
+
+// GetJobTrace retrieves the log/trace output for a job.
+func (c *Client) GetJobTrace(projectID, jobID int) (string, error) {
+	reader, _, err := c.api.Jobs.GetTraceFile(projectID, int64(jobID))
+	if err != nil {
+		return "", err
+	}
+	buf := new(bytes.Buffer)
+	_, err = buf.ReadFrom(reader)
+	if err != nil {
+		return "", err
+	}
+	return buf.String(), nil
 }
