@@ -50,6 +50,8 @@ type App struct {
 	// Detail/overlay state
 	viewingJobs      bool // true when viewing pipeline jobs in detail panel
 	jobCursor        int
+	jobTrace         string // log output for selected job
+	jobTraceScroll   int    // scroll offset for job trace
 	showBranchPicker bool
 	branchCursor     int
 
@@ -218,6 +220,16 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.statusIsErr = false
 		return a, a.loadPipelines()
 
+	case JobTraceLoadedMsg:
+		if msg.Err != nil {
+			a.statusText = fmt.Sprintf("Error loading trace: %v", msg.Err)
+			a.statusIsErr = true
+			return a, nil
+		}
+		a.jobTrace = msg.Trace
+		a.jobTraceScroll = 0
+		return a, nil
+
 	case JobActionDoneMsg:
 		a.statusText = msg.Text
 		a.statusIsErr = msg.IsErr
@@ -277,8 +289,12 @@ func (a *App) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return a, a.loadBranches()
 	}
 
-	// Escape: go back from job view, or clear branch filter
+	// Escape: close trace → close job view → clear branch filter
 	if key == KeyEscape {
+		if a.viewingJobs && a.jobTrace != "" {
+			a.jobTrace = ""
+			return a, nil
+		}
 		if a.viewingJobs {
 			a.viewingJobs = false
 			a.jobs = nil
@@ -348,20 +364,62 @@ func (a *App) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 func (a *App) handleJobViewKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	key := msg.String()
 
+	// When trace is loaded, all navigation scrolls the log.
+	// jobTraceView() handles max-scroll clamping after cleaning/wrapping.
+	if a.jobTrace != "" {
+		traceHeight := a.layout.ContentHeight - 2
+		if traceHeight < 1 {
+			traceHeight = 1
+		}
+
+		switch {
+		case key == KeyEscape:
+			a.jobTrace = ""
+			return a, nil
+		case isNavigateDown(msg):
+			a.jobTraceScroll++
+			return a, nil
+		case isNavigateUp(msg):
+			if a.jobTraceScroll > 0 {
+				a.jobTraceScroll--
+			}
+			return a, nil
+		case key == KeyHalfDown:
+			a.jobTraceScroll += traceHeight / 2
+			return a, nil
+		case key == KeyHalfUp:
+			a.jobTraceScroll -= traceHeight / 2
+			if a.jobTraceScroll < 0 {
+				a.jobTraceScroll = 0
+			}
+			return a, nil
+		case key == KeyTop:
+			a.jobTraceScroll = 0
+			return a, nil
+		case key == KeyBottom:
+			a.jobTraceScroll = len(a.jobTrace) // will be clamped by jobTraceView
+			return a, nil
+		}
+		// Other keys (R, C, p, o) fall through to job actions below
+	}
+
 	if isNavigateUp(msg) {
 		if a.jobCursor > 0 {
 			a.jobCursor--
+			a.jobTrace = ""
 		}
 		return a, nil
 	}
 	if isNavigateDown(msg) {
 		if a.jobCursor < len(a.jobs)-1 {
 			a.jobCursor++
+			a.jobTrace = ""
 		}
 		return a, nil
 	}
 	if key == KeyTop {
 		a.jobCursor = 0
+		a.jobTrace = ""
 		return a, nil
 	}
 	if key == KeyBottom {
@@ -369,12 +427,13 @@ func (a *App) handleJobViewKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if a.jobCursor < 0 {
 			a.jobCursor = 0
 		}
+		a.jobTrace = ""
 		return a, nil
 	}
 
 	switch key {
 	case KeyHalfDown:
-		halfPage := (a.layout.ContentHeight - 4) / 2
+		halfPage := (a.layout.PanelHeights[PanelPipelines] - 2) / 2
 		if halfPage < 1 {
 			halfPage = 1
 		}
@@ -385,9 +444,10 @@ func (a *App) handleJobViewKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if a.jobCursor < 0 {
 			a.jobCursor = 0
 		}
+		a.jobTrace = ""
 		return a, nil
 	case KeyHalfUp:
-		halfPage := (a.layout.ContentHeight - 4) / 2
+		halfPage := (a.layout.PanelHeights[PanelPipelines] - 2) / 2
 		if halfPage < 1 {
 			halfPage = 1
 		}
@@ -395,7 +455,10 @@ func (a *App) handleJobViewKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if a.jobCursor < 0 {
 			a.jobCursor = 0
 		}
+		a.jobTrace = ""
 		return a, nil
+	case KeyEnter:
+		return a, a.loadJobTrace()
 	case KeyOpenBrowse:
 		if a.jobCursor < len(a.jobs) {
 			url := a.jobs[a.jobCursor].WebURL
@@ -637,11 +700,28 @@ func (a *App) View() tea.View {
 		// Recompute layout each frame (active panel affects proportions)
 		a.layout = ComputeLayout(a.width, a.height, a.activePanel)
 
+		// Pipeline/Jobs panel: swap content when viewing jobs
+		pipeTitle := a.pipelinePanelTitle()
+		pipeItems := a.pipelineItems()
+		pipeCollapsed := a.collapsedPipelineLine()
+		pipeCursor := a.cursor[PanelPipelines]
+		if a.viewingJobs {
+			pipeTitle = a.jobsPanelTitle()
+			var jobToDisplay []int
+			pipeItems, jobToDisplay = a.jobItems()
+			pipeCollapsed = a.collapsedJobLine()
+			if a.jobCursor >= 0 && a.jobCursor < len(jobToDisplay) {
+				pipeCursor = jobToDisplay[a.jobCursor]
+			} else {
+				pipeCursor = 0
+			}
+		}
+
 		sidebar := lipgloss.JoinVertical(lipgloss.Left,
-			a.renderSidePanelSmart(PanelProjects, "Projects", a.projectItems(), a.collapsedProjectLine()),
-			a.renderSidePanelSmart(PanelPipelines, a.pipelinePanelTitle(), a.pipelineItems(), a.collapsedPipelineLine()),
-			a.renderSidePanelSmart(PanelMergeRequests, "Merge Requests", a.mrItems(), a.collapsedMRLine()),
-			a.renderSidePanelSmart(PanelIssues, "Issues", a.issueItems(), a.collapsedIssueLine()),
+			a.renderSidePanelSmart(PanelProjects, "Projects", a.projectItems(), a.collapsedProjectLine(), a.cursor[PanelProjects]),
+			a.renderSidePanelSmart(PanelPipelines, pipeTitle, pipeItems, pipeCollapsed, pipeCursor),
+			a.renderSidePanelSmart(PanelMergeRequests, "Merge Requests", a.mrItems(), a.collapsedMRLine(), a.cursor[PanelMergeRequests]),
+			a.renderSidePanelSmart(PanelIssues, "Issues", a.issueItems(), a.collapsedIssueLine(), a.cursor[PanelIssues]),
 		)
 
 		detail := a.renderDetail()
@@ -661,6 +741,56 @@ func (a *App) View() tea.View {
 	return v
 }
 
+func (a *App) jobsPanelTitle() string {
+	if idx := a.cursor[PanelPipelines]; idx < len(a.pipelines) {
+		return fmt.Sprintf("Jobs (#%d)", a.pipelines[idx].ID)
+	}
+	return "Jobs"
+}
+
+// jobItems returns display lines for jobs grouped by stage, along with a
+// mapping from job index to display-row index (accounting for header lines).
+// Header lines are styled and stored with a leading "\x00" marker so
+// renderSidePanel knows not to highlight them.
+func (a *App) jobItems() ([]string, []int) {
+	var items []string
+	jobToDisplay := make([]int, len(a.jobs))
+	currentStage := ""
+	for i, job := range a.jobs {
+		if job.Stage != currentStage {
+			currentStage = job.Stage
+			header := lipgloss.NewStyle().Bold(true).Foreground(ColorSecondary).Render(job.Stage)
+			items = append(items, "\x00"+header)
+		}
+		jobToDisplay[i] = len(items)
+		icon := PipelineStatusIcon(job.Status)
+		duration := ""
+		if job.Duration > 0 {
+			mins := int(job.Duration) / 60
+			secs := int(job.Duration) % 60
+			if mins > 0 {
+				duration = fmt.Sprintf(" (%dm%ds)", mins, secs)
+			} else {
+				duration = fmt.Sprintf(" (%ds)", secs)
+			}
+		}
+		items = append(items, fmt.Sprintf("  %s %s  %s%s", icon, job.Name, job.Status, duration))
+	}
+	return items, jobToDisplay
+}
+
+func (a *App) collapsedJobLine() string {
+	if len(a.jobs) == 0 {
+		return "No jobs"
+	}
+	if a.jobCursor >= 0 && a.jobCursor < len(a.jobs) {
+		job := a.jobs[a.jobCursor]
+		return fmt.Sprintf("%s %s  %s", PipelineStatusIcon(job.Status), job.Name, job.Status)
+	}
+	job := a.jobs[0]
+	return fmt.Sprintf("%s %s  %s", PipelineStatusIcon(job.Status), job.Name, job.Status)
+}
+
 func (a *App) pipelinePanelTitle() string {
 	if a.activeBranch != nil {
 		return fmt.Sprintf("Pipelines [%s]", truncate(a.activeBranch.Name, 15))
@@ -668,7 +798,7 @@ func (a *App) pipelinePanelTitle() string {
 	return "Pipelines"
 }
 
-func (a *App) renderSidePanelSmart(id PanelID, title string, items []string, collapsedLine string) string {
+func (a *App) renderSidePanelSmart(id PanelID, title string, items []string, collapsedLine string, cursor int) string {
 	// Only the Projects panel collapses (when not focused)
 	if id == PanelProjects && a.activePanel != PanelProjects {
 		totalWidth := a.layout.SidebarWidth
@@ -677,10 +807,10 @@ func (a *App) renderSidePanelSmart(id PanelID, title string, items []string, col
 		line := truncate(collapsedLine, totalWidth-4)
 		return renderBox(titleText, []string{line}, totalWidth, panelHeight, ColorSecondary, ColorSecondary)
 	}
-	return a.renderSidePanel(id, title, items)
+	return a.renderSidePanel(id, title, items, cursor)
 }
 
-func (a *App) renderSidePanel(id PanelID, title string, items []string) string {
+func (a *App) renderSidePanel(id PanelID, title string, items []string, cursor int) string {
 	isActive := a.activePanel == id
 	panelHeight := a.layout.PanelHeights[id]
 	totalWidth := a.layout.SidebarWidth
@@ -694,8 +824,6 @@ func (a *App) renderSidePanel(id PanelID, title string, items []string) string {
 		innerHeight = 0
 	}
 
-	cursor := a.cursor[id]
-
 	// Scroll offset: keep cursor visible
 	scrollOffset := 0
 	if cursor >= innerHeight {
@@ -704,8 +832,13 @@ func (a *App) renderSidePanel(id PanelID, title string, items []string) string {
 
 	var contentLines []string
 	for i := scrollOffset; i < len(items) && len(contentLines) < innerHeight; i++ {
-		displayItem := truncate(items[i], innerWidth)
-		if i == cursor && isActive {
+		item := items[i]
+		isHeader := len(item) > 0 && item[0] == '\x00'
+		if isHeader {
+			item = item[1:] // strip marker
+		}
+		displayItem := truncate(item, innerWidth)
+		if i == cursor && isActive && !isHeader {
 			plain := ansi.Strip(displayItem)
 			visW := lipgloss.Width(plain)
 			if visW < innerWidth {
@@ -732,10 +865,14 @@ func (a *App) detailTitle() string {
 		return "Select Branch"
 	}
 	if a.viewingJobs && a.activePanel == PanelPipelines {
-		if idx := a.cursor[PanelPipelines]; idx < len(a.pipelines) {
-			return fmt.Sprintf("Jobs (#%d)", a.pipelines[idx].ID)
+		if a.jobCursor < len(a.jobs) {
+			job := a.jobs[a.jobCursor]
+			if a.jobTrace != "" {
+				return fmt.Sprintf("Log: %s", job.Name)
+			}
+			return fmt.Sprintf("Job: %s", job.Name)
 		}
-		return "Jobs"
+		return "Job"
 	}
 	switch a.activePanel {
 	case PanelProjects:
@@ -773,7 +910,7 @@ func (a *App) renderDetail() string {
 			content = a.mrDetail()
 		case PanelPipelines:
 			if a.viewingJobs {
-				content = a.jobsDetail()
+				content = a.jobDetail()
 			} else {
 				content = a.pipelineDetail()
 			}
@@ -787,7 +924,11 @@ func (a *App) renderDetail() string {
 	}
 
 	lines := strings.Split(content, "\n")
-	return renderBox(a.detailTitle(), lines, totalWidth, totalHeight, ColorSecondary, ColorPrimary)
+	borderColor := ColorSecondary
+	if a.viewingJobs && a.jobTrace != "" {
+		borderColor = ColorPrimary
+	}
+	return renderBox(a.detailTitle(), lines, totalWidth, totalHeight, borderColor, ColorPrimary)
 }
 
 // renderBox draws a bordered box with a title embedded in the top border line.
@@ -894,6 +1035,7 @@ func (a *App) renderKeybindBar() string {
 		}
 	case a.viewingJobs && a.activePanel == PanelPipelines:
 		ctx = []hint{
+			{"Enter", "Log"},
 			{"R", "Retry job"},
 			{"C", "Cancel job"},
 			{"p", "Play manual"},
@@ -1295,61 +1437,102 @@ func (a *App) pipelineDetail() string {
 	return strings.Join(lines, "\n")
 }
 
-func (a *App) jobsDetail() string {
-	var lines []string
-
+func (a *App) jobDetail() string {
 	if len(a.jobs) == 0 {
-		lines = append(lines, "No jobs found")
-		return strings.Join(lines, "\n")
+		return "No jobs"
+	}
+	if a.jobCursor >= len(a.jobs) {
+		return ""
 	}
 
-	// Group jobs by stage
-	currentStage := ""
-	for i, job := range a.jobs {
-		if job.Stage != currentStage {
-			currentStage = job.Stage
-			if i > 0 {
-				lines = append(lines, "")
-			}
-			lines = append(lines, lipgloss.NewStyle().Bold(true).Foreground(ColorSecondary).Render(
-				fmt.Sprintf("  Stage: %s", currentStage),
-			))
-		}
-
-		icon := PipelineStatusIcon(job.Status)
-		statusColor := PipelineStatusColor(job.Status)
-		coloredStatus := lipgloss.NewStyle().Foreground(statusColor).Render(job.Status)
-		duration := ""
-		if job.Duration > 0 {
-			mins := int(job.Duration) / 60
-			secs := int(job.Duration) % 60
-			if mins > 0 {
-				duration = fmt.Sprintf(" (%dm%ds)", mins, secs)
-			} else {
-				duration = fmt.Sprintf(" (%ds)", secs)
-			}
-		}
-
-		line := fmt.Sprintf("    %s %-20s %s%s",
-			icon,
-			truncate(job.Name, 20),
-			coloredStatus,
-			duration,
-		)
-
-		if i == a.jobCursor {
-			w := a.layout.ContentWidth - 4
-			plain := ansi.Strip(line)
-			visW := lipgloss.Width(plain)
-			if visW < w {
-				plain += strings.Repeat(" ", w-visW)
-			}
-			line = SelectedItemStyle.Render(plain)
-		}
-		lines = append(lines, line)
+	// Show trace log if loaded
+	if a.jobTrace != "" {
+		return a.jobTraceView()
 	}
+
+	job := a.jobs[a.jobCursor]
+
+	statusColor := PipelineStatusColor(job.Status)
+	coloredStatus := lipgloss.NewStyle().Foreground(statusColor).Render(job.Status)
+
+	var lines []string
+	lines = append(lines,
+		fmt.Sprintf("Status:   %s %s", PipelineStatusIcon(job.Status), coloredStatus),
+	)
+	lines = append(lines, fmt.Sprintf("Stage:    %s", job.Stage))
+
+	if job.Duration > 0 {
+		mins := int(job.Duration) / 60
+		secs := int(job.Duration) % 60
+		if mins > 0 {
+			lines = append(lines, fmt.Sprintf("Duration: %dm%ds", mins, secs))
+		} else {
+			lines = append(lines, fmt.Sprintf("Duration: %ds", secs))
+		}
+	}
+
+	if !job.CreatedAt.IsZero() {
+		lines = append(lines, fmt.Sprintf("Created:  %s", util.TimeAgo(job.CreatedAt)))
+	}
+	if !job.StartedAt.IsZero() {
+		lines = append(lines, fmt.Sprintf("Started:  %s", util.TimeAgo(job.StartedAt)))
+	}
+	lines = append(lines, "")
+	lines = append(lines, HelpDescStyle.Render("Press Enter to view log"))
 
 	return strings.Join(lines, "\n")
+}
+
+func (a *App) jobTraceView() string {
+	contentWidth := a.layout.ContentWidth - 4
+	if contentWidth < 1 {
+		contentWidth = 1
+	}
+	viewHeight := a.layout.ContentHeight - 2
+	if viewHeight < 1 {
+		viewHeight = 1
+	}
+
+	// Clean GitLab trace: strip ANSI, carriage returns, section markers
+	var cleaned []string
+	for _, line := range strings.Split(a.jobTrace, "\n") {
+		line = ansi.Strip(line)
+		// Remove carriage returns (progress bars etc.)
+		line = strings.ReplaceAll(line, "\r", "")
+		// Skip GitLab CI section markers
+		if strings.HasPrefix(line, "section_start:") || strings.HasPrefix(line, "section_end:") {
+			continue
+		}
+		// Word-wrap long lines
+		for len(line) > contentWidth {
+			cleaned = append(cleaned, line[:contentWidth])
+			line = line[contentWidth:]
+		}
+		cleaned = append(cleaned, line)
+	}
+
+	// Update max scroll based on cleaned lines
+	totalLines := len(cleaned)
+	maxScroll := totalLines - viewHeight
+	if maxScroll < 0 {
+		maxScroll = 0
+	}
+	if a.jobTraceScroll > maxScroll {
+		a.jobTraceScroll = maxScroll
+	}
+
+	// Apply scroll offset
+	start := a.jobTraceScroll
+	if start < 0 {
+		start = 0
+	}
+	end := start + viewHeight
+	if end > len(cleaned) {
+		end = len(cleaned)
+	}
+
+	visible := cleaned[start:end]
+	return strings.Join(visible, "\n")
 }
 
 func (a *App) issueDetail() string {
@@ -1457,6 +1640,22 @@ func (a *App) loadJobs() tea.Cmd {
 	return func() tea.Msg {
 		jobs, err := client.ListPipelineJobs(projectID, pipelineID)
 		return JobsLoadedMsg{Jobs: jobs, Err: err}
+	}
+}
+
+func (a *App) loadJobTrace() tea.Cmd {
+	if a.activeProject == nil || len(a.jobs) == 0 {
+		return nil
+	}
+	if a.jobCursor >= len(a.jobs) {
+		return nil
+	}
+	client := a.clients[a.activeHost]
+	projectID := a.activeProject.ID
+	jobID := a.jobs[a.jobCursor].ID
+	return func() tea.Msg {
+		trace, err := client.GetJobTrace(projectID, jobID)
+		return JobTraceLoadedMsg{Trace: trace, Err: err}
 	}
 }
 

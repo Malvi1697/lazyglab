@@ -94,6 +94,12 @@ type PipelineActionDoneMsg struct {
 	IsErr bool
 }
 
+// JobTraceLoadedMsg is sent when a job's log/trace has been fetched.
+type JobTraceLoadedMsg struct {
+	Trace string
+	Err   error
+}
+
 // ErrorMsg represents an error from an async operation.
 type ErrorMsg struct {
 	Err error
