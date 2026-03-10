@@ -1333,7 +1333,12 @@ func (a *App) jobsDetail() string {
 		)
 
 		if i == a.jobCursor {
-			line = SelectedItemStyle.Width(a.layout.ContentWidth - 4).Render(line)
+			w := a.layout.ContentWidth - 4
+			visW := lipgloss.Width(line)
+			if visW < w {
+				line += strings.Repeat(" ", w-visW)
+			}
+			line = SelectedItemStyle.Render(line)
 		}
 		lines = append(lines, line)
 	}
