@@ -639,8 +639,8 @@ func (a *App) View() tea.View {
 
 		sidebar := lipgloss.JoinVertical(lipgloss.Left,
 			a.renderSidePanelSmart(PanelProjects, "Projects", a.projectItems(), a.collapsedProjectLine()),
-			a.renderSidePanelSmart(PanelMergeRequests, "Merge Requests", a.mrItems(), a.collapsedMRLine()),
 			a.renderSidePanelSmart(PanelPipelines, a.pipelinePanelTitle(), a.pipelineItems(), a.collapsedPipelineLine()),
+			a.renderSidePanelSmart(PanelMergeRequests, "Merge Requests", a.mrItems(), a.collapsedMRLine()),
 			a.renderSidePanelSmart(PanelIssues, "Issues", a.issueItems(), a.collapsedIssueLine()),
 		)
 
@@ -1173,12 +1173,21 @@ func (a *App) pipelineItems() []string {
 		if desc == "" {
 			desc = p.Ref
 		}
-		items[i] = fmt.Sprintf("%s %s %s — %s",
-			util.TimeAgoShort(p.CreatedAt),
-			PipelineStatusIcon(p.Status),
-			p.Ref,
-			desc,
-		)
+		if a.activeBranch != nil {
+			// Branch already shown in panel title, skip ref
+			items[i] = fmt.Sprintf("%s %s %s",
+				util.TimeAgoShort(p.CreatedAt),
+				PipelineStatusIcon(p.Status),
+				desc,
+			)
+		} else {
+			items[i] = fmt.Sprintf("%s %s %s — %s",
+				util.TimeAgoShort(p.CreatedAt),
+				PipelineStatusIcon(p.Status),
+				p.Ref,
+				desc,
+			)
+		}
 	}
 	return items
 }
