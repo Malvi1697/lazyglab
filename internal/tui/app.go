@@ -263,10 +263,10 @@ func (a *App) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		a.activePanel = PanelProjects
 		return a, nil
 	case KeyPanel2:
-		a.activePanel = PanelMergeRequests
+		a.activePanel = PanelPipelines
 		return a, nil
 	case KeyPanel3:
-		a.activePanel = PanelPipelines
+		a.activePanel = PanelMergeRequests
 		return a, nil
 	case KeyPanel4:
 		a.activePanel = PanelIssues
