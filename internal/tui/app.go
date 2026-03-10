@@ -1172,10 +1172,11 @@ func (a *App) pipelineItems() []string {
 		if desc == "" {
 			desc = p.Ref
 		}
-		items[i] = fmt.Sprintf("%s %s %s",
+		items[i] = fmt.Sprintf("%s %s %s (%s)",
 			util.TimeAgoShort(p.CreatedAt),
 			PipelineStatusIcon(p.Status),
 			desc,
+			p.Ref,
 		)
 	}
 	return items
