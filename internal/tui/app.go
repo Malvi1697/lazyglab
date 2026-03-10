@@ -706,7 +706,12 @@ func (a *App) renderSidePanel(id PanelID, title string, items []string) string {
 	for i := scrollOffset; i < len(items) && len(contentLines) < innerHeight; i++ {
 		displayItem := truncate(items[i], innerWidth)
 		if i == cursor && isActive {
-			displayItem = SelectedItemStyle.Width(innerWidth).Render(displayItem)
+			plain := ansi.Strip(displayItem)
+			visW := lipgloss.Width(plain)
+			if visW < innerWidth {
+				plain += strings.Repeat(" ", innerWidth-visW)
+			}
+			displayItem = SelectedItemStyle.Render(plain)
 		}
 		contentLines = append(contentLines, displayItem)
 	}
@@ -1334,11 +1339,12 @@ func (a *App) jobsDetail() string {
 
 		if i == a.jobCursor {
 			w := a.layout.ContentWidth - 4
-			visW := lipgloss.Width(line)
+			plain := ansi.Strip(line)
+			visW := lipgloss.Width(plain)
 			if visW < w {
-				line += strings.Repeat(" ", w-visW)
+				plain += strings.Repeat(" ", w-visW)
 			}
-			line = SelectedItemStyle.Render(line)
+			line = SelectedItemStyle.Render(plain)
 		}
 		lines = append(lines, line)
 	}
