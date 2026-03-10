@@ -1281,8 +1281,6 @@ func (a *App) pipelineDetail() string {
 		lines = append(lines, fmt.Sprintf("Updated: %s", util.TimeAgo(p.UpdatedAt)))
 	}
 	lines = append(lines, "")
-	lines = append(lines, HelpDescStyle.Render("Enter: view jobs  R: retry  C: cancel  p: run new"))
-	lines = append(lines, "")
 	lines = append(lines, HelpDescStyle.Render(p.WebURL))
 
 	return strings.Join(lines, "\n")
