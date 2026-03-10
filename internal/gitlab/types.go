@@ -38,13 +38,14 @@ type PipelineInfo struct {
 
 // Pipeline represents a full GitLab pipeline.
 type Pipeline struct {
-	ID        int
-	Status    string
-	Ref       string
-	SHA       string
-	WebURL    string
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	ID          int
+	Status      string
+	Ref         string
+	SHA         string
+	CommitTitle string
+	WebURL      string
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
 }
 
 // Job represents a CI/CD job within a pipeline.

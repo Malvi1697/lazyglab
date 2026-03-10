@@ -1,10 +1,21 @@
 package gitlab
 
 import (
+	"sync"
+
 	gogitlab "gitlab.com/gitlab-org/api/client-go"
 
 	"github.com/Malvi1697/lazyglab/internal/util"
 )
+
+// GetCommitTitle returns the first line of a commit message.
+func (c *Client) GetCommitTitle(projectID int, sha string) string {
+	commit, _, err := c.api.Commits.GetCommit(projectID, sha, nil)
+	if err != nil || commit == nil {
+		return ""
+	}
+	return commit.Title
+}
 
 // ListPipelines returns recent pipelines for a project.
 func (c *Client) ListPipelines(projectID int) ([]Pipeline, error) {
@@ -37,7 +48,42 @@ func (c *Client) ListPipelines(projectID int) ([]Pipeline, error) {
 			pipelines[i].UpdatedAt = *p.UpdatedAt
 		}
 	}
+
+	c.fillCommitTitles(projectID, pipelines)
 	return pipelines, nil
+}
+
+// fillCommitTitles fetches commit titles for pipelines concurrently,
+// deduplicating by SHA.
+func (c *Client) fillCommitTitles(projectID int, pipelines []Pipeline) {
+	// Collect unique SHAs
+	unique := make(map[string]struct{})
+	for _, p := range pipelines {
+		if p.SHA != "" {
+			unique[p.SHA] = struct{}{}
+		}
+	}
+
+	// Fetch titles concurrently
+	titles := make(map[string]string, len(unique))
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+	for sha := range unique {
+		wg.Add(1)
+		go func(sha string) {
+			defer wg.Done()
+			title := c.GetCommitTitle(projectID, sha)
+			mu.Lock()
+			titles[sha] = title
+			mu.Unlock()
+		}(sha)
+	}
+	wg.Wait()
+
+	// Fill in
+	for i := range pipelines {
+		pipelines[i].CommitTitle = titles[pipelines[i].SHA]
+	}
 }
 
 // ListPipelineJobs returns jobs for a specific pipeline.

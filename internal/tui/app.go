@@ -1168,12 +1168,14 @@ func (a *App) mrItems() []string {
 func (a *App) pipelineItems() []string {
 	items := make([]string, len(a.pipelines))
 	for i, p := range a.pipelines {
-		items[i] = fmt.Sprintf("%s #%d %s %s (%s)",
+		desc := p.CommitTitle
+		if desc == "" {
+			desc = p.Ref
+		}
+		items[i] = fmt.Sprintf("%s %s %s",
 			util.TimeAgoShort(p.CreatedAt),
-			p.ID,
 			PipelineStatusIcon(p.Status),
-			p.Status,
-			p.Ref,
+			desc,
 		)
 	}
 	return items
@@ -1248,11 +1250,6 @@ func (a *App) pipelineDetail() string {
 	}
 	p := a.pipelines[idx]
 
-	sha := p.SHA
-	if len(sha) > 8 {
-		sha = sha[:8]
-	}
-
 	var lines []string
 	lines = append(lines, TitleStyle.Render(fmt.Sprintf("Pipeline #%d", p.ID)))
 	lines = append(lines, "")
@@ -1263,7 +1260,9 @@ func (a *App) pipelineDetail() string {
 		),
 	)
 	lines = append(lines, fmt.Sprintf("Ref:     %s", p.Ref))
-	lines = append(lines, fmt.Sprintf("SHA:     %s", sha))
+	if p.CommitTitle != "" {
+		lines = append(lines, fmt.Sprintf("Commit:  %s", p.CommitTitle))
+	}
 	if !p.CreatedAt.IsZero() {
 		lines = append(lines, fmt.Sprintf("Created: %s", util.TimeAgo(p.CreatedAt)))
 	}
