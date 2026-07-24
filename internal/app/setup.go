@@ -23,6 +23,11 @@ func RunSetup() (*Config, error) {
 	fmt.Print("  GitLab host [gitlab.com]: ")
 	host, _ := reader.ReadString('\n')
 	host = strings.TrimSpace(host)
+	// Accept a pasted URL gracefully — strip scheme and any trailing slash so
+	// we don't build a broken "https://https://gitlab.com" base URL later.
+	host = strings.TrimPrefix(host, "https://")
+	host = strings.TrimPrefix(host, "http://")
+	host = strings.TrimSuffix(host, "/")
 	if host == "" {
 		host = "gitlab.com"
 	}

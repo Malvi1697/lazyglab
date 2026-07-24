@@ -46,6 +46,9 @@ func (c *Client) ListIssues(projectID int) ([]Issue, error) {
 			issues[i].Labels = append(issues[i].Labels, util.StripANSI(l))
 		}
 		for _, a := range issue.Assignees {
+			if a == nil {
+				continue
+			}
 			issues[i].Assignees = append(issues[i].Assignees, util.StripANSI(a.Username))
 		}
 	}

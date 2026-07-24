@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 
 	gogitlab "gitlab.com/gitlab-org/api/client-go"
 )
@@ -33,7 +34,9 @@ func (c *Client) Hostname() string {
 // Accepts optional http.Client for testing with TLS test servers.
 // Error messages never include the token value.
 func ValidateToken(baseURL, token string, httpClient ...*http.Client) (string, error) {
-	client := http.DefaultClient
+	// Default client has no timeout, which would hang setup forever against a
+	// black-holed host. Use a bounded client unless the caller supplies one.
+	client := &http.Client{Timeout: 15 * time.Second}
 	if len(httpClient) > 0 && httpClient[0] != nil {
 		client = httpClient[0]
 	}

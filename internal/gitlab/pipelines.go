@@ -65,14 +65,19 @@ func (c *Client) fillCommitTitles(projectID int, pipelines []Pipeline) {
 		}
 	}
 
-	// Fetch titles concurrently
+	// Fetch titles concurrently, but bound concurrency so a page of pipelines
+	// doesn't fan out into dozens of simultaneous requests and trip GitLab's
+	// rate limiting.
 	titles := make(map[string]string, len(unique))
 	var mu sync.Mutex
 	var wg sync.WaitGroup
+	sem := make(chan struct{}, 6)
 	for sha := range unique {
 		wg.Add(1)
 		go func(sha string) {
 			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
 			title := c.GetCommitTitle(projectID, sha)
 			mu.Lock()
 			titles[sha] = title

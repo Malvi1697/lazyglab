@@ -126,6 +126,28 @@ func TestParseGitLabRemote_CustomHost(t *testing.T) {
 	}
 }
 
+func TestParseGitLabRemote_SSHURLWithPort(t *testing.T) {
+	// ssh:// URLs with a custom port are common for self-hosted GitLab; the
+	// port must be stripped from the host so it matches config/client keys.
+	host, path := ParseGitLabRemote("ssh://git@gitlab.example.com:2222/owner/project.git")
+	if host != "gitlab.example.com" {
+		t.Errorf("expected host=gitlab.example.com (port stripped), got %q", host)
+	}
+	if path != "owner/project" {
+		t.Errorf("expected path=owner/project, got %q", path)
+	}
+}
+
+func TestParseGitLabRemote_HTTPSWithPort(t *testing.T) {
+	host, path := ParseGitLabRemote("https://gitlab.example.com:8443/owner/project.git")
+	if host != "gitlab.example.com" {
+		t.Errorf("expected host=gitlab.example.com (port stripped), got %q", host)
+	}
+	if path != "owner/project" {
+		t.Errorf("expected path=owner/project, got %q", path)
+	}
+}
+
 func TestParseGitLabRemote_Invalid(t *testing.T) {
 	tests := []string{
 		"",
@@ -135,7 +157,6 @@ func TestParseGitLabRemote_Invalid(t *testing.T) {
 		"git@",
 		"git@:no-host",
 		"https://",
-		"ssh://git@gitlab.com:2222/owner/project.git",
 		"git@gitlab.com:../../../etc/passwd",
 		"https://gitlab.com/../../../etc/passwd",
 	}

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 
 	"gopkg.in/yaml.v3"
 )
@@ -33,11 +34,15 @@ func LoadConfigFrom(path string) (*Config, error) {
 		return nil, fmt.Errorf("reading config at %s: %w", path, err)
 	}
 
-	// Reject group/world readable config files (contain tokens)
-	if perm := info.Mode().Perm(); perm&0077 != 0 {
-		return nil, fmt.Errorf(
-			"config file %s has permissions %04o, which are too open; "+
-				"run: chmod 600 %s", path, perm, path)
+	// Reject group/world readable config files (contain tokens).
+	// Unix permission bits are meaningless on Windows, where Perm() reports
+	// 0666 and would always trip this check, so skip it there.
+	if runtime.GOOS != "windows" {
+		if perm := info.Mode().Perm(); perm&0077 != 0 {
+			return nil, fmt.Errorf(
+				"config file %s has permissions %04o, which are too open; "+
+					"run: chmod 600 %s", path, perm, path)
+		}
 	}
 
 	data, err := os.ReadFile(path)
@@ -80,6 +85,15 @@ func SaveConfigTo(path string, cfg *Config) error {
 		return fmt.Errorf("creating config file: %w", err)
 	}
 	defer func() { _ = f.Close() }()
+
+	// O_CREATE only applies the mode to newly created files; tighten the
+	// permissions on a pre-existing (possibly loosely-permissioned) file too,
+	// otherwise a later LoadConfig would reject the token file as too open.
+	if runtime.GOOS != "windows" {
+		if err := f.Chmod(0600); err != nil {
+			return fmt.Errorf("securing config file permissions: %w", err)
+		}
+	}
 
 	if _, err := f.Write(data); err != nil {
 		return fmt.Errorf("writing config: %w", err)

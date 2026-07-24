@@ -38,16 +38,18 @@ func ParseGitLabRemote(remoteURL string) (host, path string) {
 		return host, path
 	}
 
-	// Try HTTPS format: https://host/owner/project.git
+	// Try URL formats: https://host/owner/project.git,
+	// http://host/..., or ssh://git@host:2222/owner/project.git
 	u, err := url.Parse(remoteURL)
 	if err != nil || u.Host == "" || u.Scheme == "" {
 		return "", ""
 	}
-	if u.Scheme != "https" && u.Scheme != "http" {
+	if u.Scheme != "https" && u.Scheme != "http" && u.Scheme != "ssh" {
 		return "", ""
 	}
 
-	host = u.Host
+	// Hostname() drops any :port so the host matches config keys / client map.
+	host = u.Hostname()
 	path = strings.TrimPrefix(u.Path, "/")
 	path = strings.TrimSuffix(path, ".git")
 	path = strings.TrimSuffix(path, "/")

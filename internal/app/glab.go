@@ -22,7 +22,7 @@ type glabHostConfig struct {
 }
 
 // loadGlabConfigFrom reads glab's config and converts to our Config format.
-// Skips hosts without tokens. Rejects insecure protocols.
+// Skips hosts without tokens and hosts using insecure (non-https) protocols.
 func loadGlabConfigFrom(path string) (*Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -48,7 +48,9 @@ func loadGlabConfigFrom(path string) (*Config, error) {
 			protocol = "https"
 		}
 		if protocol != "https" {
-			return nil, fmt.Errorf("glab host %s uses insecure protocol %q", host, protocol)
+			// Skip insecure hosts rather than failing the whole import —
+			// a single http host must not block importing valid https ones.
+			continue
 		}
 		entry := HostConfig{Token: hc.Token}
 		if hc.APIHost != "" && hc.APIHost != host {
