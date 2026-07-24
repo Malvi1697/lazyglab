@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"testing"
 	"time"
+
+	"charm.land/lipgloss/v2"
 )
 
 func TestTimeAgo(t *testing.T) {
@@ -140,4 +142,22 @@ func TestTimeAgo(t *testing.T) {
 // formatMonths is a test helper that mirrors the default branch formatting.
 func formatMonths(months int) string {
 	return fmt.Sprintf("%d months ago", months)
+}
+
+func TestTimeAgoShort_UniformWidth(t *testing.T) {
+	now := time.Now()
+	cases := []time.Time{
+		now.Add(-30 * time.Second),    // <1m
+		now.Add(-5 * time.Minute),     // 5m
+		now.Add(-26 * time.Minute),    // 26m
+		now.Add(-3 * time.Hour),       // 3h
+		now.Add(-5 * 24 * time.Hour),  // 5d
+		now.Add(-90 * 24 * time.Hour), // 3mo
+	}
+	for _, tc := range cases {
+		got := TimeAgoShort(tc)
+		if w := lipgloss.Width(got); w != 4 {
+			t.Errorf("TimeAgoShort(%v) = %q has width %d, want 4", tc, got, w)
+		}
+	}
 }
