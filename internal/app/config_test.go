@@ -14,6 +14,29 @@ func writeTestFile(t *testing.T, path string, content string) {
 	}
 }
 
+func TestSettings_RefreshSeconds(t *testing.T) {
+	ptr := func(i int) *int { return &i }
+	cases := []struct {
+		name string
+		in   *int
+		want int
+	}{
+		{"unset defaults to 30", nil, 30},
+		{"zero disables", ptr(0), 0},
+		{"negative defaults to 30", ptr(-5), 30},
+		{"below floor clamps to 5", ptr(3), 5},
+		{"normal value kept", ptr(45), 45},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			s := Settings{RefreshInterval: tc.in}
+			if got := s.RefreshSeconds(); got != tc.want {
+				t.Errorf("RefreshSeconds() = %d, want %d", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestLoadConfig_valid(t *testing.T) {
 	dir := t.TempDir()
 	cfgPath := filepath.Join(dir, "config.yml")

@@ -13,13 +13,42 @@ import (
 type Config struct {
 	DefaultHost string                `yaml:"default_host"`
 	Hosts       map[string]HostConfig `yaml:"hosts"`
+	Settings    Settings              `yaml:"settings"`
 }
 
 // HostConfig holds per-host GitLab configuration.
 type HostConfig struct {
 	Token   string `yaml:"token"`
 	APIHost string `yaml:"api_host,omitempty"` // optional: if API is on different host
+}
 
+// Settings holds global UI preferences.
+type Settings struct {
+	// Panels lists the visible sidebar panels in display order, by config name
+	// (projects, pipelines, merge_requests, issues). Empty = all four.
+	Panels []string `yaml:"panels"`
+	// RefreshInterval is the auto-refresh period in seconds. nil = default (30),
+	// 0 = disabled. Interpreted via RefreshSeconds().
+	RefreshInterval *int `yaml:"refresh_interval"`
+}
+
+// RefreshSeconds returns the normalized auto-refresh interval in seconds:
+// nil/negative -> 30, 0 -> disabled, 1..4 -> clamped to 5, else the value.
+func (s Settings) RefreshSeconds() int {
+	if s.RefreshInterval == nil {
+		return 30
+	}
+	v := *s.RefreshInterval
+	switch {
+	case v == 0:
+		return 0
+	case v < 0:
+		return 30
+	case v < 5:
+		return 5
+	default:
+		return v
+	}
 }
 
 // LoadConfig loads config from the default path.
