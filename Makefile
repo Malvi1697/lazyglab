@@ -1,13 +1,24 @@
 BINARY_NAME=lazyglab
 VERSION?=$(shell git describe --tags --always --dirty 2>/dev/null || echo "0.1.0-dev")
 
-.PHONY: build run test clean install lint fmt vet check release-dry
+.PHONY: build run dev test clean install lint fmt vet check release-dry tools
 
 build:
 	go build -ldflags "-s -w -X main.version=$(VERSION)" -o $(BINARY_NAME) .
 
 run: build
 	./$(BINARY_NAME)
+
+# Live-reload development: rebuilds and restarts the TUI on every .go change.
+# Requires air (see `make tools`).
+dev:
+	air
+
+# Install local dev tooling (air, golangci-lint, goimports).
+tools:
+	go install github.com/air-verse/air@latest
+	go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
+	go install golang.org/x/tools/cmd/goimports@latest
 
 test:
 	go test -race ./...

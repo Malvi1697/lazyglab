@@ -1,0 +1,28 @@
+# Air config for live-reloading lazyglab during development.
+# On any .go change, air rebuilds the binary and restarts the TUI.
+# See https://github.com/air-verse/air
+root = "."
+tmp_dir = "tmp"
+
+[build]
+  # Build with the dev version string, same as `make build`.
+  cmd = "go build -o ./tmp/lazyglab ."
+  bin = "./tmp/lazyglab"
+  # Rerun the TUI after each successful build.
+  full_bin = "./tmp/lazyglab"
+  include_ext = ["go"]
+  exclude_dir = ["tmp", "dist", ".git", ".olc", ".github", "docs"]
+  exclude_regex = ["_test\\.go"]
+  # A TUI needs a moment to release the terminal before the next run.
+  kill_delay = "500ms"
+  send_interrupt = true
+  # Rebuild errors go here so they don't get swallowed by the alt-screen.
+  log = "build-errors.log"
+  stop_on_error = true
+
+[misc]
+  # Remove ./tmp on exit.
+  clean_on_exit = true
+
+[screen]
+  clear_on_rebuild = true

@@ -1,5 +1,7 @@
 lazyglab
 dist/
+tmp/
+build-errors.log
 *.exe
 *.dll
 *.so
@@ -8,4 +10,5 @@ dist/
 *.out
 .DS_Store
 .claude/
+.olc/
 CLAUDE.md
