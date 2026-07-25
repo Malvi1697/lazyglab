@@ -349,8 +349,7 @@ func (d *commitDetail) body(width, height int) string {
 	if len(lines) > rows {
 		title = fmt.Sprintf("%s  (%d-%d of %d)", title, d.scroll+1, end, len(lines))
 	}
-	return components.RenderBox(title, visible, width, height,
-		components.ColorPrimary, components.ColorPrimary)
+	return components.RenderPanel(title, visible, width, height, true)
 }
 
 // lines builds the page. width is the available text width; 0 means "don't wrap".

@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
-	"charm.land/lipgloss/v2"
 
 	"github.com/Malvi1697/lazyglab/internal/gitlab"
 	"github.com/Malvi1697/lazyglab/internal/tui/components"
@@ -121,9 +120,9 @@ func (v *MRsView) Body(width, height int) string {
 	if detail == "" {
 		detail = "Select an item to view details"
 	}
-	right := components.RenderBox(v.detailTitle(), strings.Split(detail, "\n"), rightWidth, height, components.ColorSecondary, components.ColorPrimary)
+	right := components.RenderPanel(v.detailTitle(), strings.Split(detail, "\n"), rightWidth-4, height, false)
 
-	return lipgloss.JoinHorizontal(lipgloss.Top, left, right)
+	return joinPanels(left, right, height)
 }
 
 func (v *MRsView) detailTitle() string {

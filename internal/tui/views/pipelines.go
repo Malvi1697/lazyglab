@@ -228,10 +228,9 @@ func (v *PipelinesView) Body(width, height int) string {
 	if detail == "" {
 		detail = "Select an item to view details"
 	}
-	right := components.RenderBox("Pipeline", strings.Split(detail, "\n"), rightWidth, height,
-		components.ColorSecondary, components.ColorPrimary)
+	right := components.RenderPanel("Pipeline", strings.Split(detail, "\n"), rightWidth-4, height, false)
 
-	return lipgloss.JoinHorizontal(lipgloss.Top, left, right)
+	return joinPanels(left, right, height)
 }
 
 // pipelineItems renders the pipeline list rows (no ref column).

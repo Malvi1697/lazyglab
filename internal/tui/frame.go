@@ -24,11 +24,13 @@ func renderContextBar(width int, ctx *views.Context, status string, statusIsErr 
 		}
 	}
 
+	// The branch is the thing you check, so it carries the accent; the project
+	// name is context and stays quieter.
 	left := " "
 	if branch != "" {
-		left += " " + branch + "  "
+		left += components.TitleStyle.Render(" "+branch) + "  "
 	}
-	left += project
+	left += components.MutedStyle.Render(project)
 
 	// A long status (an API error, typically) must not wrap onto the tabs row,
 	// so it is truncated to whatever space is left beside the project name.
@@ -38,19 +40,21 @@ func renderContextBar(width int, ctx *views.Context, status string, statusIsErr 
 		gap = 1
 	}
 
-	bar := left + strings.Repeat(" ", gap) + right + " "
-	style := components.StatusBarStyle
 	if statusIsErr {
-		style = style.Foreground(components.ColorError)
+		right = components.ErrorStyle.Render(right)
+	} else {
+		right = components.MutedStyle.Render(right)
 	}
-	return style.Width(width).Render(bar)
+
+	bar := left + strings.Repeat(" ", gap) + right + " "
+	return lipgloss.NewStyle().Width(width).Render(bar)
 }
 
 // renderTabs renders the numbered view tabs, highlighting the active one. Tabs
 // are numbered by position (1-based). Full width.
 func renderTabs(width int, viewIDs []views.ViewID, active int, titles []string) string {
 	activeStyle := lipgloss.NewStyle().Bold(true).Foreground(components.ColorPrimary)
-	inactiveStyle := lipgloss.NewStyle().Foreground(components.ColorSecondary)
+	inactiveStyle := components.MutedStyle
 
 	var parts []string
 	for i := range viewIDs {
@@ -66,7 +70,9 @@ func renderTabs(width int, viewIDs []views.ViewID, active int, titles []string) 
 		}
 	}
 
-	bar := " " + strings.Join(parts, "  ")
+	// A rule under the tabs separates the frame from the body, which no longer
+	// has borders of its own.
+	bar := " " + strings.Join(parts, components.HelpSepStyle.Render(" · "))
 	return lipgloss.NewStyle().Width(width).Render(bar)
 }
 

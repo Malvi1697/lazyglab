@@ -198,11 +198,12 @@ func (v *OverviewView) Body(width, height int) string {
 	colWidth := width / 3
 	lastColWidth := width - colWidth*2
 
-	pipelinesBox := components.RenderBox(v.pipelinesTitle(), v.pipelineLines(), colWidth, bottomHeight, components.ColorSecondary, components.ColorSecondary)
-	mrsBox := components.RenderBox(v.mrsTitle(), v.mrLines(), colWidth, bottomHeight, components.ColorSecondary, components.ColorSecondary)
-	issuesBox := components.RenderBox(v.issuesTitle(), v.issueLines(), lastColWidth, bottomHeight, components.ColorSecondary, components.ColorSecondary)
+	pipelines := components.RenderPanel(v.pipelinesTitle(), v.pipelineLines(), colWidth-3, bottomHeight, false)
+	mrs := components.RenderPanel(v.mrsTitle(), v.mrLines(), colWidth-3, bottomHeight, false)
+	issues := components.RenderPanel(v.issuesTitle(), v.issueLines(), lastColWidth-3, bottomHeight, false)
 
-	bottom := lipgloss.JoinHorizontal(lipgloss.Top, pipelinesBox, mrsBox, issuesBox)
+	rule := components.VRule(bottomHeight)
+	bottom := lipgloss.JoinHorizontal(lipgloss.Top, pipelines, " ", rule, " ", mrs, " ", rule, " ", issues)
 
 	return lipgloss.JoinVertical(lipgloss.Left, top, bottom)
 }
@@ -228,17 +229,9 @@ func (v *OverviewView) issuesTitle() string {
 func (v *OverviewView) commitItems() []string {
 	items := make([]string, len(v.commits))
 	for i, c := range v.commits {
-		status := commitStatus(c.ShortID, v.pipelines)
-		icon := "  "
-		if status != "" {
-			icon = components.StatusIconPadded(status)
-		}
-		items[i] = fmt.Sprintf("%s %s %s  %s",
-			util.TimeAgoShort(c.CreatedAt),
-			icon,
-			components.PadRight(components.Truncate(c.AuthorName, authorWidth), authorWidth),
-			c.Title,
-		)
+		items[i] = commitRow(util.TimeAgoShort(c.CreatedAt),
+			commitStatusIcon(commitStatus(c.ShortID, v.pipelines)),
+			c.AuthorName, c.Title)
 	}
 	return items
 }
@@ -294,6 +287,15 @@ func (v *OverviewView) issueLines() []string {
 		lines[i] = fmt.Sprintf("#%d %s", issue.IID, issue.Title)
 	}
 	return lines
+}
+
+// commitStatusIcon renders a commit's CI state, or a faint dot when no pipeline
+// ran for it — a blank would break the column that the eye follows down.
+func commitStatusIcon(status string) string {
+	if status == "" {
+		return components.FaintStyle.Render("·") + " "
+	}
+	return components.StatusIconPadded(status)
 }
 
 // commitStatus maps a commit to its CI status by matching a pipeline SHA that

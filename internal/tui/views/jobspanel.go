@@ -425,14 +425,8 @@ func (p *jobsPanel) body(width, height int) string {
 	if detail == "" {
 		detail = "Select a job"
 	}
-	// A log open means the pane is the thing being read, so give it the accent.
-	border := components.ColorSecondary
-	if p.trace != "" {
-		border = components.ColorPrimary
-	}
-	right := components.RenderBox(p.detailTitle(), splitLines(detail), width-leftWidth, height,
-		border, components.ColorPrimary)
-	return joinH(left, right)
+	right := components.RenderPanel(p.detailTitle(), splitLines(detail), width-leftWidth-4, height, p.trace != "")
+	return joinPanels(left, right, height)
 }
 
 // durationSuffix renders " (1m22s)" for a job that ran, or "" for one that has not.

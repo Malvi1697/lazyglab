@@ -168,25 +168,17 @@ func (v *CommitsView) Body(width, height int) string {
 	if detail == "" {
 		detail = "Select an item to view details"
 	}
-	right := components.RenderBox("Commit", splitLines(detail), rightWidth, height, components.ColorSecondary, components.ColorPrimary)
+	right := components.RenderPanel("Commit", splitLines(detail), rightWidth-4, height, false)
 
-	return joinH(left, right)
+	return joinPanels(left, right, height)
 }
 
 // commitItems renders the commit list rows.
 func (v *CommitsView) commitItems() []string {
 	items := make([]string, len(v.commits))
 	for i, c := range v.commits {
-		icon := "  "
-		if c.Status != "" {
-			icon = components.StatusIconPadded(c.Status)
-		}
-		items[i] = fmt.Sprintf("%s %s %s  %s",
-			util.TimeAgoShort(c.CreatedAt),
-			icon,
-			components.PadRight(components.Truncate(c.AuthorName, authorWidth), authorWidth),
-			c.Title,
-		)
+		items[i] = commitRow(util.TimeAgoShort(c.CreatedAt), commitStatusIcon(c.Status),
+			c.AuthorName, c.Title)
 	}
 	return items
 }

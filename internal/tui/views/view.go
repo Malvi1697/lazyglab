@@ -1,11 +1,11 @@
 package views
 
 import (
+	"fmt"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
-	"github.com/charmbracelet/x/ansi"
 
 	"github.com/Malvi1697/lazyglab/internal/gitlab"
 	"github.com/Malvi1697/lazyglab/internal/tui/components"
@@ -115,24 +115,46 @@ func DefaultViewIndex(views []ViewID, name string) int {
 // titles beside it line up.
 const authorWidth = 16
 
+// commitRow renders one commit list row with three weights of text: dim time and
+// author to scan past, the conventional-commit prefix dimmed too, and the part
+// that says what the commit actually does left bright.
+func commitRow(when, icon, author, title string) string {
+	return fmt.Sprintf("%s %s %s  %s",
+		components.MutedStyle.Render(when),
+		icon,
+		components.MutedStyle.Render(components.PadRight(components.Truncate(author, authorWidth), authorWidth)),
+		styleCommitTitle(title),
+	)
+}
+
+// styleCommitTitle dims a leading "type(scope):" so the subject stands out.
+func styleCommitTitle(title string) string {
+	if i := strings.Index(title, ": "); i > 0 && i < 24 && !strings.Contains(title[:i], " ") {
+		return components.MutedStyle.Render(title[:i+1]) + components.BodyStyle.Render(title[i+1:])
+	}
+	return components.BodyStyle.Render(title)
+}
+
 // splitLines splits a rendered detail string into lines for RenderBox.
 func splitLines(s string) []string { return strings.Split(s, "\n") }
 
-// joinH joins two rendered blocks side by side, top-aligned.
-func joinH(a, b string) string { return lipgloss.JoinHorizontal(lipgloss.Top, a, b) }
+// joinPanels puts two panels beside each other with a rule between them, which
+// is what separates them now that neither has a frame.
+func joinPanels(left, right string, height int) string {
+	return lipgloss.JoinHorizontal(lipgloss.Top, left, " ", components.VRule(height), " ", right)
+}
 
-// renderListBox renders a bordered, scrollable, single-selection list. The
-// cockpit shows one view at a time, so the rendered list is always the focused
-// one; pass a negative cursor to render without a selection.
-// Header lines (prefixed with "\x00") are rendered but never highlighted.
+// renderListBox renders a scrollable, single-selection list as a body panel: a
+// heading and a rule, then the rows. Header rows (prefixed with "\x00") are
+// rendered but never selected.
 //
 // scroll points at the caller's stored scroll offset and is updated in place.
 // The offset has to persist between frames: derived fresh from the cursor it
 // would pin the cursor to an edge, and moving back would scroll the viewport
 // instead of walking the cursor through it.
 func renderListBox(width, height int, title string, items []string, cursor int, scroll *int) string {
-	innerWidth := width - 4   // border + padding on each side
-	innerHeight := height - 2 // top + bottom border
+	innerWidth := width       // panels have no side borders to pay for
+	innerHeight := height - 1 // the heading takes one row
 	if innerWidth < 1 {
 		innerWidth = 1
 	}
@@ -153,18 +175,14 @@ func renderListBox(width, height int, title string, items []string, cursor int, 
 		isHeader := len(item) > 0 && item[0] == '\x00'
 		if isHeader {
 			item = item[1:]
+			// A stage heading is structure, not a row you can act on, so it keeps
+			// the gutter empty and never highlights.
+			contentLines = append(contentLines,
+				strings.Repeat(" ", components.SelectionGutter)+components.Truncate(item, innerWidth-components.SelectionGutter))
+			continue
 		}
-		displayItem := components.Truncate(item, innerWidth)
-		if i == cursor && !isHeader {
-			plain := ansi.Strip(displayItem)
-			visW := lipgloss.Width(plain)
-			if visW < innerWidth {
-				plain += strings.Repeat(" ", innerWidth-visW)
-			}
-			displayItem = components.SelectedItemStyle.Render(plain)
-		}
-		contentLines = append(contentLines, displayItem)
+		contentLines = append(contentLines, components.SelectRow(item, innerWidth, i == cursor))
 	}
 
-	return components.RenderBox(title, contentLines, width, height, components.ColorPrimary, components.ColorPrimary)
+	return components.RenderPanel(title, contentLines, width, height, true)
 }

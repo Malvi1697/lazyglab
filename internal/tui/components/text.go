@@ -79,3 +79,7 @@ func WrapLine(line string, w int) []string {
 	}
 	return out
 }
+
+// StripStyles removes ANSI styling, for when a span has to be repainted as a
+// whole (a selected row, say) and nested escapes would fight the new style.
+func StripStyles(s string) string { return ansi.Strip(s) }
