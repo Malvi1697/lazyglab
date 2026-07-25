@@ -142,6 +142,22 @@ The five views:
 
 Press `P` to switch projects and `b` to switch branches from any view — both
 open as overlays on top of the current view. `r` refreshes the active view.
+`h`/`l` step between views, like `Shift+Tab`/`Tab`.
+
+### Favorites
+
+The project switcher lists only the 50 most recently active projects, so the ones
+you actually work on daily can fall off it. Star them instead:
+
+- In the project switcher (`P`), highlight a project and press `f`. Starred
+  projects are marked `★`.
+- Press `f` from any view to open the **Favorites** picker: `Enter` opens the
+  project, `f` unstars it.
+
+Favorites are stored per host in the config (`hosts.<host>.favorites`) as
+`group/project` paths, so they survive restarts and can be edited by hand. A
+favorite outside the recent-projects list is fetched directly by path, which is
+the point — it stays reachable no matter how long ago you touched it.
 
 ## Configuration
 
@@ -154,6 +170,11 @@ default_host: gitlab.com
 hosts:
   gitlab.com:
     token: "…"
+    # Starred projects for this host, shown in the favorites picker (f).
+    # Managed from the UI, but hand-editable.
+    favorites:
+      - my-group/my-project
+      - other-group/service
 settings:
   # Enabled tabs, in display order. Omit any to hide it. Empty/omitted = all five.
   views: [overview, pipelines, mrs, issues, commits]
@@ -185,7 +206,9 @@ Overview is shown first, and auto-refresh runs every 30s.
 | `?` | Help overlay |
 | `1-5` | Switch view |
 | `Tab` / `Shift+Tab` | Next/previous view |
-| `P` | Project switcher |
+| `h` / `l` | Previous / next view |
+| `P` | Project switcher (`f` stars the highlighted project) |
+| `f` | Favorites picker (`f` again unstars) |
 | `b` | Branch switcher |
 | `A` | Reconnect (change host / replace token) |
 | `r` | Refresh active view |

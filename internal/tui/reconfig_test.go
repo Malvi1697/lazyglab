@@ -17,14 +17,13 @@ import (
 // newTestApp builds a minimal shell with a stub reconfigure function.
 func newTestApp(t *testing.T, reconfigure ReconfigureFunc) *App {
 	t.Helper()
-	a := NewApp(
-		map[string]*gitlab.Client{"gitlab.example.com": nil},
-		[]string{"gitlab.example.com"},
-		"gitlab.example.com", "",
-		[]views.ViewID{views.ViewOverview},
-		0, 0,
-		reconfigure,
-	)
+	a := NewApp(Options{
+		Clients:      map[string]*gitlab.Client{"gitlab.example.com": nil},
+		HostNames:    []string{"gitlab.example.com"},
+		DetectedHost: "gitlab.example.com",
+		ViewIDs:      []views.ViewID{views.ViewOverview},
+		Reconfigure:  reconfigure,
+	})
 	a.width, a.height = 100, 40
 	return a
 }

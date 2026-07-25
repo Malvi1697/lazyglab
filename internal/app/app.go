@@ -50,7 +50,23 @@ func Run() error {
 	fmt.Println("  Launching lazyglab...")
 	fmt.Println()
 
-	model := tui.NewApp(clients, hostNames, detectedHost, detectedPath, viewIDs, defaultIndex, refreshInterval, ReconfigureAuth)
+	activeHost := detectedHost
+	if activeHost == "" && len(hostNames) > 0 {
+		activeHost = hostNames[0]
+	}
+
+	model := tui.NewApp(tui.Options{
+		Clients:          clients,
+		HostNames:        hostNames,
+		DetectedHost:     detectedHost,
+		DetectedPath:     detectedPath,
+		ViewIDs:          viewIDs,
+		DefaultViewIndex: defaultIndex,
+		RefreshInterval:  refreshInterval,
+		Favorites:        FavoritesFor(cfg, activeHost),
+		Reconfigure:      ReconfigureAuth,
+		SaveFavorites:    SaveFavorites,
+	})
 	p := tea.NewProgram(model)
 	if _, err := p.Run(); err != nil {
 		return fmt.Errorf("running TUI: %w", err)

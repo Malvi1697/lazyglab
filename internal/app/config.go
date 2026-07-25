@@ -20,6 +20,10 @@ type Config struct {
 type HostConfig struct {
 	Token   string `yaml:"token"`
 	APIHost string `yaml:"api_host,omitempty"` // optional: if API is on different host
+	// Favorites are starred project paths ("group/project") on this host, shown
+	// in the favorites picker. Paths rather than IDs, so they stay readable and
+	// hand-editable in the config file.
+	Favorites []string `yaml:"favorites,omitempty"`
 }
 
 // Settings holds global UI preferences.

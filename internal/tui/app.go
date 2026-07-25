@@ -44,6 +44,12 @@ type App struct {
 	reconfig            *reconfigState
 	authPromptDismissed bool
 
+	// Favorites: starred project paths on the active host, plus the picker's state.
+	favorites       []string
+	saveFavorites   SaveFavoritesFunc
+	favoriteCursor  int
+	favoritesStatus string // inline note shown in the favorites picker
+
 	// Auto-detected project path from the git remote, matched once at startup.
 	detectedPath string
 
@@ -56,20 +62,36 @@ type App struct {
 	statusIsErr   bool
 }
 
+// Options is everything the cockpit shell needs from the app layer: the GitLab
+// clients, the preferences read from the config file, and the callbacks that
+// write changes back to it (the TUI cannot import the app package itself).
+type Options struct {
+	Clients      map[string]*gitlab.Client
+	HostNames    []string
+	DetectedHost string
+	DetectedPath string
+
+	ViewIDs          []views.ViewID
+	DefaultViewIndex int
+	RefreshInterval  time.Duration
+
+	// Favorites are starred project paths ("group/project") on the active host.
+	Favorites []string
+
+	// Reconfigure persists a new host/token; nil disables re-authentication.
+	Reconfigure ReconfigureFunc
+	// SaveFavorites persists the favorites of a host; nil keeps stars
+	// in-session only.
+	SaveFavorites SaveFavoritesFunc
+}
+
 // NewApp builds the cockpit shell: it selects the active host, constructs the
 // shared Context and every enabled view, and records the startup detection state.
-// reconfigure persists a new host/token when the stored token stops working; a
-// nil value simply disables the re-authentication overlay.
-func NewApp(
-	clients map[string]*gitlab.Client,
-	hostNames []string,
-	detectedHost, detectedPath string,
-	viewIDs []views.ViewID,
-	defaultIndex int,
-	refreshInterval time.Duration,
-	reconfigure ReconfigureFunc,
-) *App {
-	activeHost := detectedHost
+func NewApp(o Options) *App {
+	clients, hostNames := o.Clients, o.HostNames
+	viewIDs, defaultIndex := o.ViewIDs, o.DefaultViewIndex
+
+	activeHost := o.DetectedHost
 	if activeHost == "" && len(hostNames) > 0 {
 		activeHost = hostNames[0]
 	}
@@ -104,9 +126,11 @@ func NewApp(
 		viewIDs:         viewIDs,
 		views:           built,
 		active:          defaultIndex,
-		detectedPath:    detectedPath,
-		refreshInterval: refreshInterval,
-		reconfigure:     reconfigure,
+		detectedPath:    o.DetectedPath,
+		refreshInterval: o.RefreshInterval,
+		reconfigure:     o.Reconfigure,
+		favorites:       o.Favorites,
+		saveFavorites:   o.SaveFavorites,
 	}
 }
 
@@ -246,6 +270,13 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.setStatus(fmt.Sprintf("Authenticated as %s on %s", msg.username, msg.host), false)
 		return a, tea.Batch(a.loadProjects(), a.activeView().Focus())
 
+	case favoritesSavedMsg:
+		// The star is already applied in memory; only a failed write needs saying.
+		if msg.err != nil {
+			a.setStatus(fmt.Sprintf("Could not save favorites: %v", msg.err), true)
+		}
+		return a, nil
+
 	case tickMsg:
 		var cmd tea.Cmd
 		if a.overlay == overlayNone {
@@ -278,6 +309,8 @@ func (a *App) routeOverlayKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return a.handleConfirmKey(msg)
 	case overlayReconfig:
 		return a.handleReconfigKey(msg)
+	case overlayFavorites:
+		return a.handleFavoritesKey(msg)
 	case overlayBranch:
 		return a.handleBranchPickerKey(msg)
 	case overlayProject:
@@ -299,10 +332,12 @@ func (a *App) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case KeyHelp:
 		a.overlay = overlayHelp
 		return a, nil
-	case KeyTab:
+	// h/l move between views like Tab/Shift+Tab: in v1 they moved between panels,
+	// and that muscle memory is worth keeping in the cockpit.
+	case KeyTab, KeyVimRight:
 		a.switchView((a.active + 1) % len(a.viewIDs))
 		return a, a.activeView().Focus()
-	case KeyShiftTab:
+	case KeyShiftTab, KeyVimLeft:
 		a.switchView((a.active - 1 + len(a.viewIDs)) % len(a.viewIDs))
 		return a, a.activeView().Focus()
 	case "P": // project switcher (uppercase so "p" stays free for view actions)
@@ -321,6 +356,9 @@ func (a *App) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if a.reconfigure != nil {
 			a.openReconfig("")
 		}
+		return a, nil
+	case KeyFavorite:
+		a.openFavorites()
 		return a, nil
 	}
 
@@ -435,6 +473,7 @@ func (a *App) globalHints() []views.KeyHint {
 		{Key: "?", Desc: "Help"},
 		{Key: fmt.Sprintf("1-%d", len(a.viewIDs)), Desc: "View"},
 		{Key: "P", Desc: "Project"},
+		{Key: "f", Desc: "★"},
 		{Key: "b", Desc: "Branch"},
 		{Key: "r", Desc: "↻"},
 	}
@@ -453,6 +492,8 @@ func (a *App) overlayBox() string {
 		return a.renderConfirm()
 	case overlayReconfig:
 		return a.renderReconfig()
+	case overlayFavorites:
+		return a.renderFavorites()
 	}
 	return ""
 }

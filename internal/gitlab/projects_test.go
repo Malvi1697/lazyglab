@@ -138,3 +138,54 @@ func TestListProjects_stripANSI(t *testing.T) {
 		t.Errorf("ANSI not stripped: got %q", projects[0].Name)
 	}
 }
+
+func TestGetProjectByPath_success(t *testing.T) {
+	mux := http.NewServeMux()
+	// The SDK URL-escapes the path into a single path segment.
+	mux.HandleFunc("/api/v4/projects/my-group%2Fmy-project", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			t.Errorf("want GET, got %s", r.Method)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"id": 42,
+			"name": "my-project",
+			"name_with_namespace": "My Group / my-project",
+			"path_with_namespace": "my-group/my-project",
+			"web_url": "https://gitlab.com/my-group/my-project",
+			"default_branch": "main"
+		}`))
+	})
+
+	client, srv := setupTestClient(t, mux)
+	defer srv.Close()
+
+	p, err := client.GetProjectByPath("my-group/my-project")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if p.ID != 42 {
+		t.Errorf("want ID 42, got %d", p.ID)
+	}
+	if p.NameWithNamespace != "My Group / my-project" {
+		t.Errorf("want NameWithNamespace 'My Group / my-project', got %q", p.NameWithNamespace)
+	}
+	if p.DefaultBranch != "main" {
+		t.Errorf("want DefaultBranch main, got %q", p.DefaultBranch)
+	}
+}
+
+func TestGetProjectByPath_notFound(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = w.Write([]byte(`{"message":"404 Project Not Found"}`))
+	})
+
+	client, srv := setupTestClient(t, mux)
+	defer srv.Close()
+
+	if _, err := client.GetProjectByPath("nope/nope"); err == nil {
+		t.Fatal("expected an error for a missing project")
+	}
+}

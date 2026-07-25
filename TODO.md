@@ -23,6 +23,7 @@
 - [x] Skip hosts with empty tokens
 - [x] Fallback: prompt for token if glab not configured (setup wizard)
 - [x] In-app re-authentication overlay when the token is rejected (`A`)
+- [x] Favorite projects, starred per host and picked with `f`
 
 ### GitLab Client (Step 3)
 - [x] Client wrapper with authentication (`internal/gitlab/client.go`)

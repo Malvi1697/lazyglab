@@ -25,6 +25,7 @@ const (
 	KeyOpenBrowse = "o"
 	KeyBranch     = "b"
 	KeyReauth     = "A" // reconnect: change host / replace token
+	KeyFavorite   = "f" // favorites picker; inside a picker: star/unstar
 
 	// Panel selection
 	KeyPanel1 = "1"

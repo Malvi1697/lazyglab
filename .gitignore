@@ -12,3 +12,8 @@ build-errors.log
 .claude/
 .olc/
 CLAUDE.md
+
+# Editor swap files
+*.swp
+*.swo
+*~

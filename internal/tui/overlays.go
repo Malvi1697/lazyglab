@@ -22,6 +22,7 @@ const (
 	overlayHelp
 	overlayConfirm
 	overlayReconfig
+	overlayFavorites
 )
 
 // confirmAction holds state for a pending confirmation dialog. The action runs
@@ -210,6 +211,11 @@ func (a *App) handleProjectPickerKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			a.projectCursor = 0
 		}
 		return a, nil
+	case key == KeyFavorite:
+		if a.projectCursor >= 0 && a.projectCursor < len(a.projects) {
+			return a, a.toggleFavorite(a.projects[a.projectCursor].PathWithNamespace)
+		}
+		return a, nil
 	case key == KeyEnter:
 		if a.projectCursor >= 0 && a.projectCursor < len(a.projects) {
 			proj := a.projects[a.projectCursor]
@@ -240,8 +246,11 @@ func (a *App) renderProjectPicker() string {
 		for i := scrollOffset; i < len(a.projects) && len(lines) < maxVisible; i++ {
 			p := a.projects[i]
 			marker := "  "
-			if a.ctx != nil && a.ctx.Project != nil && a.ctx.Project.ID == p.ID {
+			switch {
+			case a.ctx != nil && a.ctx.Project != nil && a.ctx.Project.ID == p.ID:
 				marker = "* "
+			case a.isFavorite(p.PathWithNamespace):
+				marker = "★ "
 			}
 			label := components.Truncate(marker+p.NameWithNamespace, innerWidth)
 			if i == a.projectCursor {
@@ -250,7 +259,11 @@ func (a *App) renderProjectPicker() string {
 			lines = append(lines, label)
 		}
 	}
-	lines = append(lines, "", components.HelpDescStyle.Render("Enter: select  Esc: cancel  j/k: navigate"))
+	hint := "Enter: select  f: star  Esc: cancel  j/k: navigate"
+	if a.favoritesStatus != "" {
+		hint = components.Truncate(a.favoritesStatus, innerWidth)
+	}
+	lines = append(lines, "", components.HelpDescStyle.Render(hint))
 
 	return components.RenderBox("Select Project", lines, boxWidth, boxHeight, components.ColorPrimary, components.ColorPrimary)
 }
@@ -287,7 +300,9 @@ func (a *App) renderHelp() string {
 		{"?", "Toggle help"},
 		{"1-9", "Switch view"},
 		{"Tab / S-Tab", "Next / prev view"},
+		{"h / l", "Prev / next view"},
 		{"P", "Project switcher"},
+		{"f", "Favorites (f again: star/unstar)"},
 		{"b", "Branch filter"},
 		{"r", "Refresh view"},
 		{"A", "Reconnect (host / token)"},
