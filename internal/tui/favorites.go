@@ -15,6 +15,10 @@ import (
 // package injects it, because config handling lives there.
 type SaveFavoritesFunc func(host string, favorites []string) error
 
+// SaveLastProjectFunc persists the project last selected on a host, so the next
+// launch resumes there. Injected by the app package for the same reason.
+type SaveLastProjectFunc func(host, path string) error
+
 // favoritesSavedMsg reports the outcome of writing favorites to the config.
 type favoritesSavedMsg struct{ err error }
 
@@ -45,6 +49,21 @@ func (a *App) toggleFavorite(path string) tea.Cmd {
 	favorites := slices.Clone(a.favorites)
 	save := a.saveFavorites
 	return func() tea.Msg { return favoritesSavedMsg{err: save(host, favorites)} }
+}
+
+// lastProjectSavedMsg reports the outcome of recording the active project.
+type lastProjectSavedMsg struct{ err error }
+
+// rememberProject records the active project so the next launch resumes it.
+// Unchanged selections write nothing.
+func (a *App) rememberProject(path string) tea.Cmd {
+	if path == "" || path == a.lastProject || a.saveLastProject == nil {
+		return nil
+	}
+	a.lastProject = path
+	host := a.activeHost
+	save := a.saveLastProject
+	return func() tea.Msg { return lastProjectSavedMsg{err: save(host, path)} }
 }
 
 // clampFavoriteCursor keeps the favorites cursor within bounds.
@@ -155,11 +174,8 @@ func (a *App) renderFavorites() string {
 			components.HelpDescStyle.Render("Press P, highlight a project and press f to star it."),
 		)
 	} else {
-		scrollOffset := 0
-		if a.favoriteCursor >= maxVisible {
-			scrollOffset = a.favoriteCursor - maxVisible + 1
-		}
-		for i := scrollOffset; i < len(a.favorites) && len(lines) < maxVisible; i++ {
+		a.favoriteScroll = components.ScrollOffset(a.favoriteScroll, a.favoriteCursor, len(a.favorites), maxVisible)
+		for i := a.favoriteScroll; i < len(a.favorites) && len(lines) < maxVisible; i++ {
 			path := a.favorites[i]
 			label := components.Truncate("★ "+a.favoriteLabel(path), innerWidth)
 			if i == a.favoriteCursor {

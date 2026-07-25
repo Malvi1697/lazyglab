@@ -115,7 +115,12 @@ func joinH(a, b string) string { return lipgloss.JoinHorizontal(lipgloss.Top, a,
 // cockpit shows one view at a time, so the rendered list is always the focused
 // one; pass a negative cursor to render without a selection.
 // Header lines (prefixed with "\x00") are rendered but never highlighted.
-func renderListBox(width, height int, title string, items []string, cursor int) string {
+//
+// scroll points at the caller's stored scroll offset and is updated in place.
+// The offset has to persist between frames: derived fresh from the cursor it
+// would pin the cursor to an edge, and moving back would scroll the viewport
+// instead of walking the cursor through it.
+func renderListBox(width, height int, title string, items []string, cursor int, scroll *int) string {
 	innerWidth := width - 4   // border + padding on each side
 	innerHeight := height - 2 // top + bottom border
 	if innerWidth < 1 {
@@ -125,10 +130,11 @@ func renderListBox(width, height int, title string, items []string, cursor int) 
 		innerHeight = 0
 	}
 
-	// Scroll offset: keep cursor visible.
+	// Keep the cursor visible with a margin of context beyond it.
 	scrollOffset := 0
-	if cursor >= innerHeight {
-		scrollOffset = cursor - innerHeight + 1
+	if scroll != nil {
+		*scroll = components.ScrollOffset(*scroll, cursor, len(items), innerHeight)
+		scrollOffset = *scroll
 	}
 
 	var contentLines []string

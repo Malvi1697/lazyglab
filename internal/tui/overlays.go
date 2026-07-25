@@ -191,11 +191,8 @@ func (a *App) renderBranchPicker() string {
 	case len(visible) == 0:
 		lines = append(lines, components.HelpDescStyle.Render("No branch matches "+a.branchFilter.query))
 	default:
-		scrollOffset := 0
-		if a.branchCursor >= maxVisible {
-			scrollOffset = a.branchCursor - maxVisible + 1
-		}
-		for i := scrollOffset; i < len(visible) && len(lines) < maxVisible; i++ {
+		a.branchScroll = components.ScrollOffset(a.branchScroll, a.branchCursor, len(visible), maxVisible)
+		for i := a.branchScroll; i < len(visible) && len(lines) < maxVisible; i++ {
 			b := visible[i]
 			marker := "  "
 			if b.Default {
@@ -411,11 +408,9 @@ func (a *App) projectRows(visible []gitlab.Project, innerWidth, maxRows int) []s
 		rows = append(rows, label)
 	}
 
-	// Scroll so the cursor's row stays visible.
-	offset := 0
-	if cursorRow >= maxRows {
-		offset = cursorRow - maxRows + 1
-	}
+	// Scroll so the cursor's row keeps a margin of context around it.
+	a.projectScroll = components.ScrollOffset(a.projectScroll, cursorRow, len(rows), maxRows)
+	offset := a.projectScroll
 	end := offset + maxRows
 	if end > len(rows) {
 		end = len(rows)

@@ -25,6 +25,7 @@ type OverviewView struct {
 	issues    []gitlab.Issue
 
 	cursor int // into commits
+	scroll int // first visible row, kept across frames
 }
 
 // NewOverviewView creates an OverviewView bound to the shared session context.
@@ -158,7 +159,7 @@ func (v *OverviewView) Body(width, height int) string {
 		bottomHeight = 1
 	}
 
-	top := renderListBox(width, topHeight, v.commitsTitle(), v.commitItems(), v.cursor)
+	top := renderListBox(width, topHeight, v.commitsTitle(), v.commitItems(), v.cursor, &v.scroll)
 
 	colWidth := width / 3
 	lastColWidth := width - colWidth*2

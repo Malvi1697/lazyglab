@@ -25,6 +25,7 @@ type MRsView struct {
 
 	mrs    []gitlab.MergeRequest
 	cursor int
+	scroll int // first visible row, kept across frames
 
 	status string
 }
@@ -137,7 +138,7 @@ func (v *MRsView) Body(width, height int) string {
 	}
 	rightWidth := width - leftWidth
 
-	left := renderListBox(leftWidth, height, "Merge Requests", v.mrItems(), v.cursor)
+	left := renderListBox(leftWidth, height, "Merge Requests", v.mrItems(), v.cursor, &v.scroll)
 
 	detail := v.mrDetail()
 	if detail == "" {

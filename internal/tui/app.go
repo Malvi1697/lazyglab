@@ -42,6 +42,12 @@ type App struct {
 	projectFilter listFilter
 	branchFilter  listFilter
 
+	// First visible row of each picker, kept across frames so the cursor moves
+	// inside the window instead of dragging it.
+	projectScroll  int
+	branchScroll   int
+	favoriteScroll int
+
 	// Re-authentication overlay: opened automatically when the stored token is
 	// rejected, or on demand with "A".
 	reconfigure         ReconfigureFunc
@@ -53,6 +59,10 @@ type App struct {
 	saveFavorites   SaveFavoritesFunc
 	favoriteCursor  int
 	favoritesStatus string // inline note shown in the favorites picker
+
+	// Session resume: the project to reopen at startup and how to record it.
+	lastProject     string
+	saveLastProject SaveLastProjectFunc
 
 	// Auto-detected project path from the git remote, matched once at startup.
 	detectedPath string
@@ -81,12 +91,18 @@ type Options struct {
 
 	// Favorites are starred project paths ("group/project") on the active host.
 	Favorites []string
+	// LastProject is the path selected on the previous run, restored at startup
+	// unless a project was detected from the git remote.
+	LastProject string
 
 	// Reconfigure persists a new host/token; nil disables re-authentication.
 	Reconfigure ReconfigureFunc
 	// SaveFavorites persists the favorites of a host; nil keeps stars
 	// in-session only.
 	SaveFavorites SaveFavoritesFunc
+	// SaveLastProject records the active project; nil means the next launch will
+	// not resume it.
+	SaveLastProject SaveLastProjectFunc
 }
 
 // NewApp builds the cockpit shell: it selects the active host, constructs the
@@ -135,6 +151,8 @@ func NewApp(o Options) *App {
 		reconfigure:     o.Reconfigure,
 		favorites:       o.Favorites,
 		saveFavorites:   o.SaveFavorites,
+		lastProject:     o.LastProject,
+		saveLastProject: o.SaveLastProject,
 	}
 }
 
@@ -149,6 +167,13 @@ func (a *App) Init() tea.Cmd {
 	cmds := []tea.Cmd{a.loadProjects(), a.activeView().Focus()}
 	if a.refreshInterval > 0 {
 		cmds = append(cmds, a.tickCmd())
+	}
+	// Resume the previous session's project, unless the git remote already told us
+	// which project this directory is about — being inside a repo is the stronger
+	// signal. Resolving by path rather than waiting for the project list means the
+	// view is populated immediately, even for a project outside that list.
+	if a.detectedPath == "" && a.lastProject != "" {
+		cmds = append(cmds, a.selectProjectByPath(a.lastProject))
 	}
 	return tea.Batch(cmds...)
 }
@@ -245,7 +270,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.ctx.Branch = nil
 		a.overlay = overlayNone
 		a.setStatus(fmt.Sprintf("Selected: %s", proj.NameWithNamespace), false)
-		return a, a.activeView().Focus()
+		return a, tea.Batch(a.activeView().Focus(), a.rememberProject(proj.PathWithNamespace))
 
 	case views.BranchesLoadedMsg:
 		if msg.Err != nil {
@@ -290,6 +315,14 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// The star is already applied in memory; only a failed write needs saying.
 		if msg.err != nil {
 			a.setStatus(fmt.Sprintf("Could not save favorites: %v", msg.err), true)
+		}
+		return a, nil
+
+	case lastProjectSavedMsg:
+		// Failing to remember the project must not disturb the selection itself,
+		// but silently losing session state would be worse.
+		if msg.err != nil {
+			a.setStatus(fmt.Sprintf("Could not save the last project: %v", msg.err), true)
 		}
 		return a, nil
 

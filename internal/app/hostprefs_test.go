@@ -1,6 +1,7 @@
 package app
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 )
@@ -91,5 +92,79 @@ func TestSaveFavorites_EmptyListClearsThem(t *testing.T) {
 	}
 	if reloaded.Hosts["h"].Token != "t" {
 		t.Error("clearing favorites must not drop the token")
+	}
+}
+
+func TestSaveLastProject_RoundTripAndPreservation(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.yml")
+	t.Setenv("LAZYGLAB_CONFIG", path)
+
+	if err := SaveConfig(&Config{
+		DefaultHost: "gitlab.olc.cz",
+		Hosts: map[string]HostConfig{
+			"gitlab.olc.cz": {Token: "secret", Favorites: []string{"g/starred"}},
+		},
+		Settings: Settings{DefaultView: "commits"},
+	}); err != nil {
+		t.Fatalf("SaveConfig: %v", err)
+	}
+
+	if err := SaveLastProject("gitlab.olc.cz", "g/worked-on"); err != nil {
+		t.Fatalf("SaveLastProject: %v", err)
+	}
+
+	reloaded, err := LoadConfig()
+	if err != nil {
+		t.Fatalf("LoadConfig: %v", err)
+	}
+	if got := LastProjectFor(reloaded, "gitlab.olc.cz"); got != "g/worked-on" {
+		t.Errorf("last project = %q, want g/worked-on", got)
+	}
+	host := reloaded.Hosts["gitlab.olc.cz"]
+	if host.Token != "secret" {
+		t.Errorf("token must survive, got %q", host.Token)
+	}
+	if len(host.Favorites) != 1 || host.Favorites[0] != "g/starred" {
+		t.Errorf("favorites must survive, got %v", host.Favorites)
+	}
+	if reloaded.Settings.DefaultView != "commits" {
+		t.Error("settings must survive")
+	}
+}
+
+func TestSaveLastProject_UnchangedWritesNothing(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.yml")
+	t.Setenv("LAZYGLAB_CONFIG", path)
+
+	if err := SaveConfig(&Config{Hosts: map[string]HostConfig{
+		"h": {Token: "t", LastProject: "g/p"},
+	}}); err != nil {
+		t.Fatalf("SaveConfig: %v", err)
+	}
+	before, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("Stat: %v", err)
+	}
+
+	if err := SaveLastProject("h", "g/p"); err != nil {
+		t.Fatalf("SaveLastProject: %v", err)
+	}
+
+	after, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("Stat: %v", err)
+	}
+	if !after.ModTime().Equal(before.ModTime()) {
+		t.Error("re-selecting the same project should not rewrite the config")
+	}
+}
+
+func TestLastProjectFor_UnsetIsEmpty(t *testing.T) {
+	cfg := &Config{Hosts: map[string]HostConfig{"h": {Token: "t"}}}
+	if got := LastProjectFor(cfg, "h"); got != "" {
+		t.Errorf("want empty, got %q", got)
+	}
+	if got := LastProjectFor(cfg, "other"); got != "" {
+		t.Errorf("unknown host should be empty, got %q", got)
 	}
 }

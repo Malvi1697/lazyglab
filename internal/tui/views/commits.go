@@ -17,6 +17,7 @@ type CommitsView struct {
 
 	commits []gitlab.Commit
 	cursor  int
+	scroll  int // first visible row, kept across frames
 
 	status string
 }
@@ -118,7 +119,7 @@ func (v *CommitsView) Body(width, height int) string {
 	}
 	rightWidth := width - leftWidth
 
-	left := renderListBox(leftWidth, height, "Commits", v.commitItems(), v.cursor)
+	left := renderListBox(leftWidth, height, "Commits", v.commitItems(), v.cursor, &v.scroll)
 
 	detail := v.commitDetail()
 	if detail == "" {

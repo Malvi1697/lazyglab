@@ -24,6 +24,9 @@ type HostConfig struct {
 	// in the favorites picker. Paths rather than IDs, so they stay readable and
 	// hand-editable in the config file.
 	Favorites []string `yaml:"favorites,omitempty"`
+	// LastProject is the project path selected most recently on this host, so a
+	// restart resumes where the user left off.
+	LastProject string `yaml:"last_project,omitempty"`
 }
 
 // Settings holds global UI preferences.

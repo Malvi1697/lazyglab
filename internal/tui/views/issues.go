@@ -22,6 +22,7 @@ type IssuesView struct {
 
 	issues []gitlab.Issue
 	cursor int
+	scroll int // first visible row, kept across frames
 
 	status string
 }
@@ -133,7 +134,7 @@ func (v *IssuesView) Body(width, height int) string {
 	}
 	rightWidth := width - leftWidth
 
-	left := renderListBox(leftWidth, height, "Issues", v.issueItems(), v.cursor)
+	left := renderListBox(leftWidth, height, "Issues", v.issueItems(), v.cursor, &v.scroll)
 
 	detail := v.issueDetail()
 	if detail == "" {

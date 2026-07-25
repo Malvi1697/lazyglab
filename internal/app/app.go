@@ -64,8 +64,10 @@ func Run() error {
 		DefaultViewIndex: defaultIndex,
 		RefreshInterval:  refreshInterval,
 		Favorites:        FavoritesFor(cfg, activeHost),
+		LastProject:      LastProjectFor(cfg, activeHost),
 		Reconfigure:      ReconfigureAuth,
 		SaveFavorites:    SaveFavorites,
+		SaveLastProject:  SaveLastProject,
 	})
 	p := tea.NewProgram(model)
 	if _, err := p.Run(); err != nil {

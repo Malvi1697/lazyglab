@@ -169,6 +169,13 @@ Favorites are stored per host in the config (`hosts.<host>.favorites`) as
 favorite is fetched directly by path when it is not among the loaded projects, so
 it stays reachable regardless.
 
+### Resuming where you left off
+
+The project you were last on is remembered per host (`hosts.<host>.last_project`)
+and reopened on the next launch. Running lazyglab inside a git repository whose
+remote points at a configured GitLab host overrides it — being in that repo is the
+clearer signal about what you want to look at.
+
 ## Configuration
 
 lazyglab stores its config at `~/.config/lazyglab/config.yml` (override with the
@@ -185,6 +192,8 @@ hosts:
     favorites:
       - my-group/my-project
       - other-group/service
+    # Reopened on the next launch. Written when you switch projects.
+    last_project: my-group/my-project
 settings:
   # Enabled tabs, in display order. Omit any to hide it. Empty/omitted = all five.
   views: [overview, pipelines, mrs, issues, commits]

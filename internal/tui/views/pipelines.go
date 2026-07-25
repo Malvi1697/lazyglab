@@ -37,10 +37,12 @@ type PipelinesView struct {
 
 	pipelines []gitlab.Pipeline
 	cursor    int
+	scroll    int // first visible row of the pipeline list, kept across frames
 
 	viewingJobs    bool
 	jobs           []gitlab.Job
 	jobCursor      int
+	jobScroll      int // first visible row of the job list, kept across frames
 	jobTrace       string
 	jobTraceScroll int
 
@@ -347,11 +349,13 @@ func (v *PipelinesView) Body(width, height int) string {
 	}
 	rightWidth := width - leftWidth
 
-	// Left list.
+	// Left list. Pipelines and jobs are separate lists, so each keeps its own
+	// scroll position rather than inheriting the other's.
 	var (
 		listTitle string
 		items     []string
 		cursor    int
+		scroll    *int
 	)
 	if v.viewingJobs {
 		listTitle = v.jobsTitle()
@@ -360,12 +364,14 @@ func (v *PipelinesView) Body(width, height int) string {
 		if v.jobCursor >= 0 && v.jobCursor < len(jobToDisplay) {
 			cursor = jobToDisplay[v.jobCursor]
 		}
+		scroll = &v.jobScroll
 	} else {
 		listTitle = "Pipelines"
 		items = v.pipelineItems()
 		cursor = v.cursor
+		scroll = &v.scroll
 	}
-	left := renderListBox(leftWidth, height, listTitle, items, cursor)
+	left := renderListBox(leftWidth, height, listTitle, items, cursor, scroll)
 
 	// Right detail.
 	var detail string
