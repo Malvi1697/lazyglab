@@ -9,6 +9,7 @@ import (
 	"charm.land/lipgloss/v2"
 
 	"github.com/Malvi1697/lazyglab/internal/gitlab"
+	"github.com/Malvi1697/lazyglab/internal/tui/components"
 	"github.com/Malvi1697/lazyglab/internal/tui/views"
 )
 
@@ -39,8 +40,8 @@ type App struct {
 	pendingConfirm    *confirmAction
 
 	// Incremental "/" search inside the project and branch pickers.
-	projectFilter listFilter
-	branchFilter  listFilter
+	projectFilter components.Filter
+	branchFilter  components.Filter
 
 	// First visible row of each picker, kept across frames so the cursor moves
 	// inside the window instead of dragging it.
@@ -220,15 +221,17 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case overlayReconfig:
 			a.pasteIntoReconfig(msg.Content)
 		case overlayProject:
-			if a.projectFilter.active {
-				a.projectFilter.query += strings.TrimSpace(msg.Content)
+			if a.projectFilter.Paste(msg.Content) {
 				a.projectCursor = 0
 			}
 		case overlayBranch:
-			if a.branchFilter.active {
-				a.branchFilter.query += strings.TrimSpace(msg.Content)
+			if a.branchFilter.Paste(msg.Content) {
 				a.branchCursor = 0
 			}
+		case overlayNone:
+			// A view with its own "/" search open takes the paste, the same way the
+			// pickers do.
+			return a, a.activeView().Update(msg)
 		}
 		return a, nil
 
@@ -280,7 +283,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		a.branches = msg.Branches
 		a.branchCursor = 0
-		a.branchFilter.reset()
+		a.branchFilter.Reset()
 		a.overlay = overlayBranch
 		return a, nil
 
@@ -375,6 +378,15 @@ func (a *App) routeOverlayKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 func (a *App) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	key := msg.String()
 
+	// A view typing a "/" search owns the keyboard: "q" has to be a letter in the
+	// query rather than quitting the app, and "b" a letter rather than the branch
+	// picker. Ctrl+c still quits, since a wedged search must not trap anyone.
+	if key != "ctrl+c" {
+		if tc, ok := a.activeView().(views.TextCapturer); ok && tc.CapturingText() {
+			return a, a.activeView().Update(msg)
+		}
+	}
+
 	switch key {
 	case KeyQuit, "ctrl+c":
 		return a, tea.Quit
@@ -393,7 +405,7 @@ func (a *App) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return a, a.activeView().Focus()
 	case "P": // project switcher (uppercase so "p" stays free for view actions)
 		// Each visit starts unfiltered; a stale query would hide most projects.
-		a.projectFilter.reset()
+		a.projectFilter.Reset()
 		a.projectCursor = 0
 		a.wantProjectPicker = true
 		if len(a.projects) > 0 {

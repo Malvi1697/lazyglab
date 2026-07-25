@@ -108,7 +108,7 @@ func (a *App) handleReconfigKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		return a, a.submitReconfig()
 	case "backspace":
-		r.setField(trimLastRune(r.currentField()))
+		r.setField(components.TrimLastRune(r.currentField()))
 		return a, nil
 	case "ctrl+u":
 		r.setField("")
@@ -153,15 +153,6 @@ func (r *reconfigState) setField(v string) {
 		r.token = v
 	}
 	r.err = ""
-}
-
-// trimLastRune removes the final rune, so multi-byte input deletes cleanly.
-func trimLastRune(s string) string {
-	runes := []rune(s)
-	if len(runes) == 0 {
-		return s
-	}
-	return string(runes[:len(runes)-1])
 }
 
 // submitReconfig validates the form and, if complete, runs the injected

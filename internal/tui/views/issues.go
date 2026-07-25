@@ -20,8 +20,10 @@ type IssuesView struct {
 	width, height int // last body size, tracked from tea.WindowSizeMsg / Body
 
 	issues []gitlab.Issue
-	cursor int
+	cursor int // indexes the visible (searched) list, not issues
 	scroll int // first visible row, kept across frames
+
+	search listSearch
 
 	status string
 }
@@ -61,32 +63,62 @@ func (v *IssuesView) Update(msg tea.Msg) tea.Cmd {
 		v.status = msg.Text
 		return nil
 
+	case tea.PasteMsg:
+		v.search.paste(msg.Content, &v.cursor)
+		return nil
+
 	case tea.KeyMsg:
 		return v.handleKey(msg)
 	}
 	return nil
 }
 
-func (v *IssuesView) handleKey(msg tea.KeyMsg) tea.Cmd {
-	key := msg.String()
+// CapturingText implements TextCapturer: while the search is being typed, the
+// shell must not read the letters as its own commands.
+func (v *IssuesView) CapturingText() bool { return v.search.capturing() }
 
-	if act := components.NavFor(key); act != components.NavNone {
-		v.cursor = components.ApplyNav(act, v.cursor, len(v.issues), listRows(v.height))
+// visible is the issues matching the search; the cursor indexes it.
+func (v *IssuesView) visible() []gitlab.Issue {
+	return filtered(v.issues, v.search.filter, func(i gitlab.Issue) string {
+		return fmt.Sprintf("#%d %s %s %s", i.IID, i.Title, i.Author, strings.Join(i.Labels, " "))
+	})
+}
+
+// selected returns the highlighted issue, or nil.
+func (v *IssuesView) selected() *gitlab.Issue {
+	visible := v.visible()
+	if v.cursor < 0 || v.cursor >= len(visible) {
+		return nil
+	}
+	return &visible[v.cursor]
+}
+
+func (v *IssuesView) handleKey(msg tea.KeyMsg) tea.Cmd {
+	if v.search.handleKey(msg, &v.cursor) {
 		return nil
 	}
 
+	key := msg.String()
+	if act := components.NavFor(key); act != components.NavNone {
+		v.cursor = components.ApplyNav(act, v.cursor, len(v.visible()), listRows(v.height))
+		return nil
+	}
+
+	issue := v.selected()
+	if issue == nil {
+		return nil
+	}
 	switch key {
 	case keyClose:
-		if v.cursor < len(v.issues) {
-			issue := v.issues[v.cursor]
-			action := "Close"
-			if issue.State != "opened" {
-				action = "Reopen"
-			}
-			return confirmCmd(fmt.Sprintf("%s #%d %s?", action, issue.IID, issue.Title), v.toggleIssue())
+		action := "Close"
+		if issue.State != "opened" {
+			action = "Reopen"
 		}
+		return confirmCmd(fmt.Sprintf("%s #%d %s?", action, issue.IID, issue.Title), v.toggleIssue())
 	case keyOpenBrowse:
-		return v.openIssueInBrowser()
+		if cmd := openBrowserCmd(issue.WebURL); cmd != nil {
+			return execBrowser(cmd)
+		}
 	}
 	return nil
 }
@@ -110,7 +142,10 @@ func (v *IssuesView) Body(width, height int) string {
 	}
 	rightWidth := width - leftWidth
 
-	left := renderListBox(leftWidth, height, "Issues", v.issueItems(), v.cursor, &v.scroll)
+	visible := v.visible()
+	left := renderListBox(leftWidth, height,
+		v.search.title("Issues", len(visible), len(v.issues)),
+		v.issueItems(visible), v.cursor, &v.scroll)
 
 	detail := v.issueDetail()
 	if detail == "" {
@@ -122,16 +157,16 @@ func (v *IssuesView) Body(width, height int) string {
 }
 
 func (v *IssuesView) detailTitle() string {
-	if v.cursor < len(v.issues) {
-		return fmt.Sprintf("Issue (#%d)", v.issues[v.cursor].IID)
+	if issue := v.selected(); issue != nil {
+		return fmt.Sprintf("Issue (#%d)", issue.IID)
 	}
 	return "Issue"
 }
 
 // issueItems renders the issue list rows.
-func (v *IssuesView) issueItems() []string {
-	items := make([]string, len(v.issues))
-	for i, issue := range v.issues {
+func (v *IssuesView) issueItems(issues []gitlab.Issue) []string {
+	items := make([]string, len(issues))
+	for i, issue := range issues {
 		items[i] = fmt.Sprintf("#%d %s", issue.IID, issue.Title)
 	}
 	return items
@@ -141,10 +176,13 @@ func (v *IssuesView) issueDetail() string {
 	if len(v.issues) == 0 {
 		return "No issues"
 	}
-	if v.cursor >= len(v.issues) {
+	issue := v.selected()
+	if issue == nil {
+		if v.search.on() {
+			return components.HelpDescStyle.Render("No issue matches " + v.search.filter.Query)
+		}
 		return ""
 	}
-	issue := v.issues[v.cursor]
 
 	labels := "none"
 	if len(issue.Labels) > 0 {
@@ -174,6 +212,7 @@ func (v *IssuesView) KeyHints() []KeyHint {
 	return []KeyHint{
 		{"c", "Close/reopen"},
 		{"o", "Open"},
+		v.search.hint(),
 	}
 }
 
@@ -194,15 +233,13 @@ func (v *IssuesView) load() tea.Cmd {
 }
 
 func (v *IssuesView) toggleIssue() tea.Cmd {
-	if v.ctx == nil || v.ctx.Project == nil || v.ctx.Client == nil || len(v.issues) == 0 {
-		return nil
-	}
-	if v.cursor >= len(v.issues) {
+	selected := v.selected()
+	if selected == nil || v.ctx == nil || v.ctx.Project == nil || v.ctx.Client == nil {
 		return nil
 	}
 	client := v.ctx.Client
 	projectID := v.ctx.Project.ID
-	issue := v.issues[v.cursor]
+	issue := *selected
 	return func() tea.Msg {
 		var err error
 		if issue.State == "opened" {
@@ -221,27 +258,10 @@ func (v *IssuesView) toggleIssue() tea.Cmd {
 	}
 }
 
-func (v *IssuesView) openIssueInBrowser() tea.Cmd {
-	if v.cursor >= len(v.issues) {
-		return nil
-	}
-	cmd := openBrowserCmd(v.issues[v.cursor].WebURL)
-	if cmd == nil {
-		return nil
-	}
-	return execBrowser(cmd)
-}
-
 // ============================================================================
 // Helpers
 // ============================================================================
 
 func (v *IssuesView) clampCursor() {
-	n := len(v.issues)
-	if v.cursor >= n {
-		v.cursor = n - 1
-	}
-	if v.cursor < 0 {
-		v.cursor = 0
-	}
+	v.cursor = clampCursor(v.cursor, len(v.visible()))
 }

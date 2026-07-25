@@ -371,9 +371,11 @@ func (d *commitDetail) stepFile(step int) {
 	d.diffScroll = 0
 }
 
-// readingDiff reports whether a diff has the screen, so the view hosting the page
-// knows the arrows are not its to act on.
-func (d *commitDetail) readingDiff() bool { return d.reading }
+// readingBody reports whether something long-form has the screen — a file's diff
+// or a job's log — so the view hosting the page knows the arrows are not its to
+// act on. Stepping to another commit from inside either would swap what you are
+// reading for something from a different commit.
+func (d *commitDetail) readingBody() bool { return d.reading || d.jobs.showingTrace() }
 
 // scrollBy moves a scroll offset by a navigation action, for content that is read
 // rather than selected from.

@@ -136,7 +136,7 @@ func (a *App) renderConfirm() string {
 // ============================================================================
 
 func (a *App) handleBranchPickerKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	if consumed, changed := a.branchFilter.handleKey(msg); consumed {
+	if consumed, changed := a.branchFilter.HandleKey(msg); consumed {
 		if changed {
 			a.branchCursor = 0
 		}
@@ -146,17 +146,17 @@ func (a *App) handleBranchPickerKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	visible := a.visibleBranches()
 	key := msg.String()
 	switch {
-	case key == KeyEscape && a.branchFilter.applied():
-		a.branchFilter.reset()
+	case key == KeyEscape && a.branchFilter.Applied():
+		a.branchFilter.Reset()
 		a.branchCursor = 0
 		return a, nil
 	case key == KeyEscape || key == KeyQuit:
 		a.overlay = overlayNone
-		a.branchFilter.reset()
+		a.branchFilter.Reset()
 		return a, nil
 	case key == KeySearch:
-		a.branchFilter.active = true
-		if !a.branchFilter.applied() {
+		a.branchFilter.Active = true
+		if !a.branchFilter.Applied() {
 			a.branchCursor = 0
 		}
 		return a, nil
@@ -168,7 +168,7 @@ func (a *App) handleBranchPickerKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if a.branchCursor >= 0 && a.branchCursor < len(visible) {
 			branch := visible[a.branchCursor]
 			a.overlay = overlayNone
-			a.branchFilter.reset()
+			a.branchFilter.Reset()
 			return a, func() tea.Msg { return views.BranchSelectedMsg{Branch: branch} }
 		}
 		return a, nil
@@ -179,12 +179,12 @@ func (a *App) handleBranchPickerKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 // visibleBranches returns the branches matching the current search, in list
 // order. The picker's cursor indexes this slice, not the full list.
 func (a *App) visibleBranches() []gitlab.Branch {
-	if !a.branchFilter.on() {
+	if !a.branchFilter.On() {
 		return a.branches
 	}
 	out := make([]gitlab.Branch, 0, len(a.branches))
 	for _, b := range a.branches {
-		if a.branchFilter.matches(b.Name) {
+		if a.branchFilter.Matches(b.Name) {
 			out = append(out, b)
 		}
 	}
@@ -205,7 +205,7 @@ func (a *App) renderBranchPicker() string {
 	case len(a.branches) == 0:
 		lines = append(lines, "No branches found")
 	case len(visible) == 0:
-		lines = append(lines, components.HelpDescStyle.Render("No branch matches "+a.branchFilter.query))
+		lines = append(lines, components.HelpDescStyle.Render("No branch matches "+a.branchFilter.Query))
 	default:
 		a.branchScroll = components.ScrollOffset(a.branchScroll, a.branchCursor, len(visible), maxVisible)
 		for i := a.branchScroll; i < len(visible) && len(lines) < maxVisible; i++ {
@@ -232,13 +232,13 @@ func (a *App) renderBranchPicker() string {
 		}
 	}
 	hint := "Enter: select  /: search  Esc: cancel"
-	if a.branchFilter.active {
-		hint = a.branchFilter.hint()
+	if a.branchFilter.Active {
+		hint = a.branchFilter.Hint()
 	}
 	lines = append(lines, "", components.HelpDescStyle.Render(hint))
 
 	title := fmt.Sprintf("Select Branch (%d)", len(a.branches))
-	if a.branchFilter.on() {
+	if a.branchFilter.On() {
 		title = fmt.Sprintf("Select Branch (%d/%d)", len(visible), len(a.branches))
 	}
 	return components.RenderBox(title, lines, boxWidth, boxHeight, components.ColorPrimary, components.ColorPrimary)
@@ -250,7 +250,7 @@ func (a *App) renderBranchPicker() string {
 
 func (a *App) handleProjectPickerKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	// While searching, typed characters extend the query rather than act as keys.
-	if consumed, changed := a.projectFilter.handleKey(msg); consumed {
+	if consumed, changed := a.projectFilter.HandleKey(msg); consumed {
 		if changed {
 			a.projectCursor = 0
 		}
@@ -260,19 +260,19 @@ func (a *App) handleProjectPickerKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	visible := a.visibleProjects()
 	key := msg.String()
 	switch {
-	case key == KeyEscape && a.projectFilter.applied():
+	case key == KeyEscape && a.projectFilter.Applied():
 		// Drop the search first; the picker itself closes on the next Esc.
-		a.projectFilter.reset()
+		a.projectFilter.Reset()
 		a.projectCursor = 0
 		return a, nil
 	case key == KeyEscape || key == KeyQuit:
 		a.overlay = overlayNone
-		a.projectFilter.reset()
+		a.projectFilter.Reset()
 		return a, nil
 	case key == KeySearch:
 		// Resume editing an applied query rather than starting over.
-		a.projectFilter.active = true
-		if !a.projectFilter.applied() {
+		a.projectFilter.Active = true
+		if !a.projectFilter.Applied() {
 			a.projectCursor = 0
 		}
 		return a, nil
@@ -289,7 +289,7 @@ func (a *App) handleProjectPickerKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if a.projectCursor >= 0 && a.projectCursor < len(visible) {
 			proj := visible[a.projectCursor]
 			a.overlay = overlayNone
-			a.projectFilter.reset()
+			a.projectFilter.Reset()
 			return a, func() tea.Msg { return views.ProjectSelectedMsg{Project: proj} }
 		}
 		return a, nil
@@ -302,10 +302,10 @@ func (a *App) handleProjectPickerKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 // indexes this slice, not the full list.
 func (a *App) visibleProjects() []gitlab.Project {
 	matching := a.projects
-	if a.projectFilter.on() {
+	if a.projectFilter.On() {
 		matching = make([]gitlab.Project, 0, len(a.projects))
 		for _, p := range a.projects {
-			if a.projectFilter.matches(p.NameWithNamespace) || a.projectFilter.matches(p.PathWithNamespace) {
+			if a.projectFilter.Matches(p.NameWithNamespace) || a.projectFilter.Matches(p.PathWithNamespace) {
 				matching = append(matching, p)
 			}
 		}
@@ -356,23 +356,23 @@ func (a *App) renderProjectPicker() string {
 	case len(a.projects) == 0:
 		lines = append(lines, "No projects found")
 	case len(visible) == 0:
-		lines = append(lines, components.HelpDescStyle.Render("No project matches "+a.projectFilter.query))
+		lines = append(lines, components.HelpDescStyle.Render("No project matches "+a.projectFilter.Query))
 	default:
 		lines = append(lines, a.projectRows(visible, innerWidth, maxVisible)...)
 	}
 	hint := "Enter: select  /: search  f: star  Esc: cancel"
 	switch {
-	case a.projectFilter.active:
-		hint = a.projectFilter.hint() + components.HelpDescStyle.Render("   Enter: apply")
+	case a.projectFilter.Active:
+		hint = a.projectFilter.Hint() + components.HelpDescStyle.Render("   Enter: apply")
 	case a.favoritesStatus != "":
 		hint = components.Truncate(a.favoritesStatus, innerWidth)
-	case a.projectFilter.applied():
-		hint = a.projectFilter.hint() + components.HelpDescStyle.Render("   Enter: select  f: star  Esc: clear")
+	case a.projectFilter.Applied():
+		hint = a.projectFilter.Hint() + components.HelpDescStyle.Render("   Enter: select  f: star  Esc: clear")
 	}
 	lines = append(lines, "", components.HelpDescStyle.Render(hint))
 
 	title := fmt.Sprintf("Select Project (%d)", len(a.projects))
-	if a.projectFilter.on() {
+	if a.projectFilter.On() {
 		title = fmt.Sprintf("Select Project (%d/%d)", len(visible), len(a.projects))
 	}
 	return components.RenderBox(title, lines, boxWidth, boxHeight, components.ColorPrimary, components.ColorPrimary)

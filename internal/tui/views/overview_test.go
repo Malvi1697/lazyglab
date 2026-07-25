@@ -166,7 +166,7 @@ func TestOverviewRows_ShowClockOrDateNotAnAge(t *testing.T) {
 		ShortID: "a", Title: "today", AuthorName: "A", CreatedAt: time.Now().Add(-2 * time.Hour),
 	}}
 
-	row := ansi.Strip(v.commitItems()[0])
+	row := ansi.Strip(v.commitItems(v.visible())[0])
 	if strings.Contains(row, "1d") || strings.Contains(row, "2h") {
 		t.Errorf("row = %q, should not show a relative age", row)
 	}

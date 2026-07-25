@@ -24,8 +24,10 @@ type OverviewView struct {
 	mrs       []gitlab.MergeRequest
 	issues    []gitlab.Issue
 
-	cursor int // into commits
+	cursor int // into the visible (searched) commits
 	scroll int // first visible row, kept across frames
+
+	search listSearch
 
 	// detail is the in-place commit page, opened with Enter — the same one the
 	// Commits view uses, so drilling in never moves you to another tab.
@@ -86,6 +88,12 @@ func (v *OverviewView) Update(msg tea.Msg) tea.Cmd {
 			v.issues = msg.Issues
 		}
 		return nil
+
+	case tea.PasteMsg:
+		if !v.detail.active {
+			v.search.paste(msg.Content, &v.cursor)
+		}
+		return nil
 	}
 
 	// Everything else may belong to the commit page or its jobs panel.
@@ -100,23 +108,27 @@ func (v *OverviewView) handleKey(msg tea.KeyMsg) tea.Cmd {
 
 	if v.detail.active {
 		// Stepping to the neighbouring commit belongs to the list's owner, since
-		// the page itself does not know what comes next — but not while a diff is
-		// open, where the arrows step between that commit's files.
-		if step, ok := commitStep(key); ok && !v.detail.readingDiff() {
+		// the page itself does not know what comes next — but not while a diff or a
+		// job log is open, where the arrows belong to what you are reading.
+		if step, ok := commitStep(key); ok && !v.detail.readingBody() {
 			return v.stepCommit(step)
 		}
 		return v.detail.handleKey(key, v.height)
 	}
 
+	if v.search.handleKey(msg, &v.cursor) {
+		return nil
+	}
+
 	if act := components.NavFor(key); act != components.NavNone {
-		v.cursor = components.ApplyNav(act, v.cursor, len(v.commits), listRows(v.height))
+		v.cursor = components.ApplyNav(act, v.cursor, len(v.visible()), listRows(v.height))
 		return nil
 	}
 	if key == keyOpenBrowse {
 		return v.openCommitInBrowser()
 	}
 	if key == keyEnter {
-		return v.detail.openAt(v.selectedCommit(), v.cursor, len(v.commits))
+		return v.detail.openAt(v.selectedCommit(), v.cursor, len(v.visible()))
 	}
 	if key == keyCopy {
 		return v.copyHash()
@@ -124,13 +136,25 @@ func (v *OverviewView) handleKey(msg tea.KeyMsg) tea.Cmd {
 	return nil
 }
 
+// CapturingText implements TextCapturer: while the search is being typed, the
+// shell must not read the letters as its own commands.
+func (v *OverviewView) CapturingText() bool { return !v.detail.active && v.search.capturing() }
+
+// visible is the commits matching the search; the cursor indexes it.
+func (v *OverviewView) visible() []gitlab.Commit {
+	return filtered(v.commits, v.search.filter, func(c gitlab.Commit) string {
+		return c.Title + " " + c.AuthorName + " " + c.ShortID
+	})
+}
+
 // copyHash copies the selected commit's full SHA to the clipboard, since the
 // list shows the author rather than the hash.
 func (v *OverviewView) copyHash() tea.Cmd {
-	if v.cursor >= len(v.commits) {
+	selected := v.selectedCommit()
+	if selected == nil {
 		return nil
 	}
-	c := v.commits[v.cursor]
+	c := *selected
 	sha := c.ID
 	if sha == "" {
 		sha = c.ShortID
@@ -141,39 +165,39 @@ func (v *OverviewView) copyHash() tea.Cmd {
 	)
 }
 
-// stepCommit moves to the neighbouring commit, keeping the page open.
+// stepCommit moves to the neighbouring commit, keeping the page open. It steps
+// within the search results when one is applied: the page was opened from that
+// list, so those are the commits you are working through.
 func (v *OverviewView) stepCommit(step int) tea.Cmd {
+	visible := v.visible()
 	next := v.cursor + step
-	if next < 0 || next >= len(v.commits) {
+	if next < 0 || next >= len(visible) {
 		return nil // already at an end; the arrow is drawn faint there
 	}
 	v.cursor = next
-	return v.detail.openAt(v.selectedCommit(), v.cursor, len(v.commits))
+	return v.detail.openAt(v.selectedCommit(), v.cursor, len(visible))
 }
 
 // selectedCommit returns the highlighted commit, or nil.
 func (v *OverviewView) selectedCommit() *gitlab.Commit {
-	if v.cursor < 0 || v.cursor >= len(v.commits) {
+	visible := v.visible()
+	if v.cursor < 0 || v.cursor >= len(visible) {
 		return nil
 	}
-	return &v.commits[v.cursor]
+	return &visible[v.cursor]
 }
 
 func (v *OverviewView) clampCursor() {
-	if v.cursor >= len(v.commits) {
-		v.cursor = len(v.commits) - 1
-	}
-	if v.cursor < 0 {
-		v.cursor = 0
-	}
+	v.cursor = clampCursor(v.cursor, len(v.visible()))
 }
 
 // openCommitInBrowser opens the selected commit's page on the GitLab host.
 func (v *OverviewView) openCommitInBrowser() tea.Cmd {
-	if v.cursor >= len(v.commits) {
+	c := v.selectedCommit()
+	if c == nil {
 		return nil
 	}
-	cmd := openBrowserCmd(v.commits[v.cursor].WebURL)
+	cmd := openBrowserCmd(c.WebURL)
 	if cmd == nil {
 		return nil
 	}
@@ -228,7 +252,10 @@ func (v *OverviewView) Body(width, height int) string {
 		bottomHeight = 1
 	}
 
-	top := renderListBox(width, topHeight, v.commitsTitle(), v.commitItems(), v.cursor, &v.scroll)
+	visible := v.visible()
+	top := renderListBox(width, topHeight,
+		v.search.title("Recent Commits", len(visible), len(v.commits)),
+		v.commitItems(visible), v.cursor, &v.scroll)
 
 	colWidth := width / 3
 	lastColWidth := width - colWidth*2
@@ -254,10 +281,6 @@ func maxInt(ns ...int) int {
 	return out
 }
 
-func (v *OverviewView) commitsTitle() string {
-	return fmt.Sprintf("Recent Commits (%d)", len(v.commits))
-}
-
 func (v *OverviewView) pipelinesTitle() string {
 	return fmt.Sprintf("Pipelines (%d)", len(v.pipelines))
 }
@@ -272,9 +295,9 @@ func (v *OverviewView) issuesTitle() string {
 
 // commitItems renders the recent-commits rows, mapping each commit's CI
 // status from the loaded pipelines by SHA.
-func (v *OverviewView) commitItems() []string {
-	items := make([]string, len(v.commits))
-	for i, c := range v.commits {
+func (v *OverviewView) commitItems(commits []gitlab.Commit) []string {
+	items := make([]string, len(commits))
+	for i, c := range commits {
 		items[i] = commitRow(util.CommitTime(c.CreatedAt),
 			commitStatusIcon(commitStatus(c.ShortID, v.pipelines)),
 			c.AuthorName, c.Title)
@@ -374,9 +397,10 @@ func (v *OverviewView) KeyHints() []KeyHint {
 		return v.detail.keyHints()
 	}
 	return []KeyHint{
-		{Key: "Enter", Desc: "Pipeline"},
+		{Key: "Enter", Desc: "Commit page"},
 		{Key: "y", Desc: "Copy SHA"},
 		{Key: "o", Desc: "Open commit"},
+		v.search.hint(),
 	}
 }
 

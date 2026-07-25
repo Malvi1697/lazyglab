@@ -23,8 +23,10 @@ type MRsView struct {
 	width, height int // last body size, tracked from tea.WindowSizeMsg / Body
 
 	mrs    []gitlab.MergeRequest
-	cursor int
+	cursor int // indexes the visible (searched) list, not mrs
 	scroll int // first visible row, kept across frames
+
+	search listSearch
 
 	status string
 }
@@ -64,33 +66,60 @@ func (v *MRsView) Update(msg tea.Msg) tea.Cmd {
 		v.status = msg.Text
 		return nil
 
+	case tea.PasteMsg:
+		v.search.paste(msg.Content, &v.cursor)
+		return nil
+
 	case tea.KeyMsg:
 		return v.handleKey(msg)
 	}
 	return nil
 }
 
-func (v *MRsView) handleKey(msg tea.KeyMsg) tea.Cmd {
-	key := msg.String()
+// CapturingText implements TextCapturer: while the search is being typed, the
+// shell must not read the letters as its own commands.
+func (v *MRsView) CapturingText() bool { return v.search.capturing() }
 
-	if act := components.NavFor(key); act != components.NavNone {
-		v.cursor = components.ApplyNav(act, v.cursor, len(v.mrs), listRows(v.height))
+// visible is the merge requests matching the search; the cursor indexes it.
+func (v *MRsView) visible() []gitlab.MergeRequest {
+	return filtered(v.mrs, v.search.filter, func(mr gitlab.MergeRequest) string {
+		return fmt.Sprintf("!%d %s %s %s", mr.IID, mr.Title, mr.Author, mr.SourceBranch)
+	})
+}
+
+// selected returns the highlighted merge request, or nil.
+func (v *MRsView) selected() *gitlab.MergeRequest {
+	visible := v.visible()
+	if v.cursor < 0 || v.cursor >= len(visible) {
+		return nil
+	}
+	return &visible[v.cursor]
+}
+
+func (v *MRsView) handleKey(msg tea.KeyMsg) tea.Cmd {
+	if v.search.handleKey(msg, &v.cursor) {
 		return nil
 	}
 
+	key := msg.String()
+	if act := components.NavFor(key); act != components.NavNone {
+		v.cursor = components.ApplyNav(act, v.cursor, len(v.visible()), listRows(v.height))
+		return nil
+	}
+
+	mr := v.selected()
+	if mr == nil {
+		return nil
+	}
 	switch key {
 	case keyApprove:
-		if v.cursor < len(v.mrs) {
-			mr := v.mrs[v.cursor]
-			return confirmCmd(fmt.Sprintf("Approve !%d %s?", mr.IID, mr.Title), v.approveMR())
-		}
+		return confirmCmd(fmt.Sprintf("Approve !%d %s?", mr.IID, mr.Title), v.approveMR())
 	case keyMerge:
-		if v.cursor < len(v.mrs) {
-			mr := v.mrs[v.cursor]
-			return confirmCmd(fmt.Sprintf("Merge !%d %s?", mr.IID, mr.Title), v.mergeMR())
-		}
+		return confirmCmd(fmt.Sprintf("Merge !%d %s?", mr.IID, mr.Title), v.mergeMR())
 	case keyOpenBrowse:
-		return v.openMRInBrowser()
+		if cmd := openBrowserCmd(mr.WebURL); cmd != nil {
+			return execBrowser(cmd)
+		}
 	}
 	return nil
 }
@@ -114,7 +143,10 @@ func (v *MRsView) Body(width, height int) string {
 	}
 	rightWidth := width - leftWidth
 
-	left := renderListBox(leftWidth, height, "Merge Requests", v.mrItems(), v.cursor, &v.scroll)
+	visible := v.visible()
+	left := renderListBox(leftWidth, height,
+		v.search.title("Merge Requests", len(visible), len(v.mrs)),
+		v.mrItems(visible), v.cursor, &v.scroll)
 
 	detail := v.mrDetail()
 	if detail == "" {
@@ -126,16 +158,16 @@ func (v *MRsView) Body(width, height int) string {
 }
 
 func (v *MRsView) detailTitle() string {
-	if v.cursor < len(v.mrs) {
-		return fmt.Sprintf("MR (!%d)", v.mrs[v.cursor].IID)
+	if mr := v.selected(); mr != nil {
+		return fmt.Sprintf("MR (!%d)", mr.IID)
 	}
 	return "Merge Request"
 }
 
 // mrItems renders the MR list rows.
-func (v *MRsView) mrItems() []string {
-	items := make([]string, len(v.mrs))
-	for i, mr := range v.mrs {
+func (v *MRsView) mrItems(mrs []gitlab.MergeRequest) []string {
+	items := make([]string, len(mrs))
+	for i, mr := range mrs {
 		prefix := ""
 		if mr.Draft {
 			prefix = "[Draft] "
@@ -153,10 +185,13 @@ func (v *MRsView) mrDetail() string {
 	if len(v.mrs) == 0 {
 		return "No merge requests"
 	}
-	if v.cursor >= len(v.mrs) {
+	mr := v.selected()
+	if mr == nil {
+		if v.search.on() {
+			return components.HelpDescStyle.Render("No merge request matches " + v.search.filter.Query)
+		}
 		return ""
 	}
-	mr := v.mrs[v.cursor]
 
 	pipeStatus := "none"
 	if mr.Pipeline != nil {
@@ -188,6 +223,7 @@ func (v *MRsView) KeyHints() []KeyHint {
 		{"a", "Approve"},
 		{"m", "Merge"},
 		{"o", "Open"},
+		v.search.hint(),
 	}
 }
 
@@ -208,15 +244,13 @@ func (v *MRsView) load() tea.Cmd {
 }
 
 func (v *MRsView) approveMR() tea.Cmd {
-	if v.ctx == nil || v.ctx.Project == nil || v.ctx.Client == nil || len(v.mrs) == 0 {
-		return nil
-	}
-	if v.cursor >= len(v.mrs) {
+	mr := v.selected()
+	if mr == nil || v.ctx == nil || v.ctx.Project == nil || v.ctx.Client == nil {
 		return nil
 	}
 	client := v.ctx.Client
 	projectID := v.ctx.Project.ID
-	mrIID := v.mrs[v.cursor].IID
+	mrIID := mr.IID
 	return func() tea.Msg {
 		if err := client.ApproveMergeRequest(projectID, mrIID); err != nil {
 			return StatusMsg{Text: fmt.Sprintf("Approve failed: %v", err), IsErr: true}
@@ -226,15 +260,13 @@ func (v *MRsView) approveMR() tea.Cmd {
 }
 
 func (v *MRsView) mergeMR() tea.Cmd {
-	if v.ctx == nil || v.ctx.Project == nil || v.ctx.Client == nil || len(v.mrs) == 0 {
-		return nil
-	}
-	if v.cursor >= len(v.mrs) {
+	mr := v.selected()
+	if mr == nil || v.ctx == nil || v.ctx.Project == nil || v.ctx.Client == nil {
 		return nil
 	}
 	client := v.ctx.Client
 	projectID := v.ctx.Project.ID
-	mrIID := v.mrs[v.cursor].IID
+	mrIID := mr.IID
 	return func() tea.Msg {
 		if err := client.MergeMergeRequest(projectID, mrIID); err != nil {
 			return StatusMsg{Text: fmt.Sprintf("Merge failed: %v", err), IsErr: true}
@@ -243,27 +275,10 @@ func (v *MRsView) mergeMR() tea.Cmd {
 	}
 }
 
-func (v *MRsView) openMRInBrowser() tea.Cmd {
-	if v.cursor >= len(v.mrs) {
-		return nil
-	}
-	cmd := openBrowserCmd(v.mrs[v.cursor].WebURL)
-	if cmd == nil {
-		return nil
-	}
-	return execBrowser(cmd)
-}
-
 // ============================================================================
 // Helpers
 // ============================================================================
 
 func (v *MRsView) clampCursor() {
-	n := len(v.mrs)
-	if v.cursor >= n {
-		v.cursor = n - 1
-	}
-	if v.cursor < 0 {
-		v.cursor = 0
-	}
+	v.cursor = clampCursor(v.cursor, len(v.visible()))
 }

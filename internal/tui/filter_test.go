@@ -34,15 +34,15 @@ func TestProjectFilter_SlashNarrowsList(t *testing.T) {
 	press(a, "P")
 
 	press(a, "/")
-	if !a.projectFilter.active {
+	if !a.projectFilter.Active {
 		t.Fatal("/ should start the search")
 	}
 
 	for _, r := range "devops" {
 		press(a, string(r))
 	}
-	if a.projectFilter.query != "devops" {
-		t.Fatalf("query = %q, want %q", a.projectFilter.query, "devops")
+	if a.projectFilter.Query != "devops" {
+		t.Fatalf("query = %q, want %q", a.projectFilter.Query, "devops")
 	}
 
 	visible := a.visibleProjects()
@@ -90,8 +90,8 @@ func TestProjectFilter_TypedKeysDoNotActAsCommands(t *testing.T) {
 	press(a, "j")
 	press(a, "f")
 
-	if a.projectFilter.query != "jf" {
-		t.Errorf("query = %q, want %q", a.projectFilter.query, "jf")
+	if a.projectFilter.Query != "jf" {
+		t.Errorf("query = %q, want %q", a.projectFilter.Query, "jf")
 	}
 	if len(a.favorites) != 0 {
 		t.Errorf("f must not star while searching, favorites = %v", a.favorites)
@@ -113,7 +113,7 @@ func TestProjectFilter_EnterAppliesThenSelects(t *testing.T) {
 	if cmd := press(a, "enter"); cmd != nil {
 		t.Error("the first Enter should apply the search, not select")
 	}
-	if !a.projectFilter.applied() {
+	if !a.projectFilter.Applied() {
 		t.Fatal("expected the search to be applied")
 	}
 	if len(a.visibleProjects()) != 1 {
@@ -135,7 +135,7 @@ func TestProjectFilter_EnterAppliesThenSelects(t *testing.T) {
 	if a.overlay != overlayNone {
 		t.Error("selecting should close the picker")
 	}
-	if a.projectFilter.on() {
+	if a.projectFilter.On() {
 		t.Error("the search should be cleared after selecting")
 	}
 }
@@ -159,7 +159,7 @@ func TestProjectFilter_StarAfterApplying(t *testing.T) {
 	if a.overlay != overlayProject {
 		t.Error("starring should keep the picker open")
 	}
-	if !a.projectFilter.applied() {
+	if !a.projectFilter.Applied() {
 		t.Error("starring should not drop the search")
 	}
 }
@@ -195,11 +195,11 @@ func TestProjectFilter_SlashResumesEditing(t *testing.T) {
 	press(a, "enter") // apply
 
 	press(a, "/") // resume typing where we left off
-	if !a.projectFilter.active {
+	if !a.projectFilter.Active {
 		t.Fatal("/ should re-enter text entry")
 	}
-	if a.projectFilter.query != "dev" {
-		t.Errorf("query = %q, want the previous query kept", a.projectFilter.query)
+	if a.projectFilter.Query != "dev" {
+		t.Errorf("query = %q, want the previous query kept", a.projectFilter.Query)
 	}
 	for _, r := range "ops/tr" {
 		press(a, string(r))
@@ -217,7 +217,7 @@ func TestProjectFilter_EscWithAppliedSearchKeepsPickerOpen(t *testing.T) {
 	press(a, "enter") // apply a query matching nothing
 
 	press(a, "esc")
-	if a.projectFilter.on() {
+	if a.projectFilter.On() {
 		t.Error("Esc should clear an applied search")
 	}
 	if a.overlay != overlayProject {
@@ -241,8 +241,8 @@ func TestProjectFilter_BackspaceEditsAndEscLeavesSearch(t *testing.T) {
 	}
 
 	press(a, "backspace")
-	if a.projectFilter.query != "dev" {
-		t.Errorf("query = %q, want %q", a.projectFilter.query, "dev")
+	if a.projectFilter.Query != "dev" {
+		t.Errorf("query = %q, want %q", a.projectFilter.Query, "dev")
 	}
 	if len(a.visibleProjects()) != 2 {
 		t.Errorf("expected 2 matches after backspace, got %d", len(a.visibleProjects()))
@@ -250,7 +250,7 @@ func TestProjectFilter_BackspaceEditsAndEscLeavesSearch(t *testing.T) {
 
 	// First Esc leaves the search but keeps the picker open.
 	press(a, "esc")
-	if a.projectFilter.on() {
+	if a.projectFilter.On() {
 		t.Error("Esc should clear the search")
 	}
 	if a.overlay != overlayProject {
@@ -276,7 +276,7 @@ func TestProjectFilter_ResetWhenReopened(t *testing.T) {
 	press(a, "esc") // closes picker
 	press(a, "P")
 
-	if a.projectFilter.on() {
+	if a.projectFilter.On() {
 		t.Error("reopening the picker must start unfiltered")
 	}
 }
@@ -320,8 +320,8 @@ func TestProjectFilter_AcceptsPaste(t *testing.T) {
 	press(a, "/")
 	a.Update(tea.PasteMsg{Content: "renovate\n"})
 
-	if a.projectFilter.query != "renovate" {
-		t.Errorf("query = %q, want the pasted text without the newline", a.projectFilter.query)
+	if a.projectFilter.Query != "renovate" {
+		t.Errorf("query = %q, want the pasted text without the newline", a.projectFilter.Query)
 	}
 }
 
