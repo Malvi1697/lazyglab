@@ -359,7 +359,7 @@ func (v *PipelinesView) Body(width, height int) string {
 		items = v.pipelineItems()
 		cursor = v.cursor
 	}
-	left := v.renderListBox(leftWidth, height, listTitle, items, cursor, true)
+	left := renderListBox(leftWidth, height, listTitle, items, cursor, true)
 
 	// Right detail.
 	var detail string
@@ -378,52 +378,6 @@ func (v *PipelinesView) Body(width, height int) string {
 	right := components.RenderBox(v.detailTitle(), strings.Split(detail, "\n"), rightWidth, height, borderColor, components.ColorPrimary)
 
 	return lipgloss.JoinHorizontal(lipgloss.Top, left, right)
-}
-
-// renderListBox renders a scrollable, selectable list inside a bordered box.
-// Header lines (prefixed with "\x00") are rendered but never highlighted.
-func (v *PipelinesView) renderListBox(width, height int, title string, items []string, cursor int, active bool) string {
-	innerWidth := width - 4   // border + padding on each side
-	innerHeight := height - 2 // top + bottom border
-	if innerWidth < 1 {
-		innerWidth = 1
-	}
-	if innerHeight < 0 {
-		innerHeight = 0
-	}
-
-	// Scroll offset: keep cursor visible.
-	scrollOffset := 0
-	if cursor >= innerHeight {
-		scrollOffset = cursor - innerHeight + 1
-	}
-
-	var contentLines []string
-	for i := scrollOffset; i < len(items) && len(contentLines) < innerHeight; i++ {
-		item := items[i]
-		isHeader := len(item) > 0 && item[0] == '\x00'
-		if isHeader {
-			item = item[1:]
-		}
-		displayItem := components.Truncate(item, innerWidth)
-		if i == cursor && active && !isHeader {
-			plain := ansi.Strip(displayItem)
-			visW := lipgloss.Width(plain)
-			if visW < innerWidth {
-				plain += strings.Repeat(" ", innerWidth-visW)
-			}
-			displayItem = components.SelectedItemStyle.Render(plain)
-		}
-		contentLines = append(contentLines, displayItem)
-	}
-
-	borderColor := components.ColorSecondary
-	titleColor := components.ColorSecondary
-	if active {
-		borderColor = components.ColorPrimary
-		titleColor = components.ColorPrimary
-	}
-	return components.RenderBox(title, contentLines, width, height, borderColor, titleColor)
 }
 
 func (v *PipelinesView) detailTitle() string {

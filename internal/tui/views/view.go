@@ -1,9 +1,14 @@
 package views
 
 import (
+	"strings"
+
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/Malvi1697/lazyglab/internal/gitlab"
+	"github.com/Malvi1697/lazyglab/internal/tui/components"
 )
 
 // ViewID identifies a cockpit view.
@@ -98,4 +103,56 @@ func DefaultViewIndex(views []ViewID, name string) int {
 		}
 	}
 	return 0
+}
+
+// splitLines splits a rendered detail string into lines for RenderBox.
+func splitLines(s string) []string { return strings.Split(s, "\n") }
+
+// joinH joins two rendered blocks side by side, top-aligned.
+func joinH(a, b string) string { return lipgloss.JoinHorizontal(lipgloss.Top, a, b) }
+
+// renderListBox renders a bordered, scrollable, single-selection list.
+// Header lines (prefixed with "\x00") are rendered but never highlighted.
+func renderListBox(width, height int, title string, items []string, cursor int, active bool) string {
+	innerWidth := width - 4   // border + padding on each side
+	innerHeight := height - 2 // top + bottom border
+	if innerWidth < 1 {
+		innerWidth = 1
+	}
+	if innerHeight < 0 {
+		innerHeight = 0
+	}
+
+	// Scroll offset: keep cursor visible.
+	scrollOffset := 0
+	if cursor >= innerHeight {
+		scrollOffset = cursor - innerHeight + 1
+	}
+
+	var contentLines []string
+	for i := scrollOffset; i < len(items) && len(contentLines) < innerHeight; i++ {
+		item := items[i]
+		isHeader := len(item) > 0 && item[0] == '\x00'
+		if isHeader {
+			item = item[1:]
+		}
+		displayItem := components.Truncate(item, innerWidth)
+		if i == cursor && active && !isHeader {
+			plain := ansi.Strip(displayItem)
+			visW := lipgloss.Width(plain)
+			if visW < innerWidth {
+				plain += strings.Repeat(" ", innerWidth-visW)
+			}
+			displayItem = components.SelectedItemStyle.Render(plain)
+		}
+		contentLines = append(contentLines, displayItem)
+	}
+
+	borderColor := components.ColorSecondary
+	titleColor := components.ColorSecondary
+	if active {
+		borderColor = components.ColorPrimary
+		titleColor = components.ColorPrimary
+	}
+	return components.RenderBox(title, contentLines, width, height, borderColor, titleColor)
 }

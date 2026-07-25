@@ -133,7 +133,7 @@ func (v *IssuesView) Body(width, height int) string {
 	}
 	rightWidth := width - leftWidth
 
-	left := (&PipelinesView{}).renderListBox(leftWidth, height, "Issues", v.issueItems(), v.cursor, true)
+	left := renderListBox(leftWidth, height, "Issues", v.issueItems(), v.cursor, true)
 
 	detail := v.issueDetail()
 	if detail == "" {
