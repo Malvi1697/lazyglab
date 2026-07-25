@@ -24,6 +24,7 @@ const (
 	keyRun        = "p" // run new pipeline / play manual job
 	keyCopy       = "y" // copy the selected item's identifier, as in lazygit
 	keyTab        = "tab"
+	keyShiftTab   = "shift+tab"
 )
 
 // PipelinesView is the self-contained cockpit view for pipelines, their jobs,

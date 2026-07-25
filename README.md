@@ -127,7 +127,8 @@ lazyglab --version  # Show version
 
 lazyglab is a cockpit: a context bar and a row of tabs stay on screen, and the
 space below shows one full-screen view at a time. Switch views with the number
-keys (`1`-`5`) or `Tab`/`Shift+Tab`. The context bar shows the active project
+keys (`1`-`5`), `h`/`l` or `[`/`]`. `Tab` stays inside the active view, cycling its
+own boxes. The context bar shows the active project
 and branch, plus the latest status/error message.
 
 The five views:
@@ -155,8 +156,8 @@ steps into them, `Enter` again reads that file's unified diff full-screen with
 added and removed lines coloured; `Esc` comes back. A diff GitLab declines to send
 (too large) says so rather than looking like an empty change.
 
-`Tab` moves the focus between the changed files and the jobs. The jobs are already
-listed on the page, so `Enter` **steps the focus into them**
+`Tab` cycles the page's boxes — message, changes, jobs — skipping any that are
+empty. The jobs are already listed on the page, so `Enter` **steps the focus into them**
 rather than replacing the page: a cursor appears on a job while the message and
 branches stay above it, and the page scrolls down to bring the jobs into view.
 From there `Enter` reads that job's log — the one thing that does take the whole
@@ -181,7 +182,7 @@ prompt names the branch it will build.
 
 Press `P` to switch projects and `b` to switch branches from any view — both
 open as overlays on top of the current view. `r` refreshes the active view.
-`h`/`l` step between views, like `Shift+Tab`/`Tab`.
+`h`/`l` and `[`/`]` step between views.
 
 Both the project and branch pickers support incremental search: press `/` and
 type to narrow the list (matching the display name or the `group/project` path);
@@ -270,7 +271,7 @@ Overview is shown first, and auto-refresh runs every 30s.
 | `q` | Quit |
 | `?` | Help overlay |
 | `1-5` | Switch view |
-| `Tab` / `Shift+Tab` | Next/previous view |
+| `Tab` / `Shift+Tab` | Cycle the boxes inside the active view |
 | `h` / `l` | Previous / next view |
 | `[` / `]` | Previous / next view |
 | `P` | Project switcher (`f` stars the highlighted project) |

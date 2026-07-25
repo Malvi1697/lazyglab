@@ -135,3 +135,38 @@ func producesProjectSelection(cmd tea.Cmd, path string) bool {
 		return false
 	}
 }
+
+func TestShell_TabDoesNotSwitchViews(t *testing.T) {
+	// Tab belongs to the focused view, for moving between its own boxes. The
+	// numbers, h/l and [/] switch views.
+	a := NewApp(Options{
+		Clients:      map[string]*gitlab.Client{"h": nil},
+		HostNames:    []string{"h"},
+		DetectedHost: "h",
+		ViewIDs:      []views.ViewID{views.ViewOverview, views.ViewPipelines, views.ViewIssues},
+	})
+	a.width, a.height = 100, 40
+
+	a.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	if a.active != 0 {
+		t.Errorf("Tab switched the view to %d; it should reach the view instead", a.active)
+	}
+	a.Update(tea.KeyPressMsg{Code: tea.KeyTab, Mod: tea.ModShift})
+	if a.active != 0 {
+		t.Errorf("Shift+Tab switched the view to %d", a.active)
+	}
+
+	// The keys that do switch views still do.
+	a.Update(tea.KeyPressMsg{Code: 'l', Text: "l"})
+	if a.active != 1 {
+		t.Errorf("l should move to the next view, got %d", a.active)
+	}
+	a.Update(tea.KeyPressMsg{Code: ']', Text: "]"})
+	if a.active != 2 {
+		t.Errorf("] should move to the next view, got %d", a.active)
+	}
+	a.Update(tea.KeyPressMsg{Code: '1', Text: "1"})
+	if a.active != 0 {
+		t.Errorf("1 should select the first view, got %d", a.active)
+	}
+}

@@ -106,7 +106,7 @@ func TestCommitDetail_ShowsWhatGitLabsCommitPageShows(t *testing.T) {
 	v.detail.sha = "38333fa4"
 	v.Update(loadedDetail("38333fa4"))
 
-	page := strings.Join(v.detail.lines(80), "\n")
+	page := plain(v.Body(120, 40))
 	for _, want := range []string{
 		"fix(#0): count only free wild cards", // subject
 		"The header double-counted slots",     // body
@@ -139,9 +139,14 @@ func TestCommitDetail_WarningIsNotAPlainSuccess(t *testing.T) {
 	v.detail.sha = "38333fa4"
 	v.Update(loadedDetail("38333fa4"))
 
-	page := strings.Join(v.detail.lines(80), "\n")
-	if !strings.Contains(page, components.StatusIcon(components.StatusWarning)) {
-		t.Error("expected the warning icon for a pipeline that passed with warnings")
+	// Compare the glyph, not the styled string: the assertion reads the text a
+	// user sees, with the escapes stripped.
+	page := plain(v.Body(120, 40))
+	if !strings.Contains(page, plain(components.StatusIcon(components.StatusWarning))) {
+		t.Errorf("expected the warning icon for a pipeline that passed with warnings:\n%s", page)
+	}
+	if !strings.Contains(page, "passed with warnings") {
+		t.Error("expected GitLab's own wording for the status")
 	}
 }
 
@@ -153,8 +158,8 @@ func TestCommitDetail_NoPipelineIsExplained(t *testing.T) {
 	v.detail.sha = "aaa1111"
 	v.Update(CommitDetailLoadedMsg{SHA: "aaa1111", Commit: &gitlab.Commit{ShortID: "aaa1111", Title: "t"}})
 
-	page := strings.Join(v.detail.lines(80), "\n")
-	if !strings.Contains(page, "No pipeline ran for this commit") {
+	page := plain(v.Body(120, 40))
+	if !strings.Contains(page, "no pipeline") {
 		t.Errorf("expected it to say no pipeline ran:\n%s", page)
 	}
 	// And what p would actually do, since GitLab only builds refs.
@@ -437,32 +442,33 @@ func TestCommitPage_NarrowTerminalDropsTheMargins(t *testing.T) {
 	}
 }
 
-func TestCommitDetail_FocusingJobsScrollsToThem(t *testing.T) {
-	// The jobs sit below a long message, so stepping in has to bring them into
-	// view — a cursor you cannot see is worse than no cursor.
+func TestCommitDetail_JobsStayVisibleBesideALongMessage(t *testing.T) {
+	// The jobs have a column of their own, so a long message cannot push them off
+	// the screen and stepping into them needs no scrolling.
 	v := NewCommitsView(&Context{})
-	v.width, v.height = 120, 14 // short enough that the message fills it
+	v.width, v.height = 120, 24
 	v.commits = []gitlab.Commit{{ShortID: "38333fa4"}}
 	v.Update(enterKey)
 	v.detail.sha = "38333fa4"
 
 	msg := loadedDetail("38333fa4")
-	msg.Commit.Message = "subject\n\n" + strings.Repeat("a long explanation line\n", 30)
+	msg.Commit.Message = "subject\n\n" + strings.Repeat("a long explanation line\n", 40)
 	v.Update(msg)
 
-	v.Body(120, 14)
-	if v.detail.scroll != 0 {
-		t.Fatalf("the page should start at the top, got scroll %d", v.detail.scroll)
+	body := plain(v.Body(120, 24))
+	for _, want := range []string{"a long explanation line", "Jobs (3)", "build"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("the body is missing %q:\n%s", want, body)
+		}
 	}
 
-	v.Update(enterKey) // focus the jobs
-	body := plain(v.Body(120, 14))
-
-	if v.detail.scroll == 0 {
-		t.Error("focusing the jobs should scroll the page down to them")
+	// This reply carries no diffs, so Enter steps straight into the jobs.
+	v.Update(enterKey)
+	if v.detail.focus != focusJobs {
+		t.Fatal("expected the jobs to take the focus")
 	}
-	if !strings.Contains(body, "build") {
-		t.Errorf("the highlighted job must be visible:\n%s", body)
+	if !strings.Contains(plain(v.Body(120, 24)), "build") {
+		t.Error("the jobs must still be on screen once focused")
 	}
 }
 
@@ -532,7 +538,7 @@ func TestCommitPage_ListsChangedFiles(t *testing.T) {
 	v.detail.sha = "38333fa4"
 	v.Update(diffedDetail())
 
-	page := plain(strings.Join(v.detail.lines(100), "\n"))
+	page := plain(v.Body(120, 40))
 	for _, want := range []string{
 		"Changes (4)",
 		"internal/app/config.go", "+2", "-1",
@@ -560,14 +566,10 @@ func TestCommitPage_EnterStepsIntoTheChangesFirst(t *testing.T) {
 		t.Fatalf("focus = %v, want the changed files", v.detail.focus)
 	}
 
-	// Tab moves on to the jobs, and back again.
+	// Tab moves on to the jobs; the full cycle is covered by its own test.
 	v.Update(tea.KeyPressMsg{Code: tea.KeyTab})
 	if v.detail.focus != focusJobs {
 		t.Errorf("Tab should move the focus to the jobs, got %v", v.detail.focus)
-	}
-	v.Update(tea.KeyPressMsg{Code: tea.KeyTab})
-	if v.detail.focus != focusFiles {
-		t.Errorf("Tab should come back to the files, got %v", v.detail.focus)
 	}
 }
 
@@ -660,5 +662,122 @@ func TestCommitPage_NoDiffFallsBackToJobs(t *testing.T) {
 	v.Update(enterKey)
 	if v.detail.focus != focusJobs {
 		t.Errorf("focus = %v, want the jobs when there are no changes", v.detail.focus)
+	}
+}
+
+func TestCommitPage_TabCyclesTheBoxesNotTheViews(t *testing.T) {
+	// Tab used to be taken by the shell for switching views, so it never reached
+	// the page it was supposed to move around in.
+	v := NewCommitsView(&Context{})
+	v.width, v.height = 120, 30
+	v.commits = []gitlab.Commit{{ShortID: "38333fa4"}}
+	v.Update(enterKey)
+	v.detail.sha = "38333fa4"
+	v.Update(diffedDetail())
+
+	tab := tea.KeyPressMsg{Code: tea.KeyTab}
+	shiftTab := tea.KeyPressMsg{Code: tea.KeyTab, Mod: tea.ModShift}
+
+	// message -> changes -> jobs -> message
+	if v.detail.focus != focusPage {
+		t.Fatalf("focus = %v, want the message to start with it", v.detail.focus)
+	}
+	v.Update(tab)
+	if v.detail.focus != focusFiles {
+		t.Fatalf("after Tab, focus = %v, want the changes", v.detail.focus)
+	}
+	v.Update(tab)
+	if v.detail.focus != focusJobs {
+		t.Fatalf("after a second Tab, focus = %v, want the jobs", v.detail.focus)
+	}
+	v.Update(tab)
+	if v.detail.focus != focusPage {
+		t.Fatalf("Tab should wrap back to the message, got %v", v.detail.focus)
+	}
+
+	// And backwards.
+	v.Update(shiftTab)
+	if v.detail.focus != focusJobs {
+		t.Errorf("Shift+Tab should go back to the jobs, got %v", v.detail.focus)
+	}
+}
+
+func TestCommitPage_TabSkipsEmptyBoxes(t *testing.T) {
+	// A commit with no changes reported must not have a Tab stop on an empty box.
+	v := NewCommitsView(&Context{})
+	v.width, v.height = 120, 30
+	v.commits = []gitlab.Commit{{ShortID: "38333fa4"}}
+	v.Update(enterKey)
+	v.detail.sha = "38333fa4"
+	v.Update(loadedDetail("38333fa4")) // jobs, no diffs
+
+	tab := tea.KeyPressMsg{Code: tea.KeyTab}
+	v.Update(tab)
+	if v.detail.focus != focusJobs {
+		t.Errorf("focus = %v, want the jobs (the changes box is empty)", v.detail.focus)
+	}
+	v.Update(tab)
+	if v.detail.focus != focusPage {
+		t.Errorf("focus = %v, want it back on the message", v.detail.focus)
+	}
+}
+
+func TestCommitPage_ArrowsStepFilesWhileReadingADiff(t *testing.T) {
+	// Inside a diff the arrows belong to the files: stepping commits would swap the
+	// file under you for one from another commit.
+	v := NewCommitsView(&Context{})
+	v.width, v.height = 120, 20
+	v.commits = []gitlab.Commit{{ShortID: "38333fa4"}, {ShortID: "bbb2222"}}
+	v.Update(enterKey)
+	v.detail.sha = "38333fa4"
+	v.Update(diffedDetail())
+	v.Update(enterKey) // focus the changes
+	v.Update(enterKey) // read the first file
+
+	for _, key := range []tea.KeyPressMsg{
+		{Code: tea.KeyRight},
+		{Code: 'L', Text: "L"},
+	} {
+		before := v.detail.fileCursor
+		v.Update(key)
+		if v.detail.fileCursor != before+1 {
+			t.Fatalf("%v should step to the next file, cursor %d -> %d", key, before, v.detail.fileCursor)
+		}
+		if !v.detail.reading {
+			t.Fatal("stepping files must keep the diff open")
+		}
+		if v.detail.commit.ShortID != "38333fa4" {
+			t.Fatal("the commit must not change while reading a diff")
+		}
+	}
+
+	for _, key := range []tea.KeyPressMsg{
+		{Code: tea.KeyLeft},
+		{Code: 'H', Text: "H"},
+	} {
+		before := v.detail.fileCursor
+		v.Update(key)
+		if v.detail.fileCursor != before-1 {
+			t.Fatalf("%v should step to the previous file, cursor %d -> %d", key, before, v.detail.fileCursor)
+		}
+	}
+
+	// The title says which file of how many, as the page does for commits.
+	if body := plain(v.Body(120, 20)); !strings.Contains(body, "1/4") {
+		t.Errorf("expected the file's position in the title:\n%s", strings.Split(body, "\n")[0])
+	}
+}
+
+func TestCommitPage_ArrowsStepCommitsFromThePageNotFiles(t *testing.T) {
+	v := NewCommitsView(&Context{})
+	v.width, v.height = 120, 20
+	v.commits = []gitlab.Commit{{ShortID: "38333fa4"}, {ShortID: "bbb2222"}}
+	v.Update(enterKey)
+	v.detail.sha = "38333fa4"
+	v.Update(diffedDetail())
+
+	v.Update(tea.KeyPressMsg{Code: tea.KeyRight})
+	if v.detail.commit.ShortID != "bbb2222" {
+		t.Errorf("from the page the arrows step commits, got %s", v.detail.commit.ShortID)
 	}
 }

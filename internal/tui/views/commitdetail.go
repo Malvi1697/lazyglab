@@ -32,8 +32,7 @@ type commitDetail struct {
 	// full-body diff, the same shape as reading a job log.
 	diffs      []gitlab.FileDiff
 	fileCursor int
-	fileLine   int // page line of the highlighted file, for scrolling
-	fileRow    int // section-local, translated by lines()
+	fileScroll int
 	reading    bool
 	diffScroll int
 
@@ -55,11 +54,6 @@ type commitDetail struct {
 
 	// focus says whether the keys drive the page or the jobs listed on it.
 	focus commitFocus
-	// jobCursorLine is the page line holding the highlighted job, so the page can
-	// scroll to keep it in view. Set while rendering, from the section-local
-	// jobCursorRow plus wherever the pipelines section starts.
-	jobCursorLine int
-	jobCursorRow  int
 }
 
 // commitFocus is which part of the commit page the keys drive.
@@ -226,6 +220,13 @@ func (d *commitDetail) handleKey(key string, height int) tea.Cmd {
 			d.diffScroll = 0
 			return nil
 		}
+		// The arrows step within what you are looking at: files here, commits on
+		// the page. Stepping commits from inside a diff would swap the file under
+		// you for one from another commit.
+		if step, ok := commitStep(key); ok {
+			d.stepFile(step)
+			return nil
+		}
 		if act := components.NavFor(key); act != components.NavNone {
 			d.diffScroll = scrollBy(act, d.diffScroll, listRows(height))
 			return nil
@@ -236,10 +237,13 @@ func (d *commitDetail) handleKey(key string, height int) tea.Cmd {
 		return nil
 	}
 
-	// Tab moves the focus in every state except while reading, so it does not have
-	// to be repeated in each branch below.
-	if key == keyTab {
-		return d.cycleFocus()
+	// Tab moves the focus between the page's boxes in every state except while
+	// reading, so it does not have to be repeated in each branch below.
+	switch key {
+	case keyTab:
+		return d.cycleFocus(1)
+	case keyShiftTab:
+		return d.cycleFocus(-1)
 	}
 
 	// Focus inside the changed files: Enter reads the highlighted one.
@@ -293,8 +297,8 @@ func (d *commitDetail) handleKey(key string, height int) tea.Cmd {
 	}
 
 	if act := components.NavFor(key); act != components.NavNone {
-		// The page scrolls; there is nothing to select on it.
-		d.scroll = components.ApplyNav(act, d.scroll, len(d.lines(0)), listRows(height))
+		// The message scrolls; there is nothing to select in it.
+		d.scroll = components.ApplyNav(act, d.scroll, len(d.topLines(0)), listRows(height))
 		return nil
 	}
 
@@ -328,27 +332,48 @@ func (d *commitDetail) handleKey(key string, height int) tea.Cmd {
 	return nil
 }
 
-// cycleFocus moves the focus between the page's steppable sections, so both are
-// reachable without giving each one a key of its own.
-func (d *commitDetail) cycleFocus() tea.Cmd {
-	switch d.focus {
-	case focusFiles:
-		return d.focusJobs()
-	case focusJobs:
-		if len(d.diffs) > 0 {
-			d.focus = focusFiles
-			return nil
+// cycleFocus moves the focus between the page's boxes: the message, the changed
+// files and the jobs, in that order, wrapping in the given direction. Boxes with
+// nothing in them are skipped, so Tab never lands somewhere empty.
+func (d *commitDetail) cycleFocus(step int) tea.Cmd {
+	order := []commitFocus{focusPage}
+	if len(d.diffs) > 0 {
+		order = append(order, focusFiles)
+	}
+	if len(d.jobs.jobs) > 0 {
+		order = append(order, focusJobs)
+	}
+	if len(order) == 1 {
+		return nil // only the message; nothing to cycle to
+	}
+
+	at := 0
+	for i, f := range order {
+		if f == d.focus {
+			at = i
+			break
 		}
-		d.focus = focusPage
-		return nil
-	default:
-		if len(d.diffs) > 0 {
-			d.focus = focusFiles
-			return nil
-		}
+	}
+	d.focus = order[(at+step+len(order))%len(order)]
+	if d.focus == focusJobs {
 		return d.focusJobs()
 	}
+	return nil
 }
+
+// stepFile moves to the neighbouring changed file, keeping its diff open.
+func (d *commitDetail) stepFile(step int) {
+	next := d.fileCursor + step
+	if next < 0 || next >= len(d.diffs) {
+		return // already at an end
+	}
+	d.fileCursor = next
+	d.diffScroll = 0
+}
+
+// readingDiff reports whether a diff has the screen, so the view hosting the page
+// knows the arrows are not its to act on.
+func (d *commitDetail) readingDiff() bool { return d.reading }
 
 // scrollBy moves a scroll offset by a navigation action, for content that is read
 // rather than selected from.
@@ -482,7 +507,8 @@ func (d *commitDetail) keyHints() []KeyHint {
 	}
 	return []KeyHint{
 		{"←/→", "Prev/next commit"},
-		{"Enter", "Jobs"},
+		{"Enter", "Step in"},
+		{"Tab", "Changes/Jobs"},
 		{"R", "Retry pipeline"},
 		{"p", "Run on branch"},
 		{"y", "Copy SHA"},
@@ -504,8 +530,14 @@ func (d *commitDetail) body(width, height int) string {
 	// A diff needs the room, like a log does.
 	if d.reading {
 		if f := d.selectedFile(); f != nil {
-			return components.RenderPanel(f.Path(), splitLines(d.diffView(width, height)),
-				width, height, true)
+			// Which file of how many, the same way the page says which commit.
+			title := fmt.Sprintf("%s  %d/%d", f.Path(), d.fileCursor+1, len(d.diffs))
+
+			// withArrows pads to pageWidth, which the page normally sets; a diff has
+			// to set it too or the right arrow lands against the text.
+			d.pageWidth = width - 2*arrowGutter
+			return d.withArrows(components.RenderPanel(title,
+				splitLines(d.diffView(d.pageWidth, height)), d.pageWidth, height, true))
 		}
 	}
 
@@ -538,13 +570,19 @@ func (d *commitDetail) withArrows(page string) string {
 		return components.FaintStyle
 	}
 
+	// In a diff the arrows step files, on the page they step commits.
+	prev, next := d.hasPrev(), d.hasNext()
+	if d.reading {
+		prev, next = d.fileCursor > 0, d.fileCursor < len(d.diffs)-1
+	}
+
 	pad := strings.Repeat(" ", arrowGutter)
 	out := make([]string, len(lines))
 	for i, line := range lines {
 		left, right := pad, pad
 		if i == middle {
-			left = " " + style(d.hasPrev()).Render("‹") + " "
-			right = " " + style(d.hasNext()).Render("›") + " "
+			left = " " + style(prev).Render("‹") + " "
+			right = " " + style(next).Render("›") + " "
 		}
 		// Pad to the page width, or the right arrow trails the text instead of
 		// sitting in the margin.
@@ -569,50 +607,114 @@ func commitStep(key string) (int, bool) {
 func (d *commitDetail) page(width, height int) string {
 	d.pageWidth = width
 
-	lines := d.lines(width - 4)
-	rows := height - 2
+	// The message reads across the top; the two lists that you act on sit side by
+	// side below it. Stacked, they made the page a long vertical scroll while half
+	// the terminal stayed empty.
+	top := d.topLines(width - 2)
+	topHeight := len(top) + 1 // a heading of its own
+	if maxTop := height * 3 / 5; topHeight > maxTop {
+		topHeight = maxTop
+	}
+	if topHeight < 3 {
+		topHeight = 3
+	}
+
+	const gap = 1
+	bottomHeight := height - topHeight - gap
+	if bottomHeight < 4 {
+		// A short terminal: keep the message and drop the columns, which would be
+		// two headings and nothing else.
+		return components.RenderPanel(d.title(len(top), height-1), d.window(top, height-1), width, height, true)
+	}
+
+	return lipgloss.JoinVertical(lipgloss.Left,
+		components.RenderPanel(d.title(len(top), topHeight-1), d.window(top, topHeight-1), width, topHeight, d.focus == focusPage),
+		"",
+		d.columns(width, bottomHeight),
+	)
+}
+
+// title names the page, with the commit's place in the list and, when the message
+// does not fit, where in it you are.
+func (d *commitDetail) title(lines, rows int) string {
+	out := "Commit"
+	if d.commit != nil {
+		out = "Commit " + d.commit.ShortID
+	}
+	if d.total > 0 {
+		out = fmt.Sprintf("%s  %d/%d", out, d.index+1, d.total)
+	}
+	if lines > rows {
+		end := min(d.scroll+rows, lines)
+		out = fmt.Sprintf("%s  ·  %d-%d of %d", out, d.scroll+1, end, lines)
+	}
+	return out
+}
+
+// window is the visible slice of the message, scrolled by the page's own offset.
+func (d *commitDetail) window(lines []string, rows int) []string {
 	if rows < 1 {
 		rows = 1
 	}
-
-	switch d.focus {
-	case focusJobs:
-		// Follow the highlighted job, which lives some way down the page.
-		d.scroll = components.ScrollOffset(d.scroll, d.jobCursorLine, len(lines), rows)
-	case focusFiles:
-		d.scroll = components.ScrollOffset(d.scroll, d.fileLine, len(lines), rows)
-	default:
-		// The page is scrolled directly rather than followed around a cursor, so
-		// the offset only needs clamping — ScrollOffset would drag it back to keep
-		// a non-existent cursor in view.
-		if d.scroll > len(lines)-rows {
-			d.scroll = max(0, len(lines)-rows)
-		}
-		if d.scroll < 0 {
-			d.scroll = 0
-		}
+	if d.scroll > len(lines)-rows {
+		d.scroll = max(0, len(lines)-rows)
 	}
-
-	end := min(d.scroll+rows, len(lines))
-	visible := lines[d.scroll:end]
-
-	title := "Commit"
-	if d.commit != nil {
-		title = "Commit " + d.commit.ShortID
+	if d.scroll < 0 {
+		d.scroll = 0
 	}
-	// Where this commit sits in the list it was opened from, so stepping through
-	// with the arrows has a sense of place.
-	if d.total > 0 {
-		title = fmt.Sprintf("%s  %d/%d", title, d.index+1, d.total)
-	}
-	if len(lines) > rows {
-		title = fmt.Sprintf("%s  ·  scrolled %d-%d of %d", title, d.scroll+1, end, len(lines))
-	}
-	return components.RenderPanel(title, visible, width, height, true)
+	return lines[d.scroll:min(d.scroll+rows, len(lines))]
 }
 
-// lines builds the page. width is the available text width; 0 means "don't wrap".
-func (d *commitDetail) lines(width int) []string {
+// columns renders the changed files beside the jobs, each scrolling on its own
+// and the focused one taking the bolder heading.
+func (d *commitDetail) columns(width, height int) string {
+	leftWidth := width / 2
+	if leftWidth < 20 {
+		leftWidth = 20
+	}
+	rightWidth := width - leftWidth - 3 // the rule and its spaces
+
+	files := renderListBox(leftWidth, height,
+		fmt.Sprintf("Changes (%d)", len(d.diffs)), d.fileRows(),
+		cursorWhen(d.focus == focusFiles, d.fileCursor), &d.fileScroll)
+
+	jobRows, jobToRow := d.jobs.items()
+	jobCursor := -1
+	if d.focus == focusJobs && d.jobs.cursor < len(jobToRow) {
+		jobCursor = jobToRow[d.jobs.cursor]
+	}
+	jobs := renderListBox(rightWidth, height,
+		fmt.Sprintf("Jobs (%d)", len(d.jobs.jobs)), jobRows, jobCursor, &d.jobs.scroll)
+
+	return lipgloss.JoinHorizontal(lipgloss.Top, files, " ", components.VRule(height), " ", jobs)
+}
+
+// cursorWhen returns the cursor only for a focused list, so an unfocused one has
+// no highlighted row.
+func cursorWhen(focused bool, cursor int) int {
+	if focused {
+		return cursor
+	}
+	return -1
+}
+
+// fileRows renders the changed files as list rows.
+func (d *commitDetail) fileRows() []string {
+	if d.loading && len(d.diffs) == 0 {
+		return []string{components.HelpDescStyle.Render("Loading…")}
+	}
+	if len(d.diffs) == 0 {
+		return []string{components.HelpDescStyle.Render("No changes reported")}
+	}
+	rows := make([]string, len(d.diffs))
+	for i, f := range d.diffs {
+		rows[i] = fmt.Sprintf("%s %s%s", fileMark(f), f.Path(), diffStat(f))
+	}
+	return rows
+}
+
+// topLines is the message and what the commit belongs to, including its pipeline.
+func (d *commitDetail) topLines(width int) []string {
 	c := d.commit
 	if c == nil {
 		return []string{"No commit"}
@@ -631,15 +733,8 @@ func (d *commitDetail) lines(width int) []string {
 	wrap(components.TitleStyle.Render(c.Title))
 	add("")
 
-	// The body of the message, without repeating the subject.
-	body := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(c.Message), c.Title))
-	if body != "" {
-		for _, line := range strings.Split(body, "\n") {
-			wrap(line)
-		}
-		add("")
-	}
-
+	// The metadata comes before the message body: the CI status and the branch are
+	// what you check, and a long message would push them below the fold.
 	add(components.HelpDescStyle.Render("commit  ") + c.ShortID +
 		components.HelpDescStyle.Render("   authored by ") + c.AuthorName)
 	if len(c.ParentIDs) > 0 {
@@ -651,27 +746,48 @@ func (d *commitDetail) lines(width int) []string {
 	}
 	out = append(out, d.refLines()...)
 	out = append(out, d.mrLines()...)
-	if files := d.fileLines(); len(files) > 0 {
+	out = append(out, d.pipelineLine())
+
+	body := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(c.Message), c.Title))
+	if body != "" {
 		add("")
-		fileStart := len(out)
-		out = append(out, files...)
-		if d.fileRow >= 0 {
-			d.fileLine = fileStart + d.fileRow
+		for _, line := range strings.Split(body, "\n") {
+			wrap(line)
 		}
 	}
 
 	add("")
-	// Where the pipelines section begins, so a highlighted job's line can be
-	// located on the page and scrolled to.
-	sectionStart := len(out)
-	d.jobCursorRow = -1
-	out = append(out, d.pipelineLines()...)
-	if d.jobCursorRow >= 0 {
-		d.jobCursorLine = sectionStart + d.jobCursorRow
-	}
-	add("")
 	wrap(components.HelpDescStyle.Render(c.WebURL))
 	return out
+}
+
+// pipelineLine is the commit's pipeline as one line of metadata: a single status
+// does not need a section of its own.
+func (d *commitDetail) pipelineLine() string {
+	switch {
+	case d.loading && len(d.pipelines) == 0:
+		return components.HelpDescStyle.Render("ci      loading…")
+	case len(d.pipelines) == 0:
+		// Nothing ran; p starts one on the branch, which is not the same thing.
+		return components.HelpDescStyle.Render("ci      no pipeline (p runs one on the branch head)")
+	}
+
+	p := d.pipelines[0]
+	status := p.Status
+	if p.HasWarnings {
+		status = components.StatusWarning
+	}
+	label := p.StatusLabel
+	if label == "" {
+		label = p.Status
+	}
+	line := components.HelpDescStyle.Render("ci      ") +
+		components.StatusIconPadded(status) +
+		fmt.Sprintf("#%d %s", p.ID, label)
+	if len(d.pipelines) > 1 {
+		line += components.MutedStyle.Render(fmt.Sprintf("  (+%d more)", len(d.pipelines)-1))
+	}
+	return line
 }
 
 // refLines lists the branches and tags containing the commit.
@@ -708,36 +824,6 @@ func (d *commitDetail) mrLines() []string {
 	for _, mr := range d.mrs {
 		out = append(out, components.HelpDescStyle.Render("mr      ")+
 			fmt.Sprintf("!%d %s", mr.IID, mr.Title))
-	}
-	return out
-}
-
-// fileLines renders the changed files: a status letter, the path, and how much
-// changed. It is the section you step into to read a diff.
-func (d *commitDetail) fileLines() []string {
-	if d.loading && len(d.diffs) == 0 {
-		return []string{components.TitleStyle.Render("Changes"),
-			components.HelpDescStyle.Render("Loading…")}
-	}
-	if len(d.diffs) == 0 {
-		return nil // an empty commit, or a diff GitLab would not send
-	}
-
-	heading := components.TitleStyle.Render(fmt.Sprintf("Changes (%d)", len(d.diffs)))
-	if d.focus != focusFiles {
-		heading += components.FaintStyle.Render("  ↵")
-	}
-	out := []string{heading}
-
-	d.fileRow = -1
-	for i, f := range d.diffs {
-		row := fmt.Sprintf("%s %s%s", fileMark(f), f.Path(), diffStat(f))
-		if i == d.fileCursor && d.focus == focusFiles {
-			d.fileRow = len(out)
-			out = append(out, components.SelectRow(row, d.pageWidth-2, true))
-			continue
-		}
-		out = append(out, "  "+row)
 	}
 	return out
 }
@@ -835,65 +921,4 @@ func styleDiffLine(line string) string {
 
 // pipelineLines renders the commit's pipelines and the newest one's jobs grouped
 // by stage — GitLab's row of status circles, spelled out.
-func (d *commitDetail) pipelineLines() []string {
-	out := []string{components.TitleStyle.Render("Pipelines")}
-
-	switch {
-	case d.loading && len(d.pipelines) == 0:
-		return append(out, components.HelpDescStyle.Render("Loading…"))
-	case len(d.pipelines) == 0:
-		// Nothing ran for this commit; a pipeline can only be started for a
-		// branch, so say what p would actually do.
-		return append(out,
-			components.HelpDescStyle.Render("No pipeline ran for this commit."),
-			components.HelpDescStyle.Render("p runs one on the branch head instead."))
-	}
-
-	for _, p := range d.pipelines {
-		status := p.Status
-		if p.HasWarnings {
-			status = components.StatusWarning
-		}
-		label := p.StatusLabel
-		if label == "" {
-			label = p.Status
-		}
-		out = append(out, fmt.Sprintf("%s #%d  %s  %s",
-			components.StatusIconPadded(status), p.ID, label,
-			components.HelpDescStyle.Render(p.Ref)))
-	}
-
-	if len(d.jobs.jobs) == 0 {
-		return out
-	}
-
-	// The jobs are the panel's own rows, so what you see is what you act on once
-	// the focus moves into them. Enter is offered on the heading, not in a footer
-	// only.
-	heading := components.TitleStyle.Render(fmt.Sprintf("Jobs (%d)", len(d.jobs.jobs)))
-	if d.focus != focusJobs {
-		heading += components.FaintStyle.Render("  ↵")
-	}
-	out = append(out, "", heading)
-
-	rows, jobToRow := d.jobs.items()
-	cursorRow := -1
-	if d.jobs.cursor >= 0 && d.jobs.cursor < len(jobToRow) {
-		cursorRow = jobToRow[d.jobs.cursor]
-	}
-	for i, row := range rows {
-		if len(row) > 0 && row[0] == '\x00' {
-			out = append(out, "  "+row[1:]) // stage heading
-			continue
-		}
-		if i == cursorRow && d.focus == focusJobs {
-			d.jobCursorRow = len(out)
-			out = append(out, components.SelectRow(strings.TrimLeft(row, " "), d.pageWidth-2, true))
-			continue
-		}
-		out = append(out, "  "+row)
-	}
-	return out
-}
-
 // jobDuration renders a job's runtime, or its status when it has not run.

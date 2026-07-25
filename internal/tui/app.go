@@ -382,12 +382,13 @@ func (a *App) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		a.overlay = overlayHelp
 		a.helpScroll = 0
 		return a, nil
-	// h/l move between views like Tab/Shift+Tab: in v1 they moved between panels,
-	// and that muscle memory is worth keeping in the cockpit.
-	case KeyTab, KeyVimRight, KeyNextTab:
+	// Views are switched with the numbers, h/l and [/]. Tab is deliberately not
+	// among them: it belongs to whatever has focus, cycling the panels inside the
+	// active view — a key that means "move within" should not also mean "move away".
+	case KeyVimRight, KeyNextTab:
 		a.switchView((a.active + 1) % len(a.viewIDs))
 		return a, a.activeView().Focus()
-	case KeyShiftTab, KeyVimLeft, KeyPrevTab:
+	case KeyVimLeft, KeyPrevTab:
 		a.switchView((a.active - 1 + len(a.viewIDs)) % len(a.viewIDs))
 		return a, a.activeView().Focus()
 	case "P": // project switcher (uppercase so "p" stays free for view actions)
