@@ -158,6 +158,19 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return a.handleKey(msg)
 
+	case tea.PasteMsg:
+		// With bracketed paste (on by default) pasted text arrives as its own
+		// message rather than as key presses, so the re-authentication form has to
+		// accept it explicitly — a token is pasted far more often than typed.
+		if a.overlay == overlayReconfig {
+			a.pasteIntoReconfig(msg.Content)
+		}
+		return a, nil
+
+	case tea.PasteStartMsg, tea.PasteEndMsg:
+		// Paste delimiters carry no content; no view needs them.
+		return a, nil
+
 	case views.ProjectsLoadedMsg:
 		if msg.Err != nil {
 			a.setStatus(fmt.Sprintf("Error loading projects: %v", msg.Err), true)

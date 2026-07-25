@@ -122,6 +122,21 @@ func (a *App) handleReconfigKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return a, nil
 }
 
+// pasteIntoReconfig appends pasted text to the focused input. All whitespace is
+// stripped: neither a host nor a token may contain any, and a copied token
+// routinely brings along a trailing newline that would otherwise be submitted.
+func (a *App) pasteIntoReconfig(content string) {
+	r := a.reconfig
+	if r == nil || r.busy {
+		return
+	}
+	cleaned := strings.Join(strings.Fields(content), "")
+	if cleaned == "" {
+		return
+	}
+	r.setField(r.currentField() + cleaned)
+}
+
 // currentField returns the focused input's value.
 func (r *reconfigState) currentField() string {
 	if r.field == fieldHost {

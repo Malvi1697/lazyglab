@@ -179,6 +179,47 @@ func TestReconfigForm_TypingAndFieldSwitching(t *testing.T) {
 	}
 }
 
+func TestReconfigForm_AcceptsPaste(t *testing.T) {
+	// Tokens are pasted, and bracketed paste arrives as PasteMsg, not key presses.
+	a := newTestApp(t, func(string, string) (*gitlab.Client, string, error) { return nil, "", nil })
+	press(a, "A")
+
+	a.Update(tea.PasteMsg{Content: "glpat-pasted-token"})
+	if a.reconfig.token != "glpat-pasted-token" {
+		t.Errorf("token = %q, want the pasted value", a.reconfig.token)
+	}
+
+	// A copied token often carries a trailing newline; it must not survive.
+	press(a, "ctrl+u")
+	a.Update(tea.PasteMsg{Content: "  glpat-trailing\n"})
+	if a.reconfig.token != "glpat-trailing" {
+		t.Errorf("token = %q, want whitespace stripped", a.reconfig.token)
+	}
+
+	// Paste lands in whichever field has focus.
+	press(a, "tab")
+	press(a, "ctrl+u")
+	a.Update(tea.PasteMsg{Content: "gitlab.pasted.cz"})
+	if a.reconfig.host != "gitlab.pasted.cz" {
+		t.Errorf("host = %q, want the pasted value", a.reconfig.host)
+	}
+	if a.reconfig.token != "glpat-trailing" {
+		t.Errorf("token = %q, paste must not touch the unfocused field", a.reconfig.token)
+	}
+}
+
+func TestReconfigForm_PasteIgnoredWhenBusy(t *testing.T) {
+	a := newTestApp(t, func(string, string) (*gitlab.Client, string, error) { return nil, "", nil })
+	press(a, "A")
+	a.reconfig.token = "glpat-x"
+	press(a, "enter") // starts validating
+
+	a.Update(tea.PasteMsg{Content: "late-paste"})
+	if a.reconfig.token != "glpat-x" {
+		t.Errorf("token = %q, want it unchanged while validating", a.reconfig.token)
+	}
+}
+
 func TestReconfigForm_QuitKeyIsTypedNotObeyed(t *testing.T) {
 	// "q" quits globally; inside the form it must be a character.
 	a := newTestApp(t, func(string, string) (*gitlab.Client, string, error) { return nil, "", nil })
