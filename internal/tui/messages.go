@@ -104,3 +104,17 @@ type JobTraceLoadedMsg struct {
 type ErrorMsg struct {
 	Err error
 }
+
+// tickMsg drives the auto-refresh timer.
+type tickMsg struct{}
+
+// previewTickMsg fires after the hover debounce; gen guards against stale ticks.
+type previewTickMsg struct{ gen int }
+
+// previewJobsLoadedMsg carries jobs fetched for the hover preview.
+type previewJobsLoadedMsg struct {
+	pipelineID int
+	gen        int
+	jobs       []gitlab.Job
+	err        error
+}

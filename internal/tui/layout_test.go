@@ -3,7 +3,7 @@ package tui
 import "testing"
 
 func TestComputeLayout_NormalTerminal_ProjectsNotFocused(t *testing.T) {
-	l := ComputeLayout(80, 24, PanelMergeRequests)
+	l := ComputeLayout(80, 24, PanelMergeRequests, defaultPanels())
 
 	// usableHeight = 24 - 1 (status) - 1 (keybind) = 22
 	usableHeight := 22
@@ -41,7 +41,7 @@ func TestComputeLayout_NormalTerminal_ProjectsNotFocused(t *testing.T) {
 }
 
 func TestComputeLayout_NormalTerminal_ProjectsFocused(t *testing.T) {
-	l := ComputeLayout(80, 24, PanelProjects)
+	l := ComputeLayout(80, 24, PanelProjects, defaultPanels())
 
 	// usableHeight = 24 - 2 = 22, all 4 panels equal: 22/4 = 5 remainder 2
 	usableHeight := 22
@@ -64,7 +64,7 @@ func TestComputeLayout_NormalTerminal_ProjectsFocused(t *testing.T) {
 }
 
 func TestComputeLayout_SmallTerminal(t *testing.T) {
-	l := ComputeLayout(80, 12, PanelPipelines)
+	l := ComputeLayout(80, 12, PanelPipelines, defaultPanels())
 
 	// usableHeight = 12 - 2 = 10, but clamped to min 12
 	usableHeight := 12
@@ -88,7 +88,7 @@ func TestComputeLayout_SmallTerminal(t *testing.T) {
 }
 
 func TestComputeLayout_LargeTerminal(t *testing.T) {
-	l := ComputeLayout(200, 60, PanelIssues)
+	l := ComputeLayout(200, 60, PanelIssues, defaultPanels())
 
 	// usableHeight = 60 - 2 = 58
 	usableHeight := 58
@@ -118,7 +118,7 @@ func TestComputeLayout_LargeTerminal(t *testing.T) {
 }
 
 func TestComputeLayout_LargeTerminal_ProjectsFocused(t *testing.T) {
-	l := ComputeLayout(200, 60, PanelProjects)
+	l := ComputeLayout(200, 60, PanelProjects, defaultPanels())
 
 	// usableHeight = 58, all 4 equal: 58/4 = 14 rem 2
 	usableHeight := 58
@@ -138,9 +138,38 @@ func TestComputeLayout_LargeTerminal_ProjectsFocused(t *testing.T) {
 	}
 }
 
+func TestComputeLayout_HiddenPanel(t *testing.T) {
+	panels := []PanelID{PanelProjects, PanelPipelines, PanelIssues} // no MRs
+	l := ComputeLayout(120, 40, PanelPipelines, panels)
+
+	if l.PanelHeights[PanelMergeRequests] != 0 {
+		t.Errorf("hidden MR panel should have height 0, got %d", l.PanelHeights[PanelMergeRequests])
+	}
+	if l.PanelHeights[PanelProjects] != 3 {
+		t.Errorf("collapsed Projects should be 3, got %d", l.PanelHeights[PanelProjects])
+	}
+	sum := l.PanelHeights[PanelProjects] + l.PanelHeights[PanelPipelines] + l.PanelHeights[PanelIssues]
+	usable := 40 - l.StatusBarHeight - l.KeybindBarHeight
+	if sum != usable {
+		t.Errorf("visible heights sum %d, want %d", sum, usable)
+	}
+}
+
+func TestComputeLayout_ProjectsActiveSplitsEvenly(t *testing.T) {
+	panels := []PanelID{PanelProjects, PanelPipelines} // 2 visible
+	l := ComputeLayout(120, 40, PanelProjects, panels)
+	usable := 40 - l.StatusBarHeight - l.KeybindBarHeight
+	if l.PanelHeights[PanelProjects]+l.PanelHeights[PanelPipelines] != usable {
+		t.Errorf("two-panel heights must sum to usable %d", usable)
+	}
+	if l.PanelHeights[PanelMergeRequests] != 0 || l.PanelHeights[PanelIssues] != 0 {
+		t.Errorf("hidden panels must be 0")
+	}
+}
+
 func TestComputeLayout_SidebarWidthMin(t *testing.T) {
 	// Width 60: 60*45/100 = 27, clamped to min 35
-	l := ComputeLayout(60, 24, PanelMergeRequests)
+	l := ComputeLayout(60, 24, PanelMergeRequests, defaultPanels())
 
 	if l.SidebarWidth != 35 {
 		t.Errorf("SidebarWidth = %d, want 35 (min)", l.SidebarWidth)
@@ -152,7 +181,7 @@ func TestComputeLayout_SidebarWidthMin(t *testing.T) {
 
 func TestComputeLayout_SidebarWidthMax(t *testing.T) {
 	// Width 200: 200*45/100 = 90, clamped to max 75
-	l := ComputeLayout(200, 24, PanelMergeRequests)
+	l := ComputeLayout(200, 24, PanelMergeRequests, defaultPanels())
 
 	if l.SidebarWidth != 75 {
 		t.Errorf("SidebarWidth = %d, want 75 (max)", l.SidebarWidth)
@@ -164,7 +193,7 @@ func TestComputeLayout_SidebarWidthMax(t *testing.T) {
 
 func TestComputeLayout_SidebarWidthNormal(t *testing.T) {
 	// Width 80: 80*45/100 = 36, within bounds
-	l := ComputeLayout(80, 24, PanelMergeRequests)
+	l := ComputeLayout(80, 24, PanelMergeRequests, defaultPanels())
 
 	if l.SidebarWidth != 36 {
 		t.Errorf("SidebarWidth = %d, want 36", l.SidebarWidth)
@@ -173,7 +202,7 @@ func TestComputeLayout_SidebarWidthNormal(t *testing.T) {
 
 func TestComputeLayout_ContentWidthMinimum(t *testing.T) {
 	// Very narrow terminal: width 40, sidebar 35, content would be 5 -> clamped to 10
-	l := ComputeLayout(40, 24, PanelMergeRequests)
+	l := ComputeLayout(40, 24, PanelMergeRequests, defaultPanels())
 
 	if l.SidebarWidth != 35 {
 		t.Errorf("SidebarWidth = %d, want 35", l.SidebarWidth)
@@ -184,7 +213,7 @@ func TestComputeLayout_ContentWidthMinimum(t *testing.T) {
 }
 
 func TestComputeLayout_ContentWidthIsWidthMinusSidebar(t *testing.T) {
-	l := ComputeLayout(120, 40, PanelPipelines)
+	l := ComputeLayout(120, 40, PanelPipelines, defaultPanels())
 
 	expected := 120 - l.SidebarWidth
 	if l.ContentWidth != expected {
@@ -193,7 +222,7 @@ func TestComputeLayout_ContentWidthIsWidthMinusSidebar(t *testing.T) {
 }
 
 func TestComputeLayout_StatusAndKeybindBarHeights(t *testing.T) {
-	l := ComputeLayout(80, 24, PanelMergeRequests)
+	l := ComputeLayout(80, 24, PanelMergeRequests, defaultPanels())
 
 	if l.StatusBarHeight != 1 {
 		t.Errorf("StatusBarHeight = %d, want 1", l.StatusBarHeight)
@@ -217,7 +246,7 @@ func TestComputeLayout_ContentHeightEqualsUsableHeight(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			l := ComputeLayout(tt.width, tt.height, tt.panel)
+			l := ComputeLayout(tt.width, tt.height, tt.panel, defaultPanels())
 
 			usable := tt.height - l.StatusBarHeight - l.KeybindBarHeight
 			if usable < 12 {

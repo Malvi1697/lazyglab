@@ -21,8 +21,10 @@ type Layout struct {
 	KeybindBarHeight int
 }
 
-// ComputeLayout calculates panel dimensions based on terminal size.
-func ComputeLayout(width, height int, activePanel PanelID) Layout {
+// ComputeLayout calculates panel dimensions based on terminal size and the set
+// of visible panels (in display order). PanelHeights is keyed by PanelID; hidden
+// panels get height 0.
+func ComputeLayout(width, height int, activePanel PanelID, panels []PanelID) Layout {
 	l := Layout{
 		Width:            width,
 		Height:           height,
@@ -50,34 +52,52 @@ func ComputeLayout(width, height int, activePanel PanelID) Layout {
 	if usableHeight < 12 {
 		usableHeight = 12
 	}
+	l.ContentHeight = usableHeight
 
-	if activePanel == PanelProjects {
-		// Projects focused: all 4 panels share space equally
-		panelHeight := usableHeight / 4
-		remainder := usableHeight - (panelHeight * 4)
-		for i := range l.PanelHeights {
-			l.PanelHeights[i] = panelHeight
-			if i < remainder {
-				l.PanelHeights[i]++
-			}
-		}
-	} else {
-		// Projects not focused: collapsed to 3 lines, other 3 share the rest
-		collapsedHeight := 3
-		remaining := usableHeight - collapsedHeight
-		panelHeight := remaining / 3
-		remainder := remaining - (panelHeight * 3)
+	if len(panels) == 0 {
+		return l
+	}
 
-		l.PanelHeights[PanelProjects] = collapsedHeight
-		for i := 1; i < 4; i++ {
-			l.PanelHeights[i] = panelHeight
-			if i-1 < remainder {
-				l.PanelHeights[i]++
-			}
+	projectsVisible := false
+	for _, p := range panels {
+		if p == PanelProjects {
+			projectsVisible = true
 		}
 	}
 
-	l.ContentHeight = usableHeight
+	// distribute spreads total across ids, giving the remainder to the first few.
+	distribute := func(ids []PanelID, total int) {
+		n := len(ids)
+		if n == 0 {
+			return
+		}
+		base := total / n
+		rem := total - base*n
+		for i, id := range ids {
+			h := base
+			if i < rem {
+				h++
+			}
+			l.PanelHeights[id] = h
+		}
+	}
+
+	if activePanel == PanelProjects || !projectsVisible {
+		// All visible panels share space equally.
+		distribute(panels, usableHeight)
+		return l
+	}
+
+	// Projects collapsed to 3 lines; remaining height split among the others.
+	const collapsed = 3
+	l.PanelHeights[PanelProjects] = collapsed
+	others := make([]PanelID, 0, len(panels))
+	for _, p := range panels {
+		if p != PanelProjects {
+			others = append(others, p)
+		}
+	}
+	distribute(others, usableHeight-collapsed)
 
 	return l
 }

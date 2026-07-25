@@ -2,6 +2,8 @@ package app
 
 import (
 	"fmt"
+	"os"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -33,10 +35,17 @@ func Run() error {
 		}
 	}
 
+	// Resolve panel configuration and refresh interval from settings.
+	panels, warnings := tui.ParsePanels(cfg.Settings.Panels)
+	for _, w := range warnings {
+		fmt.Fprintf(os.Stderr, "  config: %s\n", w)
+	}
+	refreshInterval := time.Duration(cfg.Settings.RefreshSeconds()) * time.Second
+
 	fmt.Println("  Launching lazyglab...")
 	fmt.Println()
 
-	model := tui.NewApp(clients, hostNames, detectedHost, detectedPath)
+	model := tui.NewApp(clients, hostNames, detectedHost, detectedPath, panels, refreshInterval)
 	p := tea.NewProgram(model)
 	if _, err := p.Run(); err != nil {
 		return fmt.Errorf("running TUI: %w", err)

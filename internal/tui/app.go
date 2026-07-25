@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"image/color"
 	"strings"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
@@ -47,6 +48,17 @@ type App struct {
 	statusIsErr bool
 	loading     bool
 
+	// Panel configuration
+	panels          []PanelID     // visible panels in display order
+	refreshInterval time.Duration // 0 = auto-refresh disabled
+
+	// Job preview (hover) state
+	previewPipelineID int
+	previewJobs       []gitlab.Job
+	previewLoading    bool
+	previewGen        int
+	jobsCache         map[int]jobsCacheEntry
+
 	// Detail/overlay state
 	viewingJobs      bool // true when viewing pipeline jobs in detail panel
 	jobCursor        int
@@ -69,26 +81,60 @@ type confirmAction struct {
 	action tea.Cmd // command to execute on confirm
 }
 
+// jobsCacheEntry caches a pipeline's jobs for the hover preview.
+type jobsCacheEntry struct {
+	jobs []gitlab.Job
+	at   time.Time
+}
+
 // NewApp creates the root application model.
-func NewApp(clients map[string]*gitlab.Client, hostNames []string, detectedHost, detectedPath string) *App {
+func NewApp(clients map[string]*gitlab.Client, hostNames []string, detectedHost, detectedPath string, panels []PanelID, refreshInterval time.Duration) *App {
 	activeHost := ""
 	if detectedHost != "" {
 		activeHost = detectedHost
 	} else if len(hostNames) > 0 {
 		activeHost = hostNames[0]
 	}
+
+	if len(panels) == 0 {
+		panels = defaultPanels()
+	}
+
+	// Default the active panel to Pipelines if visible, else the first panel.
+	active := PanelPipelines
+	visible := false
+	for _, p := range panels {
+		if p == active {
+			visible = true
+		}
+	}
+	if !visible {
+		active = panels[0]
+	}
+
 	return &App{
-		clients:      clients,
-		hostNames:    hostNames,
-		activeHost:   activeHost,
-		activePanel:  PanelPipelines,
-		detectedHost: detectedHost,
-		detectedPath: detectedPath,
+		clients:         clients,
+		hostNames:       hostNames,
+		activeHost:      activeHost,
+		activePanel:     active,
+		detectedHost:    detectedHost,
+		detectedPath:    detectedPath,
+		panels:          panels,
+		refreshInterval: refreshInterval,
+		jobsCache:       make(map[int]jobsCacheEntry),
 	}
 }
 
 func (a *App) Init() tea.Cmd {
-	return a.loadProjects()
+	cmds := []tea.Cmd{a.loadProjects()}
+	if a.refreshInterval > 0 {
+		cmds = append(cmds, a.tickCmd())
+	}
+	return tea.Batch(cmds...)
+}
+
+func (a *App) tickCmd() tea.Cmd {
+	return tea.Tick(a.refreshInterval, func(time.Time) tea.Msg { return tickMsg{} })
 }
 
 func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -126,6 +172,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return a, nil
 		}
 		a.projects = msg.Projects
+		a.clampCursor(PanelProjects)
 		a.statusText = fmt.Sprintf("Loaded %d projects", len(msg.Projects))
 		a.statusIsErr = false
 
@@ -162,6 +209,9 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return a, nil
 		}
 		a.mrs = msg.MRs
+		a.clampCursor(PanelMergeRequests)
+		a.statusText = fmt.Sprintf("Loaded %d merge requests", len(msg.MRs))
+		a.statusIsErr = false
 		return a, nil
 
 	case PipelinesLoadedMsg:
@@ -173,7 +223,10 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.pipelines = msg.Pipelines
 		a.viewingJobs = false
 		a.jobs = nil
-		return a, nil
+		a.clampCursor(PanelPipelines)
+		a.statusText = fmt.Sprintf("Loaded %d pipelines", len(msg.Pipelines))
+		a.statusIsErr = false
+		return a, a.schedulePreview()
 
 	case JobsLoadedMsg:
 		if msg.Err != nil {
@@ -199,6 +252,9 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return a, nil
 		}
 		a.issues = msg.Issues
+		a.clampCursor(PanelIssues)
+		a.statusText = fmt.Sprintf("Loaded %d issues", len(msg.Issues))
+		a.statusIsErr = false
 		return a, nil
 
 	case BranchesLoadedMsg:
@@ -250,6 +306,35 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.statusText = msg.Text
 		a.statusIsErr = msg.IsErr
 		return a, nil
+
+	case tickMsg:
+		var cmd tea.Cmd
+		if a.canAutoRefresh() {
+			cmd = a.autoRefreshCmd()
+		}
+		return a, tea.Batch(cmd, a.tickCmd())
+
+	case previewTickMsg:
+		if msg.gen != a.previewGen {
+			return a, nil
+		}
+		idx := a.cursor[PanelPipelines]
+		if idx < 0 || idx >= len(a.pipelines) {
+			return a, nil
+		}
+		return a, a.loadPreviewJobs(a.pipelines[idx].ID, msg.gen)
+
+	case previewJobsLoadedMsg:
+		if msg.err == nil {
+			a.jobsCache[msg.pipelineID] = jobsCacheEntry{jobs: msg.jobs, at: time.Now()}
+		}
+		if msg.gen == a.previewGen && msg.pipelineID == a.previewPipelineID {
+			a.previewLoading = false
+			if msg.err == nil {
+				a.previewJobs = msg.jobs
+			}
+		}
+		return a, nil
 	}
 
 	return a, nil
@@ -266,23 +351,16 @@ func (a *App) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		a.showHelp = !a.showHelp
 		return a, nil
 	case KeyTab, KeyVimRight:
-		a.activePanel = (a.activePanel + 1) % 4
-		return a, nil
+		a.cyclePanel(1)
+		return a, a.schedulePreview()
 	case KeyShiftTab, KeyVimLeft:
-		a.activePanel = (a.activePanel + 3) % 4
-		return a, nil
-	case KeyPanel1:
-		a.activePanel = PanelProjects
-		return a, nil
-	case KeyPanel2:
-		a.activePanel = PanelPipelines
-		return a, nil
-	case KeyPanel3:
-		a.activePanel = PanelMergeRequests
-		return a, nil
-	case KeyPanel4:
-		a.activePanel = PanelIssues
-		return a, nil
+		a.cyclePanel(-1)
+		return a, a.schedulePreview()
+	case KeyPanel1, KeyPanel2, KeyPanel3, KeyPanel4:
+		if n := int(key[0] - '1'); n >= 0 && n < len(a.panels) {
+			a.activePanel = a.panels[n]
+		}
+		return a, a.schedulePreview()
 	case KeyRefresh:
 		return a, a.refreshActivePanel()
 	case KeyBranch:
@@ -318,22 +396,22 @@ func (a *App) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	// Navigation keys
 	if isNavigateUp(msg) {
 		a.moveCursor(-1)
-		return a, nil
+		return a, a.afterCursorMove()
 	}
 	if isNavigateDown(msg) {
 		a.moveCursor(1)
-		return a, nil
+		return a, a.afterCursorMove()
 	}
 	if key == KeyTop {
 		a.cursor[a.activePanel] = 0
-		return a, nil
+		return a, a.afterCursorMove()
 	}
 	if key == KeyBottom {
 		a.cursor[a.activePanel] = a.activeListLen() - 1
 		if a.cursor[a.activePanel] < 0 {
 			a.cursor[a.activePanel] = 0
 		}
-		return a, nil
+		return a, a.afterCursorMove()
 	}
 	if key == KeyHalfDown {
 		halfPage := (a.layout.PanelHeights[a.activePanel] - 2) / 2
@@ -341,7 +419,7 @@ func (a *App) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			halfPage = 1
 		}
 		a.moveCursor(halfPage)
-		return a, nil
+		return a, a.afterCursorMove()
 	}
 	if key == KeyHalfUp {
 		halfPage := (a.layout.PanelHeights[a.activePanel] - 2) / 2
@@ -349,7 +427,7 @@ func (a *App) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			halfPage = 1
 		}
 		a.moveCursor(-halfPage)
-		return a, nil
+		return a, a.afterCursorMove()
 	}
 
 	// Enter: select item
@@ -685,6 +763,66 @@ func (a *App) activeListLen() int {
 	return 0
 }
 
+// panelIndex returns the position of a panel in the visible list, or -1.
+func (a *App) panelIndex(id PanelID) int {
+	for i, p := range a.panels {
+		if p == id {
+			return i
+		}
+	}
+	return -1
+}
+
+// panelNumber returns the 1-based display number for a panel (its position in
+// the visible list).
+func (a *App) panelNumber(id PanelID) int {
+	return a.panelIndex(id) + 1
+}
+
+// cyclePanel moves the active panel by delta within the visible list (wrapping).
+func (a *App) cyclePanel(delta int) {
+	n := len(a.panels)
+	if n == 0 {
+		return
+	}
+	idx := a.panelIndex(a.activePanel)
+	if idx < 0 {
+		idx = 0
+	}
+	a.activePanel = a.panels[(idx+delta+n)%n]
+}
+
+// renderPanel renders a single sidebar panel by ID, handling the Pipelines↔Jobs
+// content swap.
+func (a *App) renderPanel(id PanelID) string {
+	switch id {
+	case PanelProjects:
+		return a.renderSidePanelSmart(PanelProjects, "Projects", a.projectItems(), a.collapsedProjectLine(), a.cursor[PanelProjects])
+	case PanelPipelines:
+		title := a.pipelinePanelTitle()
+		items := a.pipelineItems()
+		collapsed := a.collapsedPipelineLine()
+		cursor := a.cursor[PanelPipelines]
+		if a.viewingJobs {
+			title = a.jobsPanelTitle()
+			var jobToDisplay []int
+			items, jobToDisplay = a.jobItems()
+			collapsed = a.collapsedJobLine()
+			if a.jobCursor >= 0 && a.jobCursor < len(jobToDisplay) {
+				cursor = jobToDisplay[a.jobCursor]
+			} else {
+				cursor = 0
+			}
+		}
+		return a.renderSidePanelSmart(PanelPipelines, title, items, collapsed, cursor)
+	case PanelMergeRequests:
+		return a.renderSidePanelSmart(PanelMergeRequests, "Merge Requests", a.mrItems(), a.collapsedMRLine(), a.cursor[PanelMergeRequests])
+	case PanelIssues:
+		return a.renderSidePanelSmart(PanelIssues, "Issues", a.issueItems(), a.collapsedIssueLine(), a.cursor[PanelIssues])
+	}
+	return ""
+}
+
 // ============================================================================
 // View
 // ============================================================================
@@ -698,31 +836,13 @@ func (a *App) View() tea.View {
 		content = a.renderHelp()
 	default:
 		// Recompute layout each frame (active panel affects proportions)
-		a.layout = ComputeLayout(a.width, a.height, a.activePanel)
+		a.layout = ComputeLayout(a.width, a.height, a.activePanel, a.panels)
 
-		// Pipeline/Jobs panel: swap content when viewing jobs
-		pipeTitle := a.pipelinePanelTitle()
-		pipeItems := a.pipelineItems()
-		pipeCollapsed := a.collapsedPipelineLine()
-		pipeCursor := a.cursor[PanelPipelines]
-		if a.viewingJobs {
-			pipeTitle = a.jobsPanelTitle()
-			var jobToDisplay []int
-			pipeItems, jobToDisplay = a.jobItems()
-			pipeCollapsed = a.collapsedJobLine()
-			if a.jobCursor >= 0 && a.jobCursor < len(jobToDisplay) {
-				pipeCursor = jobToDisplay[a.jobCursor]
-			} else {
-				pipeCursor = 0
-			}
+		var panelViews []string
+		for _, id := range a.panels {
+			panelViews = append(panelViews, a.renderPanel(id))
 		}
-
-		sidebar := lipgloss.JoinVertical(lipgloss.Left,
-			a.renderSidePanelSmart(PanelProjects, "Projects", a.projectItems(), a.collapsedProjectLine(), a.cursor[PanelProjects]),
-			a.renderSidePanelSmart(PanelPipelines, pipeTitle, pipeItems, pipeCollapsed, pipeCursor),
-			a.renderSidePanelSmart(PanelMergeRequests, "Merge Requests", a.mrItems(), a.collapsedMRLine(), a.cursor[PanelMergeRequests]),
-			a.renderSidePanelSmart(PanelIssues, "Issues", a.issueItems(), a.collapsedIssueLine(), a.cursor[PanelIssues]),
-		)
+		sidebar := lipgloss.JoinVertical(lipgloss.Left, panelViews...)
 
 		detail := a.renderDetail()
 		main := lipgloss.JoinHorizontal(lipgloss.Top, sidebar, detail)
@@ -803,7 +923,7 @@ func (a *App) renderSidePanelSmart(id PanelID, title string, items []string, col
 	if id == PanelProjects && a.activePanel != PanelProjects {
 		totalWidth := a.layout.SidebarWidth
 		panelHeight := a.layout.PanelHeights[id]
-		titleText := fmt.Sprintf("[%d] %s", int(id)+1, title)
+		titleText := fmt.Sprintf("[%d] %s", a.panelNumber(id), title)
 		line := truncate(collapsedLine, totalWidth-4)
 		return renderBox(titleText, []string{line}, totalWidth, panelHeight, ColorSecondary, ColorSecondary)
 	}
@@ -856,7 +976,7 @@ func (a *App) renderSidePanel(id PanelID, title string, items []string, cursor i
 		titleColor = ColorPrimary
 	}
 
-	titleText := fmt.Sprintf("[%d] %s", int(id)+1, title)
+	titleText := fmt.Sprintf("[%d] %s", a.panelNumber(id), title)
 	return renderBox(titleText, contentLines, totalWidth, panelHeight, borderColor, titleColor)
 }
 
@@ -996,7 +1116,7 @@ func (a *App) renderStatusBar() string {
 		right = a.statusText
 	}
 
-	gap := a.width - len(left) - len(right) - 2
+	gap := a.width - lipgloss.Width(left) - lipgloss.Width(right) - 2
 	if gap < 0 {
 		gap = 0
 	}
@@ -1185,8 +1305,10 @@ func (a *App) renderHelp() string {
 	lines = append(lines, "")
 	lines = append(lines, HelpDescStyle.Render("Press any key to close"))
 
-	content := strings.Join(lines, "\n")
-	return lipgloss.Place(a.width, a.height, lipgloss.Center, lipgloss.Center, content)
+	// Left-align the block, then center it as a unit (Place centers each line
+	// individually, which would leave the key column ragged).
+	block := lipgloss.NewStyle().Align(lipgloss.Left).Render(strings.Join(lines, "\n"))
+	return lipgloss.Place(a.width, a.height, lipgloss.Center, lipgloss.Center, block)
 }
 
 func (a *App) renderBranchPicker(maxHeight int) string {
@@ -1320,26 +1442,21 @@ func (a *App) mrItems() []string {
 }
 
 func (a *App) pipelineItems() []string {
+	const refWidth = 14
 	items := make([]string, len(a.pipelines))
 	for i, p := range a.pipelines {
-		desc := p.CommitTitle
-		if desc == "" {
-			desc = p.Ref
+		title := p.CommitTitle
+		if title == "" {
+			title = p.Ref
 		}
+		t := util.TimeAgoShort(p.CreatedAt) // fixed width 4
+		icon := a.statusIcon(p.Status)      // 2 cells, colored
 		if a.activeBranch != nil {
-			// Branch already shown in panel title, skip ref
-			items[i] = fmt.Sprintf("%s %s %s",
-				util.TimeAgoShort(p.CreatedAt),
-				PipelineStatusIcon(p.Status),
-				desc,
-			)
+			// Branch shown in the panel title; drop the ref column.
+			items[i] = fmt.Sprintf("%s %s %s", t, icon, title)
 		} else {
-			items[i] = fmt.Sprintf("%s %s %s — %s",
-				util.TimeAgoShort(p.CreatedAt),
-				PipelineStatusIcon(p.Status),
-				p.Ref,
-				desc,
-			)
+			ref := padRight(truncate(p.Ref, refWidth), refWidth)
+			items[i] = fmt.Sprintf("%s %s %s %s", t, icon, ref, title)
 		}
 	}
 	return items
@@ -1434,6 +1551,22 @@ func (a *App) pipelineDetail() string {
 	lines = append(lines, "")
 	lines = append(lines, HelpDescStyle.Render(p.WebURL))
 
+	// Hover preview: the selected pipeline's jobs.
+	if a.previewPipelineID == p.ID {
+		if a.previewLoading {
+			lines = append(lines, "", HelpDescStyle.Render("Loading jobs…"))
+		} else if len(a.previewJobs) > 0 {
+			lines = append(lines, "", HelpDescStyle.Render("Jobs:"))
+			for _, j := range a.previewJobs {
+				dur := ""
+				if j.Duration > 0 {
+					dur = fmt.Sprintf("  (%ds)", int(j.Duration))
+				}
+				lines = append(lines, fmt.Sprintf("  %s %s  %s%s", a.statusIcon(j.Status), j.Name, j.Status, dur))
+			}
+		}
+	}
+
 	return strings.Join(lines, "\n")
 }
 
@@ -1503,12 +1636,8 @@ func (a *App) jobTraceView() string {
 		if strings.HasPrefix(line, "section_start:") || strings.HasPrefix(line, "section_end:") {
 			continue
 		}
-		// Word-wrap long lines
-		for len(line) > contentWidth {
-			cleaned = append(cleaned, line[:contentWidth])
-			line = line[contentWidth:]
-		}
-		cleaned = append(cleaned, line)
+		// Word-wrap long lines (break on spaces where possible)
+		cleaned = append(cleaned, wrapLine(line, contentWidth)...)
 	}
 
 	// Update max scroll based on cleaned lines
@@ -1683,6 +1812,99 @@ func (a *App) refreshActivePanel() tea.Cmd {
 		return a.loadIssues()
 	}
 	return nil
+}
+
+// clampCursor keeps the given panel's cursor within its list bounds.
+func (a *App) clampCursor(id PanelID) {
+	n := 0
+	switch id {
+	case PanelProjects:
+		n = len(a.projects)
+	case PanelMergeRequests:
+		n = len(a.mrs)
+	case PanelPipelines:
+		n = len(a.pipelines)
+	case PanelIssues:
+		n = len(a.issues)
+	}
+	if a.cursor[id] >= n {
+		a.cursor[id] = n - 1
+	}
+	if a.cursor[id] < 0 {
+		a.cursor[id] = 0
+	}
+}
+
+// canAutoRefresh reports whether a background refresh is currently appropriate.
+func (a *App) canAutoRefresh() bool {
+	if a.activeProject == nil {
+		return false
+	}
+	if a.pendingConfirm != nil || a.showHelp || a.showBranchPicker {
+		return false
+	}
+	if a.viewingJobs && a.jobTrace != "" { // reading a log; don't disturb
+		return false
+	}
+	return true
+}
+
+// autoRefreshCmd refreshes the data behind the active view.
+func (a *App) autoRefreshCmd() tea.Cmd {
+	if a.activePanel == PanelPipelines && a.viewingJobs {
+		return a.loadJobs()
+	}
+	// Refreshing pipelines invalidates the hover cache so previews stay fresh.
+	if a.activePanel == PanelPipelines {
+		a.jobsCache = make(map[int]jobsCacheEntry)
+	}
+	return a.refreshActivePanel()
+}
+
+// afterCursorMove returns any command to run after the cursor moves (currently
+// the pipeline hover-preview debounce).
+func (a *App) afterCursorMove() tea.Cmd {
+	return a.schedulePreview()
+}
+
+// schedulePreview loads (or debounces a load of) the selected pipeline's jobs for
+// the detail-panel preview. Cache hits render immediately; otherwise a 400ms
+// debounce tick is returned, guarded by previewGen.
+func (a *App) schedulePreview() tea.Cmd {
+	if a.activePanel != PanelPipelines || a.viewingJobs {
+		return nil
+	}
+	idx := a.cursor[PanelPipelines]
+	if idx < 0 || idx >= len(a.pipelines) {
+		return nil
+	}
+	pid := a.pipelines[idx].ID
+	a.previewPipelineID = pid
+
+	if e, ok := a.jobsCache[pid]; ok && time.Since(e.at) < 30*time.Second {
+		a.previewJobs = e.jobs
+		a.previewLoading = false
+		return nil
+	}
+
+	a.previewGen++
+	gen := a.previewGen
+	a.previewJobs = nil
+	a.previewLoading = true
+	return tea.Tick(400*time.Millisecond, func(time.Time) tea.Msg { return previewTickMsg{gen: gen} })
+}
+
+// loadPreviewJobs fetches jobs for the hover preview.
+func (a *App) loadPreviewJobs(pipelineID, gen int) tea.Cmd {
+	if a.activeProject == nil {
+		return nil
+	}
+	client := a.clients[a.activeHost]
+	projectID := a.activeProject.ID
+	return func() tea.Msg {
+		jobs, err := client.ListPipelineJobs(projectID, pipelineID)
+		return previewJobsLoadedMsg{pipelineID: pipelineID, gen: gen, jobs: jobs, err: err}
+	}
 }
 
 func (a *App) approveMR() tea.Cmd {
@@ -1922,4 +2144,74 @@ func truncate(s string, maxLen int) string {
 		return ansi.Truncate(s, maxLen, "")
 	}
 	return ansi.Truncate(s, maxLen-3, "") + "..."
+}
+
+// wrapLine wraps a single (ANSI-stripped) line to width w, breaking on spaces
+// when possible and falling back to a hard rune break for overlong words.
+func wrapLine(line string, w int) []string {
+	if w < 1 {
+		w = 1
+	}
+	if lipgloss.Width(line) <= w {
+		return []string{line}
+	}
+	var out []string
+	var cur []rune
+	curW := 0
+	flush := func() {
+		out = append(out, string(cur))
+		cur = cur[:0]
+		curW = 0
+	}
+	for _, word := range strings.Split(line, " ") {
+		wl := len([]rune(word))
+		// Hard-break a single word longer than the width.
+		for wl > w {
+			if curW > 0 {
+				flush()
+			}
+			r := []rune(word)
+			out = append(out, string(r[:w]))
+			word = string(r[w:])
+			wl = len([]rune(word))
+		}
+		space := 0
+		if curW > 0 {
+			space = 1
+		}
+		if curW+space+wl > w {
+			flush()
+			space = 0
+		}
+		if space == 1 {
+			cur = append(cur, ' ')
+			curW++
+		}
+		cur = append(cur, []rune(word)...)
+		curW += wl
+	}
+	if curW > 0 || len(out) == 0 {
+		flush()
+	}
+	return out
+}
+
+// padRight pads s with spaces to the given display width (no-op if already wider).
+func padRight(s string, w int) string {
+	vis := lipgloss.Width(s)
+	if vis >= w {
+		return s
+	}
+	return s + strings.Repeat(" ", w-vis)
+}
+
+// statusIcon returns the pipeline/job status icon colored by status and padded
+// to 2 display cells so 1- and 2-cell glyphs align in a column.
+func (a *App) statusIcon(status string) string {
+	icon := PipelineStatusIcon(status)
+	colored := lipgloss.NewStyle().Foreground(PipelineStatusColor(status)).Render(icon)
+	if lipgloss.Width(icon) < 2 {
+		colored += " "
+	}
+	return colored
 }
