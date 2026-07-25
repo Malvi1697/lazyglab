@@ -83,3 +83,13 @@ type Issue struct {
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 }
+
+// Commit is a repository commit.
+type Commit struct {
+	ShortID    string
+	Title      string
+	AuthorName string
+	CreatedAt  time.Time
+	WebURL     string
+	Status     string // CI status, resolved by callers from pipelines by SHA ("" if none)
+}

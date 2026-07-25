@@ -83,7 +83,11 @@ type ErrorMsg struct {
 	Err error
 }
 
-// CommitsLoadedMsg is added in Task 3 once gitlab.Commit exists.
+// CommitsLoadedMsg carries fetched commits.
+type CommitsLoadedMsg struct {
+	Commits []gitlab.Commit
+	Err     error
+}
 
 // ConfirmMsg asks the shell to show a confirmation dialog for a destructive
 // action; the action command runs only if the user confirms.
