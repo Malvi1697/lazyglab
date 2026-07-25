@@ -105,6 +105,7 @@ type CommitDetailLoadedMsg struct {
 	Refs      []gitlab.CommitRef
 	MRs       []gitlab.MergeRequest
 	Jobs      []gitlab.Job
+	Diffs     []gitlab.FileDiff
 	Err       error
 }
 

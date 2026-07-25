@@ -1,6 +1,8 @@
 package gitlab
 
 import (
+	"strings"
+
 	gogitlab "gitlab.com/gitlab-org/api/client-go"
 
 	"github.com/Malvi1697/lazyglab/internal/util"
@@ -101,4 +103,53 @@ func (c *Client) ListCommitMergeRequests(projectID int, sha string) ([]MergeRequ
 		}
 	}
 	return mrs, nil
+}
+
+// maxDiffFiles bounds how many files of a commit we ask for. GitLab applies its
+// own limits on top; a commit touching more files than this is rare and a TUI
+// cannot show them all at once anyway.
+const maxDiffFiles = 100
+
+// GetCommitDiff returns a commit's changes, one unified diff per file.
+func (c *Client) GetCommitDiff(projectID int, sha string) ([]FileDiff, error) {
+	opts := &gogitlab.GetCommitDiffOptions{
+		ListOptions: gogitlab.ListOptions{PerPage: maxDiffFiles},
+	}
+
+	apiDiffs, _, err := c.api.Commits.GetCommitDiff(projectID, sha, opts)
+	if err != nil {
+		return nil, err
+	}
+
+	diffs := make([]FileDiff, len(apiDiffs))
+	for i, d := range apiDiffs {
+		diffs[i] = FileDiff{
+			OldPath: util.StripANSI(d.OldPath),
+			NewPath: util.StripANSI(d.NewPath),
+			Diff:    d.Diff,
+			New:     d.NewFile,
+			Deleted: d.DeletedFile,
+			Renamed: d.RenamedFile,
+			// GitLab omits the text for changes it will not send in full.
+			Withheld: d.Diff == "" && !d.RenamedFile,
+		}
+		diffs[i].Added, diffs[i].Removed = countDiffLines(d.Diff)
+	}
+	return diffs, nil
+}
+
+// countDiffLines counts added and removed lines in a unified diff, ignoring the
+// +++/--- file headers.
+func countDiffLines(diff string) (added, removed int) {
+	for _, line := range strings.Split(diff, "\n") {
+		switch {
+		case strings.HasPrefix(line, "+++") || strings.HasPrefix(line, "---"):
+			continue
+		case strings.HasPrefix(line, "+"):
+			added++
+		case strings.HasPrefix(line, "-"):
+			removed++
+		}
+	}
+	return added, removed
 }

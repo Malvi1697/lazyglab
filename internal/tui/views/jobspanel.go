@@ -314,12 +314,15 @@ func (p *jobsPanel) items() ([]string, []int) {
 	for i, job := range p.jobs {
 		if job.Stage != stage {
 			stage = job.Stage
-			header := lipgloss.NewStyle().Bold(true).Foreground(components.ColorSecondary).Render(job.Stage)
-			items = append(items, "\x00"+header)
+			items = append(items, "\x00"+components.MutedStyle.Render(job.Stage))
 		}
 		jobToDisplay[i] = len(items)
-		items = append(items, fmt.Sprintf("  %s %s  %s%s",
-			components.StatusIcon(job.Status), job.Name, job.Status, durationSuffix(&job)))
+		// The icon already says what the status is; repeating it in words made
+		// every row say the same thing twice. Only a duration adds anything, and
+		// only when the job has run.
+		items = append(items, fmt.Sprintf("  %s %s%s",
+			components.StatusIcon(job.Status), job.Name,
+			components.MutedStyle.Render(durationSuffix(&job))))
 	}
 	return items, jobToDisplay
 }

@@ -183,3 +183,59 @@ func TestGetCommit_includesFullMessage(t *testing.T) {
 		t.Errorf("Message = %q, want the full body", c.Message)
 	}
 }
+
+func TestGetCommitDiff(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v4/projects/1/repository/commits/abc123/diff", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`[
+			{
+				"diff": "@@ -1,3 +1,4 @@\n context\n-gone\n+added\n+also added\n",
+				"new_path": "internal/app/config.go",
+				"old_path": "internal/app/config.go",
+				"new_file": false, "renamed_file": false, "deleted_file": false
+			},
+			{
+				"diff": "",
+				"new_path": "huge.bin", "old_path": "huge.bin",
+				"new_file": true, "renamed_file": false, "deleted_file": false
+			}
+		]`))
+	})
+
+	client, srv := setupTestClient(t, mux)
+	defer srv.Close()
+
+	diffs, err := client.GetCommitDiff(1, "abc123")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(diffs) != 2 {
+		t.Fatalf("want 2 file diffs, got %d", len(diffs))
+	}
+
+	first := diffs[0]
+	if first.Path() != "internal/app/config.go" {
+		t.Errorf("path = %q", first.Path())
+	}
+	// The +++/--- headers must not be counted as changed lines.
+	if first.Added != 2 || first.Removed != 1 {
+		t.Errorf("counted +%d -%d, want +2 -1", first.Added, first.Removed)
+	}
+	if first.Withheld {
+		t.Error("a diff that arrived must not be marked withheld")
+	}
+
+	// A change GitLab declined to send is withheld, not empty.
+	if !diffs[1].Withheld {
+		t.Error("expected the empty diff to be marked withheld")
+	}
+}
+
+func TestFileDiff_PathFallsBackToTheOldPath(t *testing.T) {
+	// A deleted file has no new path; naming it by its old one is all we can do.
+	d := FileDiff{OldPath: "gone.go", Deleted: true}
+	if d.Path() != "gone.go" {
+		t.Errorf("Path() = %q, want the old path", d.Path())
+	}
+}

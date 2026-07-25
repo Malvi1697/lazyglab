@@ -489,6 +489,10 @@ func helpEntries() []helpEntry {
 		{"R", "Retry"},
 		{"C", "Cancel"},
 
+		{"Changed files", ""},
+		{"Enter", "Read the file's diff"},
+		{"j / k", "Move between files"},
+
 		{"Jobs (pipeline or commit)", ""},
 		{"Enter", "Read the job's log"},
 		{"R", "Retry the job"},
@@ -504,7 +508,9 @@ func helpEntries() []helpEntry {
 
 		{"Commit page", ""},
 		{"j / k", "Scroll the page"},
-		{"Enter", "Drill into the pipeline's jobs"},
+		{"← / →", "Previous / next commit"},
+		{"Enter", "Step into the changed files"},
+		{"Tab", "Move between changes and jobs"},
 		{"R", "Retry the commit's pipeline"},
 		{"p", "Run a pipeline on the branch head"},
 		{"y", "Copy the SHA"},

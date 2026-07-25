@@ -55,6 +55,30 @@ type Pipeline struct {
 	HasWarnings bool
 }
 
+// FileDiff is one file's change within a commit, as a unified diff.
+type FileDiff struct {
+	OldPath string
+	NewPath string
+	Diff    string // unified diff text; empty when GitLab withheld it
+	New     bool
+	Deleted bool
+	Renamed bool
+	// Withheld is true when GitLab excluded the diff because the change is too
+	// large to send, so an empty Diff is not mistaken for an empty change.
+	Withheld bool
+
+	Added   int // counted from the diff text
+	Removed int
+}
+
+// Path is the file's current path, or its old one if it was deleted.
+func (f FileDiff) Path() string {
+	if f.NewPath != "" {
+		return f.NewPath
+	}
+	return f.OldPath
+}
+
 // CommitRef is a branch or tag that contains a commit.
 type CommitRef struct {
 	Type string // "branch" or "tag"

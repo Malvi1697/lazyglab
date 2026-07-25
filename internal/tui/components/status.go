@@ -34,35 +34,42 @@ func StatusColor(status string) color.Color {
 }
 
 // StatusIcon returns a colored icon for a pipeline status.
+//
+// The glyphs are solid rather than line-drawn, and bold, because at terminal font
+// sizes a thin ✓ or ✗ disappears into the text beside it — the icon is the thing
+// you scan a list by, so it has to carry. Shape distinguishes the states as well
+// as colour: a filled circle finished, a half-filled one still running, a hollow
+// one waiting, a triangle you can act on.
 func StatusIcon(status string) string {
+	icon := func(c color.Color, glyph string) string {
+		return lipgloss.NewStyle().Foreground(c).Bold(true).Render(glyph)
+	}
+
 	switch status {
 	case StatusWarning:
-		return lipgloss.NewStyle().Foreground(ColorWarning).Render("!")
+		return icon(ColorWarning, "▲")
 	case "success":
-		return lipgloss.NewStyle().Foreground(ColorSuccess).Render("✓")
+		return icon(ColorSuccess, "●")
 	case "failed":
-		return lipgloss.NewStyle().Foreground(ColorError).Render("✗")
+		return icon(ColorError, "●")
 	case "running":
-		return lipgloss.NewStyle().Foreground(ColorRunning).Render("◉")
-	case "pending":
-		return lipgloss.NewStyle().Foreground(ColorPending).Render("○")
-	case "canceled":
-		return lipgloss.NewStyle().Foreground(ColorCanceled).Render("⊘")
+		return icon(ColorRunning, "◐")
+	case "pending", "created", "waiting_for_resource", "preparing", "scheduled":
+		return icon(ColorPending, "○")
+	case "canceled", "canceling":
+		return icon(ColorCanceled, "⊗")
 	case "skipped":
-		return lipgloss.NewStyle().Foreground(ColorCanceled).Render("⊘")
+		return icon(ColorCanceled, "◌")
 	case "manual":
-		return lipgloss.NewStyle().Foreground(ColorManual).Render("❚❚")
+		return icon(ColorManual, "▶")
 	default:
-		return lipgloss.NewStyle().Foreground(ColorSecondary).Render("?")
+		return icon(ColorSecondary, "·")
 	}
 }
 
 // StatusIconPadded returns StatusIcon padded to 2 display cells so 1- and
 // 2-cell glyphs align in a column.
 func StatusIconPadded(status string) string {
-	icon := StatusIcon(status)
-	if status == "manual" { // the only 2-cell glyph
-		return icon
-	}
-	return icon + " "
+	// Every glyph is one cell wide now, so the column is a fixed two.
+	return StatusIcon(status) + " "
 }

@@ -150,7 +150,13 @@ pipelines it triggered together with their jobs grouped by stage. `j`/`k` scroll
 `Esc` goes back to the list, `R` retries the pipeline, `p` runs one on the branch
 head and `y` copies the SHA.
 
-The jobs are already listed on the page, so `Enter` **steps the focus into them**
+The page lists the commit's **changed files** with their `+`/`-` counts. `Enter`
+steps into them, `Enter` again reads that file's unified diff full-screen with
+added and removed lines coloured; `Esc` comes back. A diff GitLab declines to send
+(too large) says so rather than looking like an empty change.
+
+`Tab` moves the focus between the changed files and the jobs. The jobs are already
+listed on the page, so `Enter` **steps the focus into them**
 rather than replacing the page: a cursor appears on a job while the message and
 branches stay above it, and the page scrolls down to bring the jobs into view.
 From there `Enter` reads that job's log — the one thing that does take the whole

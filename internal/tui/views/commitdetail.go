@@ -2,6 +2,7 @@ package views
 
 import (
 	"fmt"
+	"image/color"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -26,6 +27,15 @@ type commitDetail struct {
 	pipelines []gitlab.Pipeline
 	refs      []gitlab.CommitRef
 	mrs       []gitlab.MergeRequest
+
+	// diffs are the commit's changed files. fileCursor picks one; reading is the
+	// full-body diff, the same shape as reading a job log.
+	diffs      []gitlab.FileDiff
+	fileCursor int
+	fileLine   int // page line of the highlighted file, for scrolling
+	fileRow    int // section-local, translated by lines()
+	reading    bool
+	diffScroll int
 
 	sha     string // request in flight, to ignore stale replies
 	loading bool
@@ -57,6 +67,7 @@ type commitFocus int
 
 const (
 	focusPage commitFocus = iota
+	focusFiles
 	focusJobs
 )
 
@@ -75,9 +86,10 @@ func (d *commitDetail) openAt(c *gitlab.Commit, index, total int) tea.Cmd {
 	d.active = true
 	d.commit = c
 	d.index, d.total = index, total
-	d.pipelines, d.refs, d.mrs = nil, nil, nil
+	d.pipelines, d.refs, d.mrs, d.diffs = nil, nil, nil, nil
 	d.jobs.close()
 	d.focus = focusPage
+	d.fileCursor, d.reading, d.diffScroll = 0, false, 0
 	d.scroll = 0
 	return d.load(c)
 }
@@ -90,8 +102,9 @@ func (d *commitDetail) hasNext() bool { return d.total > 0 && d.index < d.total-
 func (d *commitDetail) close() {
 	d.active = false
 	d.jobs.close()
-	d.pipelines, d.refs, d.mrs = nil, nil, nil
+	d.pipelines, d.refs, d.mrs, d.diffs = nil, nil, nil, nil
 	d.focus = focusPage
+	d.fileCursor, d.reading, d.diffScroll = 0, false, 0
 	d.sha = ""
 	d.scroll = 0
 }
@@ -130,13 +143,15 @@ func (d *commitDetail) load(c *gitlab.Commit) tea.Cmd {
 			jobs, _ = client.ListPipelineJobs(projectID, pipelines[0].ID)
 		}
 
-		// Branches, tags and merge requests round out the page; a failure in any
-		// of them must not lose the rest.
+		// Branches, tags, merge requests and the changed files round out the page;
+		// a failure in any of them must not lose the rest.
 		refs, _ := client.GetCommitRefs(projectID, sha)
 		mrs, _ := client.ListCommitMergeRequests(projectID, sha)
+		diffs, _ := client.GetCommitDiff(projectID, sha)
 
 		return CommitDetailLoadedMsg{
-			SHA: sha, Commit: commit, Pipelines: pipelines, Refs: refs, MRs: mrs, Jobs: jobs,
+			SHA: sha, Commit: commit, Pipelines: pipelines, Refs: refs, MRs: mrs,
+			Jobs: jobs, Diffs: diffs,
 		}
 	}
 }
@@ -160,7 +175,10 @@ func (d *commitDetail) update(msg tea.Msg) (tea.Cmd, string) {
 		if m.Commit != nil {
 			d.commit = m.Commit
 		}
-		d.pipelines, d.refs, d.mrs = m.Pipelines, m.Refs, m.MRs
+		d.pipelines, d.refs, d.mrs, d.diffs = m.Pipelines, m.Refs, m.MRs, m.Diffs
+		if d.fileCursor >= len(d.diffs) {
+			d.fileCursor = 0
+		}
 		// The panel takes the jobs we already have, so the rows on the page and the
 		// rows you act on are the same list.
 		if p := d.pipeline(); p != nil {
@@ -201,6 +219,51 @@ func (d *commitDetail) update(msg tea.Msg) (tea.Cmd, string) {
 
 // handleKey drives the detail. Esc unwinds log -> jobs -> page -> list.
 func (d *commitDetail) handleKey(key string, height int) tea.Cmd {
+	// A diff being read owns the body; navigation scrolls it.
+	if d.reading {
+		if key == keyEscape {
+			d.reading = false
+			d.diffScroll = 0
+			return nil
+		}
+		if act := components.NavFor(key); act != components.NavNone {
+			d.diffScroll = scrollBy(act, d.diffScroll, listRows(height))
+			return nil
+		}
+		if key == keyCopy {
+			return d.copySHA()
+		}
+		return nil
+	}
+
+	// Tab moves the focus in every state except while reading, so it does not have
+	// to be repeated in each branch below.
+	if key == keyTab {
+		return d.cycleFocus()
+	}
+
+	// Focus inside the changed files: Enter reads the highlighted one.
+	if d.focus == focusFiles {
+		switch key {
+		case keyEscape:
+			d.focus = focusPage
+			return nil
+		case keyEnter:
+			if d.selectedFile() != nil {
+				d.reading = true
+				d.diffScroll = 0
+			}
+			return nil
+		case keyCopy:
+			return d.copySHA()
+		}
+		if act := components.NavFor(key); act != components.NavNone {
+			d.fileCursor = components.ApplyNav(act, d.fileCursor, len(d.diffs), listRows(height))
+			return nil
+		}
+		return nil
+	}
+
 	// An open log is read full-screen; navigation scrolls it.
 	if d.jobs.showingTrace() {
 		if key == keyEscape {
@@ -250,7 +313,12 @@ func (d *commitDetail) handleKey(key string, height int) tea.Cmd {
 		}
 		return nil
 	case keyEnter:
-		// Step into the jobs already on the page rather than replacing it.
+		// Step into the sections already on the page rather than replacing it. The
+		// changes are what a commit is, so they come first; the jobs are one Tab on.
+		if len(d.diffs) > 0 {
+			d.focus = focusFiles
+			return nil
+		}
 		return d.focusJobs()
 	case keyRetry:
 		return d.retryPipeline()
@@ -258,6 +326,52 @@ func (d *commitDetail) handleKey(key string, height int) tea.Cmd {
 		return d.runOnRef()
 	}
 	return nil
+}
+
+// cycleFocus moves the focus between the page's steppable sections, so both are
+// reachable without giving each one a key of its own.
+func (d *commitDetail) cycleFocus() tea.Cmd {
+	switch d.focus {
+	case focusFiles:
+		return d.focusJobs()
+	case focusJobs:
+		if len(d.diffs) > 0 {
+			d.focus = focusFiles
+			return nil
+		}
+		d.focus = focusPage
+		return nil
+	default:
+		if len(d.diffs) > 0 {
+			d.focus = focusFiles
+			return nil
+		}
+		return d.focusJobs()
+	}
+}
+
+// scrollBy moves a scroll offset by a navigation action, for content that is read
+// rather than selected from.
+func scrollBy(act components.NavAction, offset, rows int) int {
+	switch act {
+	case components.NavDown:
+		return offset + 1
+	case components.NavUp:
+		return max(0, offset-1)
+	case components.NavHalfDown:
+		return offset + rows/2
+	case components.NavHalfUp:
+		return max(0, offset-rows/2)
+	case components.NavPageDown:
+		return offset + rows
+	case components.NavPageUp:
+		return max(0, offset-rows)
+	case components.NavTop:
+		return 0
+	case components.NavBottom:
+		return offset + 1<<20 // clamped while rendering, which knows the length
+	}
+	return offset
 }
 
 // focusJobs hands the keys to the jobs listed on the page.
@@ -352,6 +466,17 @@ func (d *commitDetail) runOnRef() tea.Cmd {
 
 // keyHints are the detail's footer hints.
 func (d *commitDetail) keyHints() []KeyHint {
+	if d.reading {
+		return []KeyHint{{"Esc", "Back"}, {"j/k", "Scroll"}, {"y", "Copy SHA"}}
+	}
+	if d.focus == focusFiles {
+		return []KeyHint{
+			{"Enter", "Read diff"},
+			{"j/k", "File"},
+			{"Tab", "Jobs"},
+			{"Esc", "Back"},
+		}
+	}
 	if d.jobs.showingTrace() || d.focus == focusJobs {
 		return d.jobs.keyHints()
 	}
@@ -376,6 +501,14 @@ const arrowGutter = 3
 // body renders the detail as the view's whole body, between two margins that
 // carry the arrows for stepping to the neighbouring commits.
 func (d *commitDetail) body(width, height int) string {
+	// A diff needs the room, like a log does.
+	if d.reading {
+		if f := d.selectedFile(); f != nil {
+			return components.RenderPanel(f.Path(), splitLines(d.diffView(width, height)),
+				width, height, true)
+		}
+	}
+
 	// A log needs the room, so it is the one thing that replaces the page.
 	if d.jobs.showingTrace() {
 		return components.RenderPanel(d.jobs.detailTitle(),
@@ -413,7 +546,9 @@ func (d *commitDetail) withArrows(page string) string {
 			left = " " + style(d.hasPrev()).Render("‹") + " "
 			right = " " + style(d.hasNext()).Render("›") + " "
 		}
-		out[i] = left + line + right
+		// Pad to the page width, or the right arrow trails the text instead of
+		// sitting in the margin.
+		out[i] = left + components.PadRight(line, d.pageWidth) + right
 	}
 	return strings.Join(out, "\n")
 }
@@ -440,10 +575,13 @@ func (d *commitDetail) page(width, height int) string {
 		rows = 1
 	}
 
-	if d.focus == focusJobs {
+	switch d.focus {
+	case focusJobs:
 		// Follow the highlighted job, which lives some way down the page.
 		d.scroll = components.ScrollOffset(d.scroll, d.jobCursorLine, len(lines), rows)
-	} else {
+	case focusFiles:
+		d.scroll = components.ScrollOffset(d.scroll, d.fileLine, len(lines), rows)
+	default:
 		// The page is scrolled directly rather than followed around a cursor, so
 		// the offset only needs clamping — ScrollOffset would drag it back to keep
 		// a non-existent cursor in view.
@@ -513,6 +651,15 @@ func (d *commitDetail) lines(width int) []string {
 	}
 	out = append(out, d.refLines()...)
 	out = append(out, d.mrLines()...)
+	if files := d.fileLines(); len(files) > 0 {
+		add("")
+		fileStart := len(out)
+		out = append(out, files...)
+		if d.fileRow >= 0 {
+			d.fileLine = fileStart + d.fileRow
+		}
+	}
+
 	add("")
 	// Where the pipelines section begins, so a highlighted job's line can be
 	// located on the page and scrolled to.
@@ -565,6 +712,127 @@ func (d *commitDetail) mrLines() []string {
 	return out
 }
 
+// fileLines renders the changed files: a status letter, the path, and how much
+// changed. It is the section you step into to read a diff.
+func (d *commitDetail) fileLines() []string {
+	if d.loading && len(d.diffs) == 0 {
+		return []string{components.TitleStyle.Render("Changes"),
+			components.HelpDescStyle.Render("Loading…")}
+	}
+	if len(d.diffs) == 0 {
+		return nil // an empty commit, or a diff GitLab would not send
+	}
+
+	heading := components.TitleStyle.Render(fmt.Sprintf("Changes (%d)", len(d.diffs)))
+	if d.focus != focusFiles {
+		heading += components.FaintStyle.Render("  ↵")
+	}
+	out := []string{heading}
+
+	d.fileRow = -1
+	for i, f := range d.diffs {
+		row := fmt.Sprintf("%s %s%s", fileMark(f), f.Path(), diffStat(f))
+		if i == d.fileCursor && d.focus == focusFiles {
+			d.fileRow = len(out)
+			out = append(out, components.SelectRow(row, d.pageWidth-2, true))
+			continue
+		}
+		out = append(out, "  "+row)
+	}
+	return out
+}
+
+// fileMark is the one-letter state of a changed file, coloured like a diff.
+func fileMark(f gitlab.FileDiff) string {
+	style := func(c color.Color, s string) string {
+		return lipgloss.NewStyle().Foreground(c).Bold(true).Render(s)
+	}
+	switch {
+	case f.New:
+		return style(components.ColorSuccess, "A")
+	case f.Deleted:
+		return style(components.ColorError, "D")
+	case f.Renamed:
+		return style(components.ColorRunning, "R")
+	default:
+		return style(components.ColorWarning, "M")
+	}
+}
+
+// diffStat renders "+12 -3" for a file, or says the diff was withheld.
+func diffStat(f gitlab.FileDiff) string {
+	if f.Withheld {
+		return components.MutedStyle.Render("  (too large to show)")
+	}
+	out := ""
+	if f.Added > 0 {
+		out += lipgloss.NewStyle().Foreground(components.ColorSuccess).Render(fmt.Sprintf("  +%d", f.Added))
+	}
+	if f.Removed > 0 {
+		out += lipgloss.NewStyle().Foreground(components.ColorError).Render(fmt.Sprintf("  -%d", f.Removed))
+	}
+	return out
+}
+
+// selectedFile returns the highlighted file, or nil.
+func (d *commitDetail) selectedFile() *gitlab.FileDiff {
+	if d.fileCursor < 0 || d.fileCursor >= len(d.diffs) {
+		return nil
+	}
+	return &d.diffs[d.fileCursor]
+}
+
+// diffView renders the selected file's unified diff, coloured by line kind.
+func (d *commitDetail) diffView(width, height int) string {
+	f := d.selectedFile()
+	if f == nil {
+		return ""
+	}
+	if f.Withheld {
+		return components.MutedStyle.Render("GitLab did not send this diff: the change is too large.")
+	}
+
+	contentWidth := width - 2
+	if contentWidth < 1 {
+		contentWidth = 1
+	}
+
+	var lines []string
+	for _, line := range strings.Split(strings.TrimRight(f.Diff, "\n"), "\n") {
+		for _, wrapped := range components.WrapLine(line, contentWidth) {
+			lines = append(lines, styleDiffLine(wrapped))
+		}
+	}
+
+	rows := height - 1
+	if rows < 1 {
+		rows = 1
+	}
+	if maxScroll := len(lines) - rows; d.diffScroll > maxScroll {
+		d.diffScroll = max(0, maxScroll)
+	}
+	if d.diffScroll < 0 {
+		d.diffScroll = 0
+	}
+	end := min(d.diffScroll+rows, len(lines))
+	return strings.Join(lines[d.diffScroll:end], "\n")
+}
+
+// styleDiffLine colours one line of a unified diff.
+func styleDiffLine(line string) string {
+	switch {
+	case strings.HasPrefix(line, "@@"):
+		// The hunk header is the only structure in a diff, so it gets the accent.
+		return components.TitleStyle.Render(line)
+	case strings.HasPrefix(line, "+"):
+		return lipgloss.NewStyle().Foreground(components.ColorSuccess).Render(line)
+	case strings.HasPrefix(line, "-"):
+		return lipgloss.NewStyle().Foreground(components.ColorError).Render(line)
+	default:
+		return line
+	}
+}
+
 // pipelineLines renders the commit's pipelines and the newest one's jobs grouped
 // by stage — GitLab's row of status circles, spelled out.
 func (d *commitDetail) pipelineLines() []string {
@@ -602,11 +870,9 @@ func (d *commitDetail) pipelineLines() []string {
 	// The jobs are the panel's own rows, so what you see is what you act on once
 	// the focus moves into them. Enter is offered on the heading, not in a footer
 	// only.
-	heading := components.TitleStyle.Render("Jobs")
-	if d.focus == focusJobs {
-		heading += "  " + components.HelpDescStyle.Render("Enter: log · R/C/p: retry/cancel/play · Esc: back")
-	} else {
-		heading += "  " + components.HelpDescStyle.Render("Enter: step in")
+	heading := components.TitleStyle.Render(fmt.Sprintf("Jobs (%d)", len(d.jobs.jobs)))
+	if d.focus != focusJobs {
+		heading += components.FaintStyle.Render("  ↵")
 	}
 	out = append(out, "", heading)
 

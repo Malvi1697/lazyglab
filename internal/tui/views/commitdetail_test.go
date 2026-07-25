@@ -507,3 +507,158 @@ func TestCommitDetail_StepInWithoutPipelineExplains(t *testing.T) {
 		t.Error("focus must stay on the page when there are no jobs")
 	}
 }
+
+// diffedDetail is a reply for the sample commit that also carries changed files.
+func diffedDetail() CommitDetailLoadedMsg {
+	msg := loadedDetail("38333fa4")
+	msg.Diffs = []gitlab.FileDiff{
+		{
+			NewPath: "internal/app/config.go", OldPath: "internal/app/config.go",
+			Diff:  "@@ -1,3 +1,4 @@\n context line\n-removed line\n+added line\n+another added\n",
+			Added: 2, Removed: 1,
+		},
+		{NewPath: "docs/new.md", New: true, Diff: "@@ -0,0 +1 @@\n+hello\n", Added: 1},
+		{OldPath: "old.go", Deleted: true, Diff: "@@ -1 +0,0 @@\n-gone\n", Removed: 1},
+		{NewPath: "huge.bin", New: true, Withheld: true},
+	}
+	return msg
+}
+
+func TestCommitPage_ListsChangedFiles(t *testing.T) {
+	v := NewCommitsView(&Context{})
+	v.width, v.height = 120, 40
+	v.commits = []gitlab.Commit{{ShortID: "38333fa4"}}
+	v.Update(enterKey)
+	v.detail.sha = "38333fa4"
+	v.Update(diffedDetail())
+
+	page := plain(strings.Join(v.detail.lines(100), "\n"))
+	for _, want := range []string{
+		"Changes (4)",
+		"internal/app/config.go", "+2", "-1",
+		"docs/new.md",
+		"old.go",
+		"too large to show", // the withheld one says so rather than looking empty
+	} {
+		if !strings.Contains(page, want) {
+			t.Errorf("the page is missing %q:\n%s", want, page)
+		}
+	}
+}
+
+func TestCommitPage_EnterStepsIntoTheChangesFirst(t *testing.T) {
+	// A commit is its diff, so the changes are the first thing Enter reaches.
+	v := NewCommitsView(&Context{})
+	v.width, v.height = 120, 40
+	v.commits = []gitlab.Commit{{ShortID: "38333fa4"}}
+	v.Update(enterKey)
+	v.detail.sha = "38333fa4"
+	v.Update(diffedDetail())
+
+	v.Update(enterKey)
+	if v.detail.focus != focusFiles {
+		t.Fatalf("focus = %v, want the changed files", v.detail.focus)
+	}
+
+	// Tab moves on to the jobs, and back again.
+	v.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	if v.detail.focus != focusJobs {
+		t.Errorf("Tab should move the focus to the jobs, got %v", v.detail.focus)
+	}
+	v.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	if v.detail.focus != focusFiles {
+		t.Errorf("Tab should come back to the files, got %v", v.detail.focus)
+	}
+}
+
+func TestCommitPage_ReadsADiff(t *testing.T) {
+	v := NewCommitsView(&Context{})
+	v.width, v.height = 120, 20
+	v.commits = []gitlab.Commit{{ShortID: "38333fa4"}}
+	v.Update(enterKey)
+	v.detail.sha = "38333fa4"
+	v.Update(diffedDetail())
+	v.Update(enterKey) // focus the files
+
+	v.Update(enterKey) // read the highlighted one
+	if !v.detail.reading {
+		t.Fatal("Enter on a file should open its diff")
+	}
+
+	body := plain(v.Body(120, 20))
+	for _, want := range []string{"internal/app/config.go", "@@ -1,3 +1,4 @@", "+added line", "-removed line"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("the diff is missing %q:\n%s", want, body)
+		}
+	}
+	// The diff owns the body while it is being read.
+	if strings.Contains(body, "The header double-counted") {
+		t.Error("the commit message should not share the body with the diff")
+	}
+
+	v.Update(escKey)
+	if v.detail.reading {
+		t.Error("Esc should close the diff")
+	}
+	if v.detail.focus != focusFiles {
+		t.Error("closing a diff should leave the focus on the files")
+	}
+}
+
+func TestCommitPage_DiffLinesAreColoured(t *testing.T) {
+	// Colour is what makes a diff readable at a glance; check the raw output.
+	v := NewCommitsView(&Context{})
+	v.width, v.height = 120, 20
+	v.commits = []gitlab.Commit{{ShortID: "38333fa4"}}
+	v.Update(enterKey)
+	v.detail.sha = "38333fa4"
+	v.Update(diffedDetail())
+	v.Update(enterKey)
+	v.Update(enterKey)
+
+	raw := v.detail.diffView(100, 20)
+	added := strings.Split(raw, "\n")
+	var plusStyled, minusStyled bool
+	for _, l := range added {
+		switch {
+		case strings.Contains(plain(l), "+added line"):
+			plusStyled = l != plain(l)
+		case strings.Contains(plain(l), "-removed line"):
+			minusStyled = l != plain(l)
+		}
+	}
+	if !plusStyled || !minusStyled {
+		t.Error("added and removed lines must be coloured")
+	}
+}
+
+func TestCommitPage_WithheldDiffSaysSo(t *testing.T) {
+	v := NewCommitsView(&Context{})
+	v.width, v.height = 120, 20
+	v.commits = []gitlab.Commit{{ShortID: "38333fa4"}}
+	v.Update(enterKey)
+	v.detail.sha = "38333fa4"
+	v.Update(diffedDetail())
+	v.Update(enterKey)
+	v.detail.fileCursor = 3 // the withheld one
+	v.Update(enterKey)
+
+	if got := plain(v.detail.diffView(100, 20)); !strings.Contains(got, "too large") {
+		t.Errorf("expected an explanation, got %q", got)
+	}
+}
+
+func TestCommitPage_NoDiffFallsBackToJobs(t *testing.T) {
+	// A commit whose diff GitLab would not send still has to be steppable.
+	v := NewCommitsView(&Context{})
+	v.width, v.height = 120, 30
+	v.commits = []gitlab.Commit{{ShortID: "38333fa4"}}
+	v.Update(enterKey)
+	v.detail.sha = "38333fa4"
+	v.Update(loadedDetail("38333fa4")) // jobs but no diffs
+
+	v.Update(enterKey)
+	if v.detail.focus != focusJobs {
+		t.Errorf("focus = %v, want the jobs when there are no changes", v.detail.focus)
+	}
+}
