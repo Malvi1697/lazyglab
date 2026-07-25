@@ -147,8 +147,13 @@ place. Add `commits` to `settings.views` to get the tab back.
 the same things GitLab's commit page shows: the message, the author, the parent,
 the branches and tags containing it, the merge requests it belongs to, and the
 pipelines it triggered together with their jobs grouped by stage. `j`/`k` scroll it,
-`Esc` goes back to the list, `Enter` hands off to the Pipelines view for job logs,
-`R` retries the pipeline and `y` copies the SHA.
+`Esc` goes back to the list, `R` retries the pipeline, `p` runs one on the branch
+head and `y` copies the SHA.
+
+`Enter` drills into that pipeline's **jobs** — the same interactive panel the
+Pipelines view uses, so a pipeline is driven identically wherever you meet it:
+navigate the jobs, `Enter` reads a log, `R` retries a job, `C` cancels one, `p`
+plays a manual one. `Esc` unwinds log → jobs → page → list.
 
 A commit that never triggered CI simply says so — the detail is still useful, and
 nothing jumps you elsewhere.

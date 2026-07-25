@@ -27,7 +27,7 @@ type CommitsView struct {
 
 // NewCommitsView creates a CommitsView bound to the shared session context.
 func NewCommitsView(ctx *Context) *CommitsView {
-	return &CommitsView{ctx: ctx, detail: commitDetail{ctx: ctx}}
+	return &CommitsView{ctx: ctx, detail: newCommitDetail(ctx)}
 }
 
 // Title implements View.
@@ -48,12 +48,6 @@ func (v *CommitsView) Update(msg tea.Msg) tea.Cmd {
 		v.height = msg.Height
 		return nil
 
-	case CommitDetailLoadedMsg:
-		if status := v.detail.update(msg); status != "" {
-			v.status = status
-		}
-		return nil
-
 	case CommitsLoadedMsg:
 		if msg.Err != nil {
 			v.status = fmt.Sprintf("Error loading commits: %v", msg.Err)
@@ -71,7 +65,13 @@ func (v *CommitsView) Update(msg tea.Msg) tea.Cmd {
 	case tea.KeyMsg:
 		return v.handleKey(msg)
 	}
-	return nil
+
+	// Everything else may belong to the commit page or its jobs panel.
+	cmd, status := v.detail.update(msg)
+	if status != "" {
+		v.status = status
+	}
+	return cmd
 }
 
 func (v *CommitsView) handleKey(msg tea.KeyMsg) tea.Cmd {

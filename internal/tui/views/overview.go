@@ -34,7 +34,7 @@ type OverviewView struct {
 
 // NewOverviewView creates an OverviewView bound to the shared session context.
 func NewOverviewView(ctx *Context) *OverviewView {
-	return &OverviewView{ctx: ctx, detail: commitDetail{ctx: ctx}}
+	return &OverviewView{ctx: ctx, detail: newCommitDetail(ctx)}
 }
 
 // Title implements View.
@@ -62,10 +62,6 @@ func (v *OverviewView) Update(msg tea.Msg) tea.Cmd {
 	case tea.KeyMsg:
 		return v.handleKey(msg)
 
-	case CommitDetailLoadedMsg:
-		v.detail.update(msg)
-		return nil
-
 	case CommitsLoadedMsg:
 		if msg.Err == nil {
 			v.commits = msg.Commits
@@ -91,7 +87,10 @@ func (v *OverviewView) Update(msg tea.Msg) tea.Cmd {
 		}
 		return nil
 	}
-	return nil
+
+	// Everything else may belong to the commit page or its jobs panel.
+	cmd, _ := v.detail.update(msg)
+	return cmd
 }
 
 // handleKey navigates the recent-commits list. The same keys work here as in

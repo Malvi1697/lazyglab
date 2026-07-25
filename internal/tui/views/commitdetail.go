@@ -22,14 +22,24 @@ type commitDetail struct {
 	active bool
 	commit *gitlab.Commit
 
-	pipelines []gitlab.Pipeline
-	refs      []gitlab.CommitRef
-	mrs       []gitlab.MergeRequest
-	jobs      []gitlab.Job
+	pipelines    []gitlab.Pipeline
+	refs         []gitlab.CommitRef
+	mrs          []gitlab.MergeRequest
+	pipelineJobs []gitlab.Job // shown on the page, read-only
 
 	sha     string // request in flight, to ignore stale replies
 	loading bool
 	scroll  int
+
+	// jobs is the same interactive panel the Pipelines view uses, so a pipeline
+	// can be driven straight from a commit.
+	jobs jobsPanel
+}
+
+// newCommitDetail builds the page, wiring the shared context into the nested
+// jobs panel too — forgetting that leaves a panel that silently cannot load.
+func newCommitDetail(ctx *Context) commitDetail {
+	return commitDetail{ctx: ctx, jobs: jobsPanel{ctx: ctx}}
 }
 
 // open drills into a commit and starts loading everything about it.
@@ -39,7 +49,7 @@ func (d *commitDetail) open(c *gitlab.Commit) tea.Cmd {
 	}
 	d.active = true
 	d.commit = c
-	d.pipelines, d.refs, d.mrs, d.jobs = nil, nil, nil, nil
+	d.pipelines, d.refs, d.mrs, d.pipelineJobs = nil, nil, nil, nil
 	d.scroll = 0
 	return d.load(c)
 }
@@ -47,7 +57,8 @@ func (d *commitDetail) open(c *gitlab.Commit) tea.Cmd {
 // close returns to the list.
 func (d *commitDetail) close() {
 	d.active = false
-	d.pipelines, d.refs, d.mrs, d.jobs = nil, nil, nil, nil
+	d.jobs.close()
+	d.pipelines, d.refs, d.mrs, d.pipelineJobs = nil, nil, nil, nil
 	d.sha = ""
 	d.scroll = 0
 }
@@ -97,24 +108,77 @@ func (d *commitDetail) load(c *gitlab.Commit) tea.Cmd {
 	}
 }
 
-// update absorbs the loaded detail, ignoring replies for a commit left behind.
-func (d *commitDetail) update(msg CommitDetailLoadedMsg) string {
-	if msg.SHA != d.sha {
-		return ""
+// update absorbs every message the page and its jobs panel care about, and
+// returns any follow-up command plus a status line for the host view.
+//
+// Routing lives here rather than in each host: the panel needs its job list,
+// logs and action results forwarded, and duplicating that wiring per view is how
+// a host ends up silently showing "No jobs".
+func (d *commitDetail) update(msg tea.Msg) (tea.Cmd, string) {
+	switch m := msg.(type) {
+	case CommitDetailLoadedMsg:
+		if m.SHA != d.sha {
+			return nil, "" // a stale reply for a commit we have moved off
+		}
+		d.loading = false
+		if m.Err != nil {
+			return nil, fmt.Sprintf("Error loading commit: %v", m.Err)
+		}
+		if m.Commit != nil {
+			d.commit = m.Commit
+		}
+		d.pipelines, d.refs, d.mrs, d.pipelineJobs = m.Pipelines, m.Refs, m.MRs, m.Jobs
+		return nil, ""
+
+	case JobsLoadedMsg:
+		if m.Err != nil {
+			return nil, fmt.Sprintf("Error loading jobs: %v", m.Err)
+		}
+		d.jobs.setJobs(m.Jobs)
+		return nil, ""
+
+	case JobTraceLoadedMsg:
+		if m.Err != nil {
+			return nil, fmt.Sprintf("Error loading log: %v", m.Err)
+		}
+		d.jobs.setTrace(m.Trace)
+		return nil, ""
+
+	case JobActionDoneMsg:
+		// An action changes the job, so reload the list behind it.
+		if m.IsErr {
+			return nil, m.Text
+		}
+		return d.jobs.load(), m.Text
+
+	case PipelineActionDoneMsg:
+		if m.IsErr || d.commit == nil {
+			return nil, m.Text
+		}
+		// Retrying or starting a pipeline changes what this commit shows.
+		return d.load(d.commit), m.Text
 	}
-	d.loading = false
-	if msg.Err != nil {
-		return fmt.Sprintf("Error loading commit: %v", msg.Err)
-	}
-	if msg.Commit != nil {
-		d.commit = msg.Commit
-	}
-	d.pipelines, d.refs, d.mrs, d.jobs = msg.Pipelines, msg.Refs, msg.MRs, msg.Jobs
-	return ""
+	return nil, ""
 }
 
-// handleKey drives the detail. Esc goes back to the list it was opened from.
+// handleKey drives the detail. Esc unwinds log -> jobs -> page -> list.
 func (d *commitDetail) handleKey(key string, height int) tea.Cmd {
+	// Drilled into the pipeline: the shared panel owns the keys it knows.
+	if d.jobs.active() {
+		if key == keyEscape {
+			if d.jobs.showingTrace() {
+				d.jobs.closeTrace()
+			} else {
+				d.jobs.close()
+			}
+			return nil
+		}
+		if cmd, consumed := d.jobs.handleKey(key, height); consumed {
+			return cmd
+		}
+		return nil
+	}
+
 	if act := components.NavFor(key); act != components.NavNone {
 		// The page scrolls; there is nothing to select on it.
 		d.scroll = components.ApplyNav(act, d.scroll, len(d.lines(0)), listRows(height))
@@ -136,8 +200,8 @@ func (d *commitDetail) handleKey(key string, height int) tea.Cmd {
 		}
 		return nil
 	case keyEnter:
-		// Jobs and logs live in the Pipelines view; hand off to it.
-		return d.showPipeline()
+		// Drill into the pipeline's jobs, right here.
+		return d.openJobs()
 	case keyRetry:
 		return d.retryPipeline()
 	case keyRun:
@@ -162,18 +226,16 @@ func (d *commitDetail) copySHA() tea.Cmd {
 	)
 }
 
-// showPipeline asks the shell for the Pipelines view, positioned on this commit.
-func (d *commitDetail) showPipeline() tea.Cmd {
-	if d.commit == nil {
-		return nil
-	}
-	if len(d.pipelines) == 0 {
+// openJobs drills into the newest pipeline's jobs, where they can be retried,
+// canceled, played and read.
+func (d *commitDetail) openJobs() tea.Cmd {
+	p := d.pipeline()
+	if p == nil {
 		return func() tea.Msg {
 			return StatusMsg{Text: "No pipeline ran for this commit", IsErr: true}
 		}
 	}
-	sha := d.commit.ShortID
-	return func() tea.Msg { return ShowCommitPipelineMsg{ShortSHA: sha} }
+	return d.jobs.open(p.ID)
 }
 
 // pipeline returns the newest pipeline for the commit, or nil.
@@ -237,13 +299,16 @@ func (d *commitDetail) runOnRef() tea.Cmd {
 
 // keyHints are the detail's footer hints.
 func (d *commitDetail) keyHints() []KeyHint {
+	if d.jobs.active() {
+		return d.jobs.keyHints()
+	}
 	return []KeyHint{
-		{"Esc", "Back"},
-		{"Enter", "Pipelines view"},
-		{"R", "Retry"},
+		{"Enter", "Jobs"},
+		{"R", "Retry pipeline"},
 		{"p", "Run on branch"},
 		{"y", "Copy SHA"},
 		{"o", "Open"},
+		{"Esc", "Back"},
 	}
 }
 
@@ -253,6 +318,11 @@ func (d *commitDetail) keyHints() []KeyHint {
 
 // body renders the detail as the view's whole body.
 func (d *commitDetail) body(width, height int) string {
+	// Drilled into the pipeline: the panel takes over.
+	if d.jobs.active() {
+		return d.jobs.body(width, height)
+	}
+
 	lines := d.lines(width - 4)
 	rows := height - 2
 	if rows < 1 {
@@ -398,13 +468,13 @@ func (d *commitDetail) pipelineLines() []string {
 			components.HelpDescStyle.Render(p.Ref)))
 	}
 
-	if len(d.jobs) == 0 {
+	if len(d.pipelineJobs) == 0 {
 		return out
 	}
 
 	out = append(out, "", components.TitleStyle.Render("Jobs"))
 	stage := ""
-	for _, j := range d.jobs {
+	for _, j := range d.pipelineJobs {
 		if j.Stage != stage {
 			stage = j.Stage
 			out = append(out, components.HelpDescStyle.Render("  "+stage))

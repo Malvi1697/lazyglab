@@ -484,10 +484,18 @@ func helpEntries() []helpEntry {
 		{"Backspace", "Edit the search"},
 
 		{"Pipelines", ""},
-		{"Enter", "Jobs, then a job's log"},
-		{"p", "Run a new pipeline / play a manual job"},
+		{"Enter", "Drill into the pipeline's jobs"},
+		{"p", "Run a new pipeline"},
 		{"R", "Retry"},
 		{"C", "Cancel"},
+
+		{"Jobs (pipeline or commit)", ""},
+		{"Enter", "Read the job's log"},
+		{"R", "Retry the job"},
+		{"C", "Cancel the job"},
+		{"p", "Play a manual job"},
+		{"o", "Open the job in a browser"},
+		{"Esc", "Back (log, then jobs)"},
 
 		{"Commit lists", ""},
 		{"Enter", "Open the commit page in place"},
@@ -496,7 +504,7 @@ func helpEntries() []helpEntry {
 
 		{"Commit page", ""},
 		{"j / k", "Scroll the page"},
-		{"Enter", "Open its pipeline in Pipelines"},
+		{"Enter", "Drill into the pipeline's jobs"},
 		{"R", "Retry the commit's pipeline"},
 		{"p", "Run a pipeline on the branch head"},
 		{"y", "Copy the SHA"},

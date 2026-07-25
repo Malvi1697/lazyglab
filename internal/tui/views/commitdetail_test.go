@@ -187,7 +187,8 @@ func TestCommitDetail_EnterWithoutPipelineExplains(t *testing.T) {
 	}
 }
 
-func TestCommitDetail_EnterWithPipelineHandsOffToPipelinesView(t *testing.T) {
+func TestCommitDetail_EnterDrillsIntoTheJobsPanel(t *testing.T) {
+	// The pipeline is driven from here, not by being sent to another tab.
 	v := NewCommitsView(&Context{})
 	v.width, v.height = 120, 30
 	v.commits = []gitlab.Commit{{ShortID: "38333fa4"}}
@@ -195,16 +196,12 @@ func TestCommitDetail_EnterWithPipelineHandsOffToPipelinesView(t *testing.T) {
 	v.detail.sha = "38333fa4"
 	v.Update(loadedDetail("38333fa4"))
 
-	cmd := v.Update(enterKey)
-	if cmd == nil {
-		t.Fatal("Enter should hand off to the Pipelines view")
+	v.Update(enterKey)
+	if !v.detail.jobs.active() {
+		t.Fatal("Enter should open the jobs panel for the commit's pipeline")
 	}
-	msg, ok := cmd().(ShowCommitPipelineMsg)
-	if !ok {
-		t.Fatalf("expected ShowCommitPipelineMsg, got %T", cmd())
-	}
-	if msg.ShortSHA != "38333fa4" {
-		t.Errorf("ShortSHA = %q", msg.ShortSHA)
+	if v.detail.jobs.pipelineID != 722175 {
+		t.Errorf("panel is on pipeline %d, want 722175", v.detail.jobs.pipelineID)
 	}
 }
 
