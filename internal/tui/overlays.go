@@ -286,7 +286,7 @@ func (a *App) renderHelp() string {
 		{"?", "Toggle help"},
 		{"1-9", "Switch view"},
 		{"Tab / S-Tab", "Next / prev view"},
-		{"p", "Project switcher"},
+		{"P", "Project switcher"},
 		{"b", "Branch filter"},
 		{"r", "Refresh view"},
 		{"j / k", "Navigate down / up"},

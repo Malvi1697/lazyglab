@@ -249,7 +249,7 @@ func (a *App) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case KeyShiftTab:
 		a.switchView((a.active - 1 + len(a.viewIDs)) % len(a.viewIDs))
 		return a, a.activeView().Focus()
-	case KeyRun: // "p" — project switcher
+	case "P": // project switcher (uppercase so "p" stays free for view actions)
 		a.wantProjectPicker = true
 		if len(a.projects) > 0 {
 			a.wantProjectPicker = false
@@ -373,7 +373,7 @@ func (a *App) globalHints() []views.KeyHint {
 		{Key: "q", Desc: "Quit"},
 		{Key: "?", Desc: "Help"},
 		{Key: fmt.Sprintf("1-%d", len(a.viewIDs)), Desc: "View"},
-		{Key: "p", Desc: "Project"},
+		{Key: "P", Desc: "Project"},
 		{Key: "b", Desc: "Branch"},
 		{Key: "r", Desc: "↻"},
 	}

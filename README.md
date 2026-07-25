@@ -111,7 +111,7 @@ The five views:
 | 4 | **Issues** | Open issues, with close/reopen. |
 | 5 | **Commits** | Recent commits on the active branch. |
 
-Press `p` to switch projects and `b` to switch branches from any view — both
+Press `P` to switch projects and `b` to switch branches from any view — both
 open as overlays on top of the current view. `r` refreshes the active view.
 
 ## Configuration
@@ -156,7 +156,7 @@ Overview is shown first, and auto-refresh runs every 30s.
 | `?` | Help overlay |
 | `1-5` | Switch view |
 | `Tab` / `Shift+Tab` | Next/previous view |
-| `p` | Project switcher |
+| `P` | Project switcher |
 | `b` | Branch switcher |
 | `r` | Refresh active view |
 | `j/k` | Navigate down/up |
