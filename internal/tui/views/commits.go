@@ -74,7 +74,19 @@ func (v *CommitsView) handleKey(msg tea.KeyMsg) tea.Cmd {
 	if key == keyOpenBrowse {
 		return v.openCommitInBrowser()
 	}
+	if key == keyEnter {
+		return v.showPipeline()
+	}
 	return nil
+}
+
+// showPipeline asks the shell to open the selected commit's pipeline.
+func (v *CommitsView) showPipeline() tea.Cmd {
+	if v.cursor >= len(v.commits) {
+		return nil
+	}
+	sha := v.commits[v.cursor].ShortID
+	return func() tea.Msg { return ShowCommitPipelineMsg{ShortSHA: sha} }
 }
 
 // ============================================================================

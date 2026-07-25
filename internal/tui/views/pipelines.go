@@ -33,7 +33,10 @@ type PipelinesView struct {
 
 	pipelines []gitlab.Pipeline
 	cursor    int
-	scroll    int // first visible row of the pipeline list, kept across frames
+	// pendingSHA is a commit whose pipeline should be selected as soon as the
+	// pipeline list contains it, set when arriving from a commit list.
+	pendingSHA string
+	scroll     int // first visible row of the pipeline list, kept across frames
 
 	viewingJobs    bool
 	jobs           []gitlab.Job
@@ -82,6 +85,12 @@ func (v *PipelinesView) Update(msg tea.Msg) tea.Cmd {
 		v.jobs = nil
 		v.clampCursor()
 		v.status = fmt.Sprintf("Loaded %d pipelines", len(msg.Pipelines))
+		if sha := v.pendingSHA; sha != "" && !v.selectPendingPipeline() {
+			// The commit is real but has no pipeline among those loaded — say so
+			// rather than leaving the cursor somewhere arbitrary.
+			v.pendingSHA = ""
+			v.status = fmt.Sprintf("No pipeline for commit %s", sha)
+		}
 		return nil
 
 	case JobsLoadedMsg:
@@ -126,10 +135,37 @@ func (v *PipelinesView) Update(msg tea.Msg) tea.Cmd {
 		v.status = msg.Text
 		return nil
 
+	case ShowCommitPipelineMsg:
+		// Arriving from a commit list: leave any job/log drill-down and aim at the
+		// pipeline for that commit, now or as soon as the list arrives.
+		v.pendingSHA = msg.ShortSHA
+		v.viewingJobs = false
+		v.jobs = nil
+		v.jobTrace = ""
+		v.selectPendingPipeline()
+		return nil
+
 	case tea.KeyMsg:
 		return v.handleKey(msg)
 	}
 	return nil
+}
+
+// selectPendingPipeline moves the cursor onto the pipeline built for pendingSHA
+// and reports whether it was found. Pipeline SHAs are full, commit SHAs short,
+// so the match is by prefix.
+func (v *PipelinesView) selectPendingPipeline() bool {
+	if v.pendingSHA == "" {
+		return true
+	}
+	for i, p := range v.pipelines {
+		if strings.HasPrefix(p.SHA, v.pendingSHA) {
+			v.cursor = i
+			v.pendingSHA = ""
+			return true
+		}
+	}
+	return false
 }
 
 func (v *PipelinesView) handleKey(msg tea.KeyMsg) tea.Cmd {

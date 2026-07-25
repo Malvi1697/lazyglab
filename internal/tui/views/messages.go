@@ -96,6 +96,11 @@ type ConfirmMsg struct {
 	Action tea.Cmd
 }
 
+// ShowCommitPipelineMsg asks the shell to switch to the Pipelines view and put
+// the cursor on the pipeline built for a commit. Views cannot switch views, so
+// this goes through the shell, which then hands it to the Pipelines view.
+type ShowCommitPipelineMsg struct{ ShortSHA string }
+
 // LoadErr returns the error carried by any message that reports the outcome of
 // a data load, or nil for messages that carry none. Every such message passes
 // through the shell before being delegated to a view, so this gives the shell a

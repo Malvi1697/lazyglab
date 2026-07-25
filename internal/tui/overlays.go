@@ -6,6 +6,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/Malvi1697/lazyglab/internal/gitlab"
 	"github.com/Malvi1697/lazyglab/internal/tui/components"
@@ -39,16 +40,46 @@ func (a *App) confirm(prompt string, action tea.Cmd) {
 	a.overlay = overlayConfirm
 }
 
-// mergeOverlay composites a centered overlay box on top of the frame,
-// line by line, so the frame shows through where the overlay is blank.
+// mergeOverlay composites a centered overlay box onto the frame within the box's
+// own columns, so the frame stays visible around it. Replacing whole lines (or
+// only non-blank ones) either blanks out everything beside the box or lets the
+// frame show through the box's own gaps.
 func (a *App) mergeOverlay(frame, box string) string {
-	placed := lipgloss.Place(a.width, a.height, lipgloss.Center, lipgloss.Center, box)
-	bgLines := strings.Split(frame, "\n")
-	ovLines := strings.Split(placed, "\n")
-	for i, ovLine := range ovLines {
-		if strings.TrimRight(ovLine, " ") != "" && i < len(bgLines) {
-			bgLines[i] = ovLine
+	boxLines := strings.Split(box, "\n")
+
+	boxWidth := 0
+	for _, l := range boxLines {
+		if w := lipgloss.Width(l); w > boxWidth {
+			boxWidth = w
 		}
+	}
+
+	x := (a.width - boxWidth) / 2
+	if x < 0 {
+		x = 0
+	}
+	bgLines := strings.Split(frame, "\n")
+	y := (len(bgLines) - len(boxLines)) / 2
+	if y < 0 {
+		y = 0
+	}
+
+	for i, boxLine := range boxLines {
+		row := y + i
+		if row < 0 || row >= len(bgLines) {
+			continue
+		}
+		bg := bgLines[row]
+
+		left := ansi.Truncate(bg, x, "")
+		if w := lipgloss.Width(left); w < x {
+			left += strings.Repeat(" ", x-w)
+		}
+		right := ansi.TruncateLeft(bg, x+lipgloss.Width(boxLine), "")
+
+		// Reset between segments: a style left open by the frame must not colour
+		// the box, and vice versa.
+		bgLines[row] = left + "\x1b[0m" + boxLine + "\x1b[0m" + right
 	}
 	return strings.Join(bgLines, "\n")
 }
@@ -457,6 +488,10 @@ func helpEntries() []helpEntry {
 		{"p", "Run a new pipeline / play a manual job"},
 		{"R", "Retry"},
 		{"C", "Cancel"},
+
+		{"Commits & Overview", ""},
+		{"Enter", "Jump to the commit's pipeline"},
+		{"o", "Open the commit in a browser"},
 
 		{"Merge Requests", ""},
 		{"a", "Approve"},

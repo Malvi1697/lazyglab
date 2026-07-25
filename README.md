@@ -140,6 +140,12 @@ The five views:
 | 4 | **Issues** | Open issues, with close/reopen. |
 | 5 | **Commits** | Recent commits on the active branch. |
 
+`Enter` on a commit — in the Commits view or Overview's recent-commits list — jumps
+to the **Pipelines** view with the cursor on the pipeline built for that commit. If
+no pipeline among those loaded matches it (an old commit, or a branch filter that
+excludes it), the status bar says so rather than moving the cursor somewhere
+arbitrary.
+
 Press `P` to switch projects and `b` to switch branches from any view — both
 open as overlays on top of the current view. `r` refreshes the active view.
 `h`/`l` step between views, like `Shift+Tab`/`Tab`.

@@ -291,6 +291,16 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.setStatus(fmt.Sprintf("Branch: %s", branch.Name), false)
 		return a, a.activeView().Focus()
 
+	case views.ShowCommitPipelineMsg:
+		idx := a.viewIndex(views.ViewPipelines)
+		if idx < 0 {
+			a.setStatus("Pipelines view is not enabled", true)
+			return a, nil
+		}
+		a.switchView(idx)
+		// Focus() reloads; the view keeps the requested commit until it can match it.
+		return a, tea.Batch(a.activeView().Update(msg), a.activeView().Focus())
+
 	case views.ConfirmMsg:
 		a.confirm(msg.Prompt, msg.Action)
 		return a, nil
@@ -428,6 +438,17 @@ func (a *App) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	// Delegate everything else to the active view.
 	return a, a.activeView().Update(msg)
+}
+
+// viewIndex returns the position of a view in the enabled list, or -1 when the
+// config has it disabled.
+func (a *App) viewIndex(id views.ViewID) int {
+	for i, v := range a.viewIDs {
+		if v == id {
+			return i
+		}
+	}
+	return -1
 }
 
 // switchView changes the active view index.
