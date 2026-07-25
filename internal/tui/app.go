@@ -38,6 +38,12 @@ type App struct {
 	branchCursor      int
 	pendingConfirm    *confirmAction
 
+	// Re-authentication overlay: opened automatically when the stored token is
+	// rejected, or on demand with "A".
+	reconfigure         ReconfigureFunc
+	reconfig            *reconfigState
+	authPromptDismissed bool
+
 	// Auto-detected project path from the git remote, matched once at startup.
 	detectedPath string
 
@@ -52,6 +58,8 @@ type App struct {
 
 // NewApp builds the cockpit shell: it selects the active host, constructs the
 // shared Context and every enabled view, and records the startup detection state.
+// reconfigure persists a new host/token when the stored token stops working; a
+// nil value simply disables the re-authentication overlay.
 func NewApp(
 	clients map[string]*gitlab.Client,
 	hostNames []string,
@@ -59,6 +67,7 @@ func NewApp(
 	viewIDs []views.ViewID,
 	defaultIndex int,
 	refreshInterval time.Duration,
+	reconfigure ReconfigureFunc,
 ) *App {
 	activeHost := detectedHost
 	if activeHost == "" && len(hostNames) > 0 {
@@ -97,6 +106,7 @@ func NewApp(
 		active:          defaultIndex,
 		detectedPath:    detectedPath,
 		refreshInterval: refreshInterval,
+		reconfigure:     reconfigure,
 	}
 }
 
@@ -130,6 +140,12 @@ func (a *App) tickCmd() tea.Cmd {
 // ============================================================================
 
 func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	// Any load rejected because the stored token is unusable pops the
+	// re-authentication overlay, whichever view asked for the data — otherwise
+	// every view just shows a red 401 with no way to fix it from inside the app.
+	// The message still flows on, so status text and view state stay correct.
+	a.maybePromptReauth(views.LoadErr(msg))
+
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		a.width = msg.Width
@@ -205,6 +221,18 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Forward so the active view can sync its own status/state.
 		return a, a.activeView().Update(msg)
 
+	case reconfigDoneMsg:
+		if msg.err != nil {
+			if a.reconfig != nil {
+				a.reconfig.busy = false
+				a.reconfig.err = msg.err.Error()
+			}
+			return a, nil
+		}
+		a.applyReconfig(msg.host, msg.client)
+		a.setStatus(fmt.Sprintf("Authenticated as %s on %s", msg.username, msg.host), false)
+		return a, tea.Batch(a.loadProjects(), a.activeView().Focus())
+
 	case tickMsg:
 		var cmd tea.Cmd
 		if a.overlay == overlayNone {
@@ -217,11 +245,26 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return a, a.activeView().Update(msg)
 }
 
+// maybePromptReauth opens the re-authentication overlay when err means the
+// stored token is unusable. It stays quiet if the overlay is already up or the
+// user dismissed it, so a failing auto-refresh cannot reopen it every tick.
+func (a *App) maybePromptReauth(err error) {
+	if err == nil || a.reconfigure == nil || !gitlab.IsAuthError(err) {
+		return
+	}
+	if a.overlay == overlayReconfig || a.authPromptDismissed {
+		return
+	}
+	a.openReconfig(authFailureReason(err))
+}
+
 // routeOverlayKey dispatches a key press to the active overlay's handler.
 func (a *App) routeOverlayKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch a.overlay {
 	case overlayConfirm:
 		return a.handleConfirmKey(msg)
+	case overlayReconfig:
+		return a.handleReconfigKey(msg)
 	case overlayBranch:
 		return a.handleBranchPickerKey(msg)
 	case overlayProject:
@@ -261,6 +304,11 @@ func (a *App) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return a, a.loadBranches()
 	case KeyRefresh:
 		return a, a.activeView().Focus()
+	case KeyReauth:
+		if a.reconfigure != nil {
+			a.openReconfig("")
+		}
+		return a, nil
 	}
 
 	// Digit keys 1..9 switch to that view by position.
@@ -390,6 +438,8 @@ func (a *App) overlayBox() string {
 		return a.renderHelp()
 	case overlayConfirm:
 		return a.renderConfirm()
+	case overlayReconfig:
+		return a.renderReconfig()
 	}
 	return ""
 }

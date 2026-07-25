@@ -95,3 +95,32 @@ type ConfirmMsg struct {
 	Prompt string
 	Action tea.Cmd
 }
+
+// LoadErr returns the error carried by any message that reports the outcome of
+// a data load, or nil for messages that carry none. Every such message passes
+// through the shell before being delegated to a view, so this gives the shell a
+// single place to notice failures (e.g. an unusable token) regardless of which
+// view triggered the request.
+func LoadErr(msg tea.Msg) error {
+	switch m := msg.(type) {
+	case ProjectsLoadedMsg:
+		return m.Err
+	case BranchesLoadedMsg:
+		return m.Err
+	case PipelinesLoadedMsg:
+		return m.Err
+	case JobsLoadedMsg:
+		return m.Err
+	case JobTraceLoadedMsg:
+		return m.Err
+	case MRsLoadedMsg:
+		return m.Err
+	case IssuesLoadedMsg:
+		return m.Err
+	case CommitsLoadedMsg:
+		return m.Err
+	case ErrorMsg:
+		return m.Err
+	}
+	return nil
+}

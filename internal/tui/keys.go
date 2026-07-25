@@ -24,6 +24,7 @@ const (
 	KeyHalfUp     = "ctrl+u"
 	KeyOpenBrowse = "o"
 	KeyBranch     = "b"
+	KeyReauth     = "A" // reconnect: change host / replace token
 
 	// Panel selection
 	KeyPanel1 = "1"

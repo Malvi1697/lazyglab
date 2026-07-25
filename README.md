@@ -84,7 +84,36 @@ $ lazyglab
 
 You'll need a [Personal Access Token](https://docs.gitlab.com/ee/user/profile/personal_access_tokens.html) with `api` scope (or `read_api` for read-only).
 
-To reconfigure later: `lazyglab setup`
+To reconfigure later: `lazyglab setup`, or press `A` inside the app.
+
+### When a token stops working
+
+If GitLab rejects the stored token — expired, revoked, or missing the `api`
+scope — lazyglab opens a **Reconnect** overlay instead of leaving a red error in
+the status bar. The host is prefilled and editable, with the token field below
+it:
+
+```
+╭─Reconnect to GitLab──────────────────────────────────────╮
+│ Authentication failed                                    │
+│ invalid_token, Token was revoked.                        │
+│                                                          │
+│ GitLab host                                              │
+│   gitlab.example.com                                     │
+│                                                          │
+│ Personal access token (scope: api)                        │
+│ › ••••••••••••                                           │
+│                                                          │
+│ Create one at https://gitlab.example.com/-/user_setti...  │
+│                                                          │
+│ Tab: next field  Enter: save  Esc: cancel                │
+╰──────────────────────────────────────────────────────────╯
+```
+
+The new token is validated before anything is written; on success it is saved to
+the config (other hosts and all settings are left untouched) and the app reloads
+with it, no restart needed. `Esc` dismisses the overlay — it will not pop up
+again on its own until you press `A`.
 
 ## Usage
 
@@ -158,6 +187,7 @@ Overview is shown first, and auto-refresh runs every 30s.
 | `Tab` / `Shift+Tab` | Next/previous view |
 | `P` | Project switcher |
 | `b` | Branch switcher |
+| `A` | Reconnect (change host / replace token) |
 | `r` | Refresh active view |
 | `j/k` | Navigate down/up |
 | `g/G` | Go to top/bottom |

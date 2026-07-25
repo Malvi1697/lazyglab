@@ -21,6 +21,7 @@ const (
 	overlayBranch
 	overlayHelp
 	overlayConfirm
+	overlayReconfig
 )
 
 // confirmAction holds state for a pending confirmation dialog. The action runs
@@ -289,6 +290,7 @@ func (a *App) renderHelp() string {
 		{"P", "Project switcher"},
 		{"b", "Branch filter"},
 		{"r", "Refresh view"},
+		{"A", "Reconnect (host / token)"},
 		{"j / k", "Navigate down / up"},
 		{"g / G", "Top / bottom"},
 		{"Ctrl+d/u", "Half page down / up"},

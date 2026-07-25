@@ -50,7 +50,7 @@ func Run() error {
 	fmt.Println("  Launching lazyglab...")
 	fmt.Println()
 
-	model := tui.NewApp(clients, hostNames, detectedHost, detectedPath, viewIDs, defaultIndex, refreshInterval)
+	model := tui.NewApp(clients, hostNames, detectedHost, detectedPath, viewIDs, defaultIndex, refreshInterval, ReconfigureAuth)
 	p := tea.NewProgram(model)
 	if _, err := p.Run(); err != nil {
 		return fmt.Errorf("running TUI: %w", err)

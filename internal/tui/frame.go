@@ -30,7 +30,9 @@ func renderContextBar(width int, ctx *views.Context, status string, statusIsErr 
 	}
 	left += project
 
-	right := status
+	// A long status (an API error, typically) must not wrap onto the tabs row,
+	// so it is truncated to whatever space is left beside the project name.
+	right := components.Truncate(status, width-lipgloss.Width(left)-2)
 	gap := width - lipgloss.Width(left) - lipgloss.Width(right) - 1
 	if gap < 1 {
 		gap = 1

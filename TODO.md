@@ -21,7 +21,8 @@
 - [x] Support Linux path (`~/.config/glab-cli/config.yml`)
 - [x] Multi-host support (multiple GitLab instances)
 - [x] Skip hosts with empty tokens
-- [ ] Fallback: prompt for token if glab not configured
+- [x] Fallback: prompt for token if glab not configured (setup wizard)
+- [x] In-app re-authentication overlay when the token is rejected (`A`)
 
 ### GitLab Client (Step 3)
 - [x] Client wrapper with authentication (`internal/gitlab/client.go`)
