@@ -12,8 +12,9 @@ import (
 	"github.com/Malvi1697/lazyglab/internal/util"
 )
 
-// OverviewView is a read-only dashboard summarizing recent activity across
-// commits, pipelines, merge requests, and issues.
+// OverviewView is a dashboard summarizing recent activity across commits,
+// pipelines, merge requests, and issues. The recent-commits list is navigable;
+// the three summary boxes below it are read-only.
 type OverviewView struct {
 	ctx           *Context
 	width, height int // last body size, tracked from tea.WindowSizeMsg / Body
@@ -22,6 +23,8 @@ type OverviewView struct {
 	pipelines []gitlab.Pipeline
 	mrs       []gitlab.MergeRequest
 	issues    []gitlab.Issue
+
+	cursor int // into commits
 }
 
 // NewOverviewView creates an OverviewView bound to the shared session context.
@@ -40,8 +43,8 @@ func (v *OverviewView) Focus() tea.Cmd {
 // Update
 // ============================================================================
 
-// Update implements View. Overview is read-only: no key handling here,
-// navigation and view switching are handled by the shell.
+// Update implements View: navigates the recent-commits list and opens the
+// selected commit in a browser. View switching stays with the shell.
 func (v *OverviewView) Update(msg tea.Msg) tea.Cmd {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
@@ -49,9 +52,13 @@ func (v *OverviewView) Update(msg tea.Msg) tea.Cmd {
 		v.height = msg.Height
 		return nil
 
+	case tea.KeyMsg:
+		return v.handleKey(msg)
+
 	case CommitsLoadedMsg:
 		if msg.Err == nil {
 			v.commits = msg.Commits
+			v.clampCursor()
 		}
 		return nil
 
@@ -76,6 +83,62 @@ func (v *OverviewView) Update(msg tea.Msg) tea.Cmd {
 	return nil
 }
 
+// handleKey navigates the recent-commits list. The same keys work here as in
+// every other view, so j/k are never dead — this is the default view.
+func (v *OverviewView) handleKey(msg tea.KeyMsg) tea.Cmd {
+	key := msg.String()
+
+	switch {
+	case isNavUp(msg):
+		v.moveCursor(-1)
+	case isNavDown(msg):
+		v.moveCursor(1)
+	case key == keyTop:
+		v.cursor = 0
+	case key == keyBottom:
+		v.cursor = len(v.commits) - 1
+		v.clampCursor()
+	case key == keyHalfDown:
+		v.moveCursor(halfPage(v.height))
+	case key == keyHalfUp:
+		v.moveCursor(-halfPage(v.height))
+	case key == keyOpenBrowse:
+		return v.openCommitInBrowser()
+	}
+	return nil
+}
+
+func (v *OverviewView) moveCursor(delta int) {
+	v.cursor += delta
+	v.clampCursor()
+}
+
+func (v *OverviewView) clampCursor() {
+	if v.cursor >= len(v.commits) {
+		v.cursor = len(v.commits) - 1
+	}
+	if v.cursor < 0 {
+		v.cursor = 0
+	}
+}
+
+// openCommitInBrowser opens the selected commit's page on the GitLab host.
+func (v *OverviewView) openCommitInBrowser() tea.Cmd {
+	if v.cursor >= len(v.commits) {
+		return nil
+	}
+	cmd := openBrowserCmd(v.commits[v.cursor].WebURL)
+	if cmd == nil {
+		return nil
+	}
+	return func() tea.Msg {
+		if err := cmd.Start(); err != nil {
+			return StatusMsg{Text: "Could not open browser: " + err.Error(), IsErr: true}
+		}
+		return nil
+	}
+}
+
 // ============================================================================
 // Body / rendering
 // ============================================================================
@@ -95,7 +158,7 @@ func (v *OverviewView) Body(width, height int) string {
 		bottomHeight = 1
 	}
 
-	top := renderListBox(width, topHeight, v.commitsTitle(), v.commitItems(), -1, false)
+	top := renderListBox(width, topHeight, v.commitsTitle(), v.commitItems(), v.cursor)
 
 	colWidth := width / 3
 	lastColWidth := width - colWidth*2
@@ -213,8 +276,10 @@ func commitStatus(shortID string, pipelines []gitlab.Pipeline) string {
 // KeyHints
 // ============================================================================
 
-// KeyHints implements View. Overview has no view-specific key actions.
-func (v *OverviewView) KeyHints() []KeyHint { return nil }
+// KeyHints implements View.
+func (v *OverviewView) KeyHints() []KeyHint {
+	return []KeyHint{{Key: "o", Desc: "Open commit"}}
+}
 
 // ============================================================================
 // Commands (async API calls)

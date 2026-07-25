@@ -365,7 +365,7 @@ func (v *PipelinesView) Body(width, height int) string {
 		items = v.pipelineItems()
 		cursor = v.cursor
 	}
-	left := renderListBox(leftWidth, height, listTitle, items, cursor, true)
+	left := renderListBox(leftWidth, height, listTitle, items, cursor)
 
 	// Right detail.
 	var detail string

@@ -118,7 +118,7 @@ func (v *CommitsView) Body(width, height int) string {
 	}
 	rightWidth := width - leftWidth
 
-	left := renderListBox(leftWidth, height, "Commits", v.commitItems(), v.cursor, true)
+	left := renderListBox(leftWidth, height, "Commits", v.commitItems(), v.cursor)
 
 	detail := v.commitDetail()
 	if detail == "" {

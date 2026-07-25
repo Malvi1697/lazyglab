@@ -179,6 +179,94 @@ func TestFavorites_PickerShowsFriendlyNameWhenLoaded(t *testing.T) {
 	}
 }
 
+func TestFavorites_SortedToTopOfPicker(t *testing.T) {
+	var saved savedFavorites
+	// beta is the second project by activity; starring must lift it to the top.
+	a := newFavApp(t, []string{"group/beta"}, &saved)
+
+	visible := a.visibleProjects()
+	if len(visible) != 2 {
+		t.Fatalf("expected both projects, got %d", len(visible))
+	}
+	if visible[0].PathWithNamespace != "group/beta" {
+		t.Errorf("first entry = %q, want the starred project", visible[0].PathWithNamespace)
+	}
+	if visible[1].PathWithNamespace != "group/alpha" {
+		t.Errorf("second entry = %q, want the unstarred project", visible[1].PathWithNamespace)
+	}
+	if got := a.favoriteCount(visible); got != 1 {
+		t.Errorf("favoriteCount = %d, want 1", got)
+	}
+}
+
+func TestFavorites_DividerSeparatesStarredFromRest(t *testing.T) {
+	var saved savedFavorites
+	a := newFavApp(t, []string{"group/beta"}, &saved)
+	press(a, "P")
+
+	out := a.renderProjectPicker()
+	if !strings.Contains(out, "───") {
+		t.Fatal("expected a divider between starred and unstarred projects")
+	}
+
+	// The divider belongs between the two entries, not above or below both.
+	lines := strings.Split(out, "\n")
+	starRow, divRow, restRow := -1, -1, -1
+	for i, l := range lines {
+		switch {
+		case strings.Contains(l, "Group / beta"):
+			starRow = i
+		case strings.Contains(l, "───") && i > 0 && !strings.Contains(l, "Select Project"):
+			if divRow == -1 {
+				divRow = i
+			}
+		case strings.Contains(l, "Group / alpha"):
+			restRow = i
+		}
+	}
+	if starRow == -1 || divRow == -1 || restRow == -1 {
+		t.Fatalf("rows not all found: star=%d divider=%d rest=%d", starRow, divRow, restRow)
+	}
+	if starRow >= divRow || divRow >= restRow {
+		t.Errorf("expected star(%d) < divider(%d) < rest(%d)", starRow, divRow, restRow)
+	}
+}
+
+func TestFavorites_NoDividerWithoutFavorites(t *testing.T) {
+	var saved savedFavorites
+	a := newFavApp(t, nil, &saved)
+	press(a, "P")
+
+	// The only horizontal rules should be the box borders, never an inner divider.
+	for _, line := range strings.Split(a.renderProjectPicker(), "\n") {
+		if strings.Contains(line, "│") && strings.Contains(line, "───") {
+			t.Errorf("unexpected divider row with no favorites: %q", line)
+		}
+	}
+}
+
+func TestFavorites_CursorSkipsDivider(t *testing.T) {
+	var saved savedFavorites
+	a := newFavApp(t, []string{"group/beta"}, &saved)
+	press(a, "P")
+
+	// Moving down goes from the starred project straight to the next project.
+	press(a, "j")
+	if a.projectCursor != 1 {
+		t.Fatalf("cursor = %d, want 1", a.projectCursor)
+	}
+	visible := a.visibleProjects()
+	if visible[a.projectCursor].PathWithNamespace != "group/alpha" {
+		t.Errorf("cursor landed on %q, want group/alpha", visible[a.projectCursor].PathWithNamespace)
+	}
+
+	cmd := press(a, "enter")
+	msg := cmd().(views.ProjectSelectedMsg)
+	if msg.Project.ID != 1 {
+		t.Errorf("selected ID = %d, want 1 (alpha)", msg.Project.ID)
+	}
+}
+
 func TestFavorites_ProjectPickerMarksStarred(t *testing.T) {
 	var saved savedFavorites
 	a := newFavApp(t, []string{"group/beta"}, &saved)

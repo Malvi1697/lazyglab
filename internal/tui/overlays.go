@@ -115,13 +115,19 @@ func (a *App) handleBranchPickerKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	visible := a.visibleBranches()
 	key := msg.String()
 	switch {
+	case key == KeyEscape && a.branchFilter.applied():
+		a.branchFilter.reset()
+		a.branchCursor = 0
+		return a, nil
 	case key == KeyEscape || key == KeyQuit:
 		a.overlay = overlayNone
 		a.branchFilter.reset()
 		return a, nil
 	case key == KeySearch:
 		a.branchFilter.active = true
-		a.branchCursor = 0
+		if !a.branchFilter.applied() {
+			a.branchCursor = 0
+		}
 		return a, nil
 	case isNavigateUp(msg):
 		if a.branchCursor > 0 {
@@ -241,13 +247,21 @@ func (a *App) handleProjectPickerKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	visible := a.visibleProjects()
 	key := msg.String()
 	switch {
+	case key == KeyEscape && a.projectFilter.applied():
+		// Drop the search first; the picker itself closes on the next Esc.
+		a.projectFilter.reset()
+		a.projectCursor = 0
+		return a, nil
 	case key == KeyEscape || key == KeyQuit:
 		a.overlay = overlayNone
 		a.projectFilter.reset()
 		return a, nil
 	case key == KeySearch:
+		// Resume editing an applied query rather than starting over.
 		a.projectFilter.active = true
-		a.projectCursor = 0
+		if !a.projectFilter.applied() {
+			a.projectCursor = 0
+		}
 		return a, nil
 	case isNavigateUp(msg):
 		if a.projectCursor > 0 {
@@ -285,19 +299,48 @@ func (a *App) handleProjectPickerKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return a, nil
 }
 
-// visibleProjects returns the projects matching the current search, in list
-// order. The picker's cursor indexes this slice, not the full list.
+// visibleProjects returns the projects matching the current search, starred ones
+// first and each group still ordered by recent activity. The picker's cursor
+// indexes this slice, not the full list.
 func (a *App) visibleProjects() []gitlab.Project {
-	if !a.projectFilter.on() {
-		return a.projects
-	}
-	out := make([]gitlab.Project, 0, len(a.projects))
-	for _, p := range a.projects {
-		if a.projectFilter.matches(p.NameWithNamespace) || a.projectFilter.matches(p.PathWithNamespace) {
-			out = append(out, p)
+	matching := a.projects
+	if a.projectFilter.on() {
+		matching = make([]gitlab.Project, 0, len(a.projects))
+		for _, p := range a.projects {
+			if a.projectFilter.matches(p.NameWithNamespace) || a.projectFilter.matches(p.PathWithNamespace) {
+				matching = append(matching, p)
+			}
 		}
 	}
-	return out
+
+	if len(a.favorites) == 0 {
+		return matching
+	}
+
+	starred := make([]gitlab.Project, 0, len(a.favorites))
+	rest := make([]gitlab.Project, 0, len(matching))
+	for _, p := range matching {
+		if a.isFavorite(p.PathWithNamespace) {
+			starred = append(starred, p)
+		} else {
+			rest = append(rest, p)
+		}
+	}
+	return append(starred, rest...)
+}
+
+// favoriteCount returns how many of the visible projects are starred. They are
+// always the leading entries, so this doubles as the index of the first
+// non-favorite — i.e. where the divider goes.
+func (a *App) favoriteCount(visible []gitlab.Project) int {
+	n := 0
+	for _, p := range visible {
+		if !a.isFavorite(p.PathWithNamespace) {
+			break
+		}
+		n++
+	}
+	return n
 }
 
 func (a *App) renderProjectPicker() string {
@@ -317,32 +360,16 @@ func (a *App) renderProjectPicker() string {
 	case len(visible) == 0:
 		lines = append(lines, components.HelpDescStyle.Render("No project matches "+a.projectFilter.query))
 	default:
-		scrollOffset := 0
-		if a.projectCursor >= maxVisible {
-			scrollOffset = a.projectCursor - maxVisible + 1
-		}
-		for i := scrollOffset; i < len(visible) && len(lines) < maxVisible; i++ {
-			p := visible[i]
-			marker := "  "
-			switch {
-			case a.ctx != nil && a.ctx.Project != nil && a.ctx.Project.ID == p.ID:
-				marker = "* "
-			case a.isFavorite(p.PathWithNamespace):
-				marker = "★ "
-			}
-			label := components.Truncate(marker+p.NameWithNamespace, innerWidth)
-			if i == a.projectCursor {
-				label = components.SelectedItemStyle.Render(components.PadRight(label, innerWidth))
-			}
-			lines = append(lines, label)
-		}
+		lines = append(lines, a.projectRows(visible, innerWidth, maxVisible)...)
 	}
 	hint := "Enter: select  /: search  f: star  Esc: cancel"
 	switch {
 	case a.projectFilter.active:
-		hint = a.projectFilter.hint()
+		hint = a.projectFilter.hint() + components.HelpDescStyle.Render("   Enter: apply")
 	case a.favoritesStatus != "":
 		hint = components.Truncate(a.favoritesStatus, innerWidth)
+	case a.projectFilter.applied():
+		hint = a.projectFilter.hint() + components.HelpDescStyle.Render("   Enter: select  f: star  Esc: clear")
 	}
 	lines = append(lines, "", components.HelpDescStyle.Render(hint))
 
@@ -351,6 +378,49 @@ func (a *App) renderProjectPicker() string {
 		title = fmt.Sprintf("Select Project (%d/%d)", len(visible), len(a.projects))
 	}
 	return components.RenderBox(title, lines, boxWidth, boxHeight, components.ColorPrimary, components.ColorPrimary)
+}
+
+// projectRows renders the visible slice of the project list, with a divider
+// between the starred projects at the top and the rest. The divider occupies a
+// line but is not selectable, so scrolling is computed over rendered rows while
+// the cursor keeps indexing projects.
+func (a *App) projectRows(visible []gitlab.Project, innerWidth, maxRows int) []string {
+	divider := components.HelpSepStyle.Render(strings.Repeat("─", innerWidth))
+	favCount := a.favoriteCount(visible)
+
+	// Build every row first, remembering which row holds the cursor.
+	var rows []string
+	cursorRow := 0
+	for i, p := range visible {
+		if i == favCount && favCount > 0 {
+			rows = append(rows, divider)
+		}
+
+		marker := "  "
+		switch {
+		case a.ctx != nil && a.ctx.Project != nil && a.ctx.Project.ID == p.ID:
+			marker = "* "
+		case a.isFavorite(p.PathWithNamespace):
+			marker = "★ "
+		}
+		label := components.Truncate(marker+p.NameWithNamespace, innerWidth)
+		if i == a.projectCursor {
+			cursorRow = len(rows)
+			label = components.SelectedItemStyle.Render(components.PadRight(label, innerWidth))
+		}
+		rows = append(rows, label)
+	}
+
+	// Scroll so the cursor's row stays visible.
+	offset := 0
+	if cursorRow >= maxRows {
+		offset = cursorRow - maxRows + 1
+	}
+	end := offset + maxRows
+	if end > len(rows) {
+		end = len(rows)
+	}
+	return rows[offset:end]
 }
 
 // overlayBoxSize returns a reasonable centered-box size for list overlays.

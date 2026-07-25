@@ -101,7 +101,7 @@ func TestProjectFilter_TypedKeysDoNotActAsCommands(t *testing.T) {
 	}
 }
 
-func TestProjectFilter_EnterSelectsFromFilteredList(t *testing.T) {
+func TestProjectFilter_EnterAppliesThenSelects(t *testing.T) {
 	a := newPickerApp(t)
 	press(a, "P")
 	press(a, "/")
@@ -109,9 +109,21 @@ func TestProjectFilter_EnterSelectsFromFilteredList(t *testing.T) {
 		press(a, string(r))
 	}
 
+	// First Enter leaves text entry but keeps the list narrowed.
+	if cmd := press(a, "enter"); cmd != nil {
+		t.Error("the first Enter should apply the search, not select")
+	}
+	if !a.projectFilter.applied() {
+		t.Fatal("expected the search to be applied")
+	}
+	if len(a.visibleProjects()) != 1 {
+		t.Fatalf("the list should stay narrowed, got %d", len(a.visibleProjects()))
+	}
+
+	// Second Enter opens the match.
 	cmd := press(a, "enter")
 	if cmd == nil {
-		t.Fatal("Enter should select the highlighted match")
+		t.Fatal("the second Enter should select the highlighted match")
 	}
 	msg, ok := cmd().(views.ProjectSelectedMsg)
 	if !ok {
@@ -128,6 +140,30 @@ func TestProjectFilter_EnterSelectsFromFilteredList(t *testing.T) {
 	}
 }
 
+// TestProjectFilter_StarAfterApplying covers the flow that matters: search for a
+// project, then star it. While typing, "f" has to be a character (branch names
+// like "feature/x" need it), so applying the search is what frees the key again.
+func TestProjectFilter_StarAfterApplying(t *testing.T) {
+	a := newPickerApp(t)
+	press(a, "P")
+	press(a, "/")
+	for _, r := range "traefik" {
+		press(a, string(r))
+	}
+	press(a, "enter") // apply
+
+	press(a, "f")
+	if !a.isFavorite("olc/devops/traefik") {
+		t.Fatalf("expected the searched project to be starred, favorites = %v", a.favorites)
+	}
+	if a.overlay != overlayProject {
+		t.Error("starring should keep the picker open")
+	}
+	if !a.projectFilter.applied() {
+		t.Error("starring should not drop the search")
+	}
+}
+
 func TestProjectFilter_ArrowsNavigateWhileSearching(t *testing.T) {
 	a := newPickerApp(t)
 	press(a, "P")
@@ -140,10 +176,56 @@ func TestProjectFilter_ArrowsNavigateWhileSearching(t *testing.T) {
 	if a.projectCursor != 1 {
 		t.Fatalf("cursor = %d, want 1 (arrows must still navigate)", a.projectCursor)
 	}
+
+	press(a, "enter") // apply, cursor kept
 	cmd := press(a, "enter")
 	msg := cmd().(views.ProjectSelectedMsg)
 	if msg.Project.ID != 4 {
 		t.Errorf("selected ID = %d, want 4 (second olc match)", msg.Project.ID)
+	}
+}
+
+func TestProjectFilter_SlashResumesEditing(t *testing.T) {
+	a := newPickerApp(t)
+	press(a, "P")
+	press(a, "/")
+	for _, r := range "dev" {
+		press(a, string(r))
+	}
+	press(a, "enter") // apply
+
+	press(a, "/") // resume typing where we left off
+	if !a.projectFilter.active {
+		t.Fatal("/ should re-enter text entry")
+	}
+	if a.projectFilter.query != "dev" {
+		t.Errorf("query = %q, want the previous query kept", a.projectFilter.query)
+	}
+	for _, r := range "ops/tr" {
+		press(a, string(r))
+	}
+	if got := a.visibleProjects(); len(got) != 1 || got[0].ID != 4 {
+		t.Errorf("expected the narrowed match, got %v", got)
+	}
+}
+
+func TestProjectFilter_EscWithAppliedSearchKeepsPickerOpen(t *testing.T) {
+	a := newPickerApp(t)
+	press(a, "P")
+	press(a, "/")
+	press(a, "x")
+	press(a, "enter") // apply a query matching nothing
+
+	press(a, "esc")
+	if a.projectFilter.on() {
+		t.Error("Esc should clear an applied search")
+	}
+	if a.overlay != overlayProject {
+		t.Fatalf("the picker should stay open, overlay = %v", a.overlay)
+	}
+	press(a, "esc")
+	if a.overlay != overlayNone {
+		t.Error("a second Esc should close the picker")
 	}
 }
 
@@ -263,6 +345,7 @@ func TestBranchFilter_NarrowsList(t *testing.T) {
 		t.Fatalf("visible = %d branches, want 2 (%v)", len(got), got)
 	}
 
+	press(a, "enter") // apply
 	cmd := press(a, "enter")
 	msg, ok := cmd().(views.BranchSelectedMsg)
 	if !ok {

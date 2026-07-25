@@ -134,7 +134,7 @@ The five views:
 
 | # | View | What it shows |
 |---|------|----------------|
-| 1 | **Overview** | Dashboard: recent commits (with CI status) plus summaries of pipelines, merge requests, and issues. Read-only, default view. |
+| 1 | **Overview** | Dashboard: a navigable recent-commits list (with CI status) plus summaries of pipelines, merge requests, and issues. Default view. |
 | 2 | **Pipelines** | Pipeline list; `Enter` drills into jobs grouped by stage, and into a job's log. |
 | 3 | **Merge Requests** | Open MRs, with approve/merge actions. |
 | 4 | **Issues** | Open issues, with close/reopen. |
@@ -144,11 +144,14 @@ Press `P` to switch projects and `b` to switch branches from any view — both
 open as overlays on top of the current view. `r` refreshes the active view.
 `h`/`l` step between views, like `Shift+Tab`/`Tab`.
 
-Both the project and branch pickers support incremental search: press `/`, type
-to narrow the list (matching the display name or the `group/project` path), and
-`Enter` opens the highlighted match. The title shows `matched/total`. `Esc` leaves
-the search, a second `Esc` closes the picker; arrows and `Ctrl+d`/`Ctrl+u` still
-navigate while you type.
+Both the project and branch pickers support incremental search: press `/` and
+type to narrow the list (matching the display name or the `group/project` path);
+the title shows `matched/total`. While you type, characters are text rather than
+commands — `f` is a letter, not "star" — so `Enter` **applies** the search: the
+list stays narrowed and every normal key works again, letting you search for a
+project and then star it. `Enter` again opens the highlighted entry, `/` resumes
+editing the query, `Esc` clears it, and a second `Esc` closes the picker. Arrows
+and `Ctrl+d`/`Ctrl+u` navigate throughout.
 
 ### Favorites
 
@@ -156,9 +159,10 @@ Star the projects you work on daily so they are one keystroke away instead of
 somewhere in a list of hundreds:
 
 - In the project switcher (`P`), highlight a project and press `f`. Starred
-  projects are marked `★`.
-- Press `f` from any view to open the **Favorites** picker: `Enter` opens the
-  project, `f` unstars it.
+  projects are marked `★`, sorted to the top of the list and separated from the
+  rest by a divider.
+- Press `f` from any view to open the **Favorites** picker, a short list of just
+  the starred projects: `Enter` opens one, `f` unstars it.
 
 Favorites are stored per host in the config (`hosts.<host>.favorites`) as
 `group/project` paths, so they survive restarts and can be edited by hand. A

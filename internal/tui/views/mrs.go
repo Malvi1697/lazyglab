@@ -137,7 +137,7 @@ func (v *MRsView) Body(width, height int) string {
 	}
 	rightWidth := width - leftWidth
 
-	left := renderListBox(leftWidth, height, "Merge Requests", v.mrItems(), v.cursor, true)
+	left := renderListBox(leftWidth, height, "Merge Requests", v.mrItems(), v.cursor)
 
 	detail := v.mrDetail()
 	if detail == "" {

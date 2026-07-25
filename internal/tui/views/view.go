@@ -111,9 +111,11 @@ func splitLines(s string) []string { return strings.Split(s, "\n") }
 // joinH joins two rendered blocks side by side, top-aligned.
 func joinH(a, b string) string { return lipgloss.JoinHorizontal(lipgloss.Top, a, b) }
 
-// renderListBox renders a bordered, scrollable, single-selection list.
+// renderListBox renders a bordered, scrollable, single-selection list. The
+// cockpit shows one view at a time, so the rendered list is always the focused
+// one; pass a negative cursor to render without a selection.
 // Header lines (prefixed with "\x00") are rendered but never highlighted.
-func renderListBox(width, height int, title string, items []string, cursor int, active bool) string {
+func renderListBox(width, height int, title string, items []string, cursor int) string {
 	innerWidth := width - 4   // border + padding on each side
 	innerHeight := height - 2 // top + bottom border
 	if innerWidth < 1 {
@@ -137,7 +139,7 @@ func renderListBox(width, height int, title string, items []string, cursor int, 
 			item = item[1:]
 		}
 		displayItem := components.Truncate(item, innerWidth)
-		if i == cursor && active && !isHeader {
+		if i == cursor && !isHeader {
 			plain := ansi.Strip(displayItem)
 			visW := lipgloss.Width(plain)
 			if visW < innerWidth {
@@ -148,11 +150,5 @@ func renderListBox(width, height int, title string, items []string, cursor int, 
 		contentLines = append(contentLines, displayItem)
 	}
 
-	borderColor := components.ColorSecondary
-	titleColor := components.ColorSecondary
-	if active {
-		borderColor = components.ColorPrimary
-		titleColor = components.ColorPrimary
-	}
-	return components.RenderBox(title, contentLines, width, height, borderColor, titleColor)
+	return components.RenderBox(title, contentLines, width, height, components.ColorPrimary, components.ColorPrimary)
 }
