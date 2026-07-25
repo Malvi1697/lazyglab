@@ -3,6 +3,8 @@ package tui
 import (
 	"reflect"
 	"testing"
+
+	"github.com/Malvi1697/lazyglab/internal/tui/components"
 )
 
 func TestParsePanels(t *testing.T) {
@@ -69,7 +71,7 @@ func TestParsePanels(t *testing.T) {
 }
 
 func TestWrapLine(t *testing.T) {
-	got := wrapLine("the quick brown fox", 9)
+	got := components.WrapLine("the quick brown fox", 9)
 	for _, l := range got {
 		if len([]rune(l)) > 9 {
 			t.Errorf("line %q exceeds width 9", l)
@@ -80,7 +82,7 @@ func TestWrapLine(t *testing.T) {
 	}
 
 	// Overlong single word hard-breaks.
-	got = wrapLine("supercalifragilistic", 5)
+	got = components.WrapLine("supercalifragilistic", 5)
 	if len(got) < 4 {
 		t.Errorf("expected hard break into >=4 chunks, got %v", got)
 	}

@@ -5,81 +5,82 @@ import (
 	"testing"
 
 	"github.com/Malvi1697/lazyglab/internal/gitlab"
+	"github.com/Malvi1697/lazyglab/internal/tui/components"
 )
 
 // --- truncate tests ---
 
 func TestTruncate_EmptyString(t *testing.T) {
-	got := truncate("", 10)
+	got := components.Truncate("", 10)
 	if got != "" {
-		t.Errorf("truncate(\"\", 10) = %q, want \"\"", got)
+		t.Errorf("components.Truncate(\"\", 10) = %q, want \"\"", got)
 	}
 }
 
 func TestTruncate_ShortString(t *testing.T) {
-	got := truncate("hello", 10)
+	got := components.Truncate("hello", 10)
 	if got != "hello" {
-		t.Errorf("truncate(\"hello\", 10) = %q, want \"hello\"", got)
+		t.Errorf("components.Truncate(\"hello\", 10) = %q, want \"hello\"", got)
 	}
 }
 
 func TestTruncate_ExactLength(t *testing.T) {
-	got := truncate("hello", 5)
+	got := components.Truncate("hello", 5)
 	if got != "hello" {
-		t.Errorf("truncate(\"hello\", 5) = %q, want \"hello\"", got)
+		t.Errorf("components.Truncate(\"hello\", 5) = %q, want \"hello\"", got)
 	}
 }
 
 func TestTruncate_NeedsTruncation(t *testing.T) {
-	got := truncate("hello world", 8)
+	got := components.Truncate("hello world", 8)
 	// maxLen=8, so s[:5] + "..." = "hello..."
 	want := "hello..."
 	if got != want {
-		t.Errorf("truncate(\"hello world\", 8) = %q, want %q", got, want)
+		t.Errorf("components.Truncate(\"hello world\", 8) = %q, want %q", got, want)
 	}
 }
 
 func TestTruncate_MaxLenZero(t *testing.T) {
-	got := truncate("hello", 0)
+	got := components.Truncate("hello", 0)
 	if got != "" {
-		t.Errorf("truncate(\"hello\", 0) = %q, want \"\"", got)
+		t.Errorf("components.Truncate(\"hello\", 0) = %q, want \"\"", got)
 	}
 }
 
 func TestTruncate_MaxLenNegative(t *testing.T) {
-	got := truncate("hello", -1)
+	got := components.Truncate("hello", -1)
 	if got != "" {
-		t.Errorf("truncate(\"hello\", -1) = %q, want \"\"", got)
+		t.Errorf("components.Truncate(\"hello\", -1) = %q, want \"\"", got)
 	}
 }
 
 func TestTruncate_MaxLenOne(t *testing.T) {
 	// maxLen=1, which is <= 3, so just s[:1]
-	got := truncate("hello", 1)
+	got := components.Truncate("hello", 1)
 	if got != "h" {
-		t.Errorf("truncate(\"hello\", 1) = %q, want \"h\"", got)
+		t.Errorf("components.Truncate(\"hello\", 1) = %q, want \"h\"", got)
 	}
 }
 
 func TestTruncate_MaxLenTwo(t *testing.T) {
-	got := truncate("hello", 2)
+	got := components.Truncate("hello", 2)
 	if got != "he" {
-		t.Errorf("truncate(\"hello\", 2) = %q, want \"he\"", got)
+		t.Errorf("components.Truncate(\"hello\", 2) = %q, want \"he\"", got)
 	}
 }
 
 func TestTruncate_MaxLenThree(t *testing.T) {
-	got := truncate("hello", 3)
+	got := components.Truncate("hello", 3)
 	if got != "hel" {
-		t.Errorf("truncate(\"hello\", 3) = %q, want \"hel\"", got)
+		t.Errorf("components.Truncate(\"hello\", 3) = %q, want \"hel\"", got)
 	}
 }
 
 func TestTruncate_MaxLenFour(t *testing.T) {
 	// maxLen=4, > 3, so s[:1] + "..." = "h..."
-	got := truncate("hello", 4)
+	got := components.Truncate("hello", 4)
 	if got != "h..." {
-		t.Errorf("truncate(\"hello\", 4) = %q, want \"h...\"", got)
+		t.Errorf("components.Truncate(\"hello\", 4) = %q, want \"h...\"", got)
 	}
 }
 
@@ -196,7 +197,7 @@ func TestCollapsedPipelineLine_WithPipelines(t *testing.T) {
 		},
 	}
 	got := a.collapsedPipelineLine()
-	want := fmt.Sprintf("#456 %s success (main)", PipelineStatusIcon("success"))
+	want := fmt.Sprintf("#456 %s success (main)", components.StatusIcon("success"))
 	if got != want {
 		t.Errorf("collapsedPipelineLine() = %q, want %q", got, want)
 	}
@@ -209,7 +210,7 @@ func TestCollapsedPipelineLine_FailedPipeline(t *testing.T) {
 		},
 	}
 	got := a.collapsedPipelineLine()
-	want := fmt.Sprintf("#100 %s failed (feature/broken)", PipelineStatusIcon("failed"))
+	want := fmt.Sprintf("#100 %s failed (feature/broken)", components.StatusIcon("failed"))
 	if got != want {
 		t.Errorf("collapsedPipelineLine() = %q, want %q", got, want)
 	}
@@ -224,7 +225,7 @@ func TestCollapsedPipelineLine_CursorOnSecond(t *testing.T) {
 	}
 	a.cursor[PanelPipelines] = 1
 	got := a.collapsedPipelineLine()
-	want := fmt.Sprintf("#457 %s running (develop)", PipelineStatusIcon("running"))
+	want := fmt.Sprintf("#457 %s running (develop)", components.StatusIcon("running"))
 	if got != want {
 		t.Errorf("collapsedPipelineLine() = %q, want %q", got, want)
 	}
@@ -238,7 +239,7 @@ func TestCollapsedPipelineLine_CursorOutOfBounds(t *testing.T) {
 	}
 	a.cursor[PanelPipelines] = 10
 	got := a.collapsedPipelineLine()
-	want := fmt.Sprintf("#456 %s success", PipelineStatusIcon("success"))
+	want := fmt.Sprintf("#456 %s success", components.StatusIcon("success"))
 	if got != want {
 		t.Errorf("collapsedPipelineLine() = %q, want %q", got, want)
 	}

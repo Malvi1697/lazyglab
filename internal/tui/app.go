@@ -2,7 +2,6 @@ package tui
 
 import (
 	"fmt"
-	"image/color"
 	"strings"
 	"time"
 
@@ -11,6 +10,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/Malvi1697/lazyglab/internal/gitlab"
+	"github.com/Malvi1697/lazyglab/internal/tui/components"
 	"github.com/Malvi1697/lazyglab/internal/util"
 )
 
@@ -554,19 +554,19 @@ func (a *App) handleJobViewKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case KeyRetry:
 		if a.jobCursor < len(a.jobs) {
 			job := a.jobs[a.jobCursor]
-			a.confirm(fmt.Sprintf("Retry job '%s'?", truncate(job.Name, 30)), a.retryJob())
+			a.confirm(fmt.Sprintf("Retry job '%s'?", components.Truncate(job.Name, 30)), a.retryJob())
 			return a, nil
 		}
 	case KeyCancel:
 		if a.jobCursor < len(a.jobs) {
 			job := a.jobs[a.jobCursor]
-			a.confirm(fmt.Sprintf("Cancel job '%s'?", truncate(job.Name, 30)), a.cancelJob())
+			a.confirm(fmt.Sprintf("Cancel job '%s'?", components.Truncate(job.Name, 30)), a.cancelJob())
 			return a, nil
 		}
 	case KeyPlayJob:
 		if a.jobCursor < len(a.jobs) {
 			job := a.jobs[a.jobCursor]
-			a.confirm(fmt.Sprintf("Play job '%s'?", truncate(job.Name, 30)), a.playJob())
+			a.confirm(fmt.Sprintf("Play job '%s'?", components.Truncate(job.Name, 30)), a.playJob())
 			return a, nil
 		}
 	}
@@ -685,13 +685,13 @@ func (a *App) handlePanelKey(key string) (tea.Model, tea.Cmd) {
 		case KeyApprove:
 			if idx := a.cursor[PanelMergeRequests]; idx < len(a.mrs) {
 				mr := a.mrs[idx]
-				a.confirm(fmt.Sprintf("Approve !%d %s?", mr.IID, truncate(mr.Title, 30)), a.approveMR())
+				a.confirm(fmt.Sprintf("Approve !%d %s?", mr.IID, components.Truncate(mr.Title, 30)), a.approveMR())
 				return a, nil
 			}
 		case KeyMerge:
 			if idx := a.cursor[PanelMergeRequests]; idx < len(a.mrs) {
 				mr := a.mrs[idx]
-				a.confirm(fmt.Sprintf("Merge !%d %s?", mr.IID, truncate(mr.Title, 30)), a.mergeMR())
+				a.confirm(fmt.Sprintf("Merge !%d %s?", mr.IID, components.Truncate(mr.Title, 30)), a.mergeMR())
 				return a, nil
 			}
 		case KeyOpenBrowse:
@@ -725,7 +725,7 @@ func (a *App) handlePanelKey(key string) (tea.Model, tea.Cmd) {
 				if issue.State != "opened" {
 					action = "Reopen"
 				}
-				a.confirm(fmt.Sprintf("%s #%d %s?", action, issue.IID, truncate(issue.Title, 30)), a.toggleIssue())
+				a.confirm(fmt.Sprintf("%s #%d %s?", action, issue.IID, components.Truncate(issue.Title, 30)), a.toggleIssue())
 				return a, nil
 			}
 		case KeyOpenBrowse:
@@ -879,11 +879,11 @@ func (a *App) jobItems() ([]string, []int) {
 	for i, job := range a.jobs {
 		if job.Stage != currentStage {
 			currentStage = job.Stage
-			header := lipgloss.NewStyle().Bold(true).Foreground(ColorSecondary).Render(job.Stage)
+			header := lipgloss.NewStyle().Bold(true).Foreground(components.ColorSecondary).Render(job.Stage)
 			items = append(items, "\x00"+header)
 		}
 		jobToDisplay[i] = len(items)
-		icon := PipelineStatusIcon(job.Status)
+		icon := components.StatusIcon(job.Status)
 		duration := ""
 		if job.Duration > 0 {
 			mins := int(job.Duration) / 60
@@ -905,15 +905,15 @@ func (a *App) collapsedJobLine() string {
 	}
 	if a.jobCursor >= 0 && a.jobCursor < len(a.jobs) {
 		job := a.jobs[a.jobCursor]
-		return fmt.Sprintf("%s %s  %s", PipelineStatusIcon(job.Status), job.Name, job.Status)
+		return fmt.Sprintf("%s %s  %s", components.StatusIcon(job.Status), job.Name, job.Status)
 	}
 	job := a.jobs[0]
-	return fmt.Sprintf("%s %s  %s", PipelineStatusIcon(job.Status), job.Name, job.Status)
+	return fmt.Sprintf("%s %s  %s", components.StatusIcon(job.Status), job.Name, job.Status)
 }
 
 func (a *App) pipelinePanelTitle() string {
 	if a.activeBranch != nil {
-		return fmt.Sprintf("Pipelines [%s]", truncate(a.activeBranch.Name, 15))
+		return fmt.Sprintf("Pipelines [%s]", components.Truncate(a.activeBranch.Name, 15))
 	}
 	return "Pipelines"
 }
@@ -924,8 +924,8 @@ func (a *App) renderSidePanelSmart(id PanelID, title string, items []string, col
 		totalWidth := a.layout.SidebarWidth
 		panelHeight := a.layout.PanelHeights[id]
 		titleText := fmt.Sprintf("[%d] %s", a.panelNumber(id), title)
-		line := truncate(collapsedLine, totalWidth-4)
-		return renderBox(titleText, []string{line}, totalWidth, panelHeight, ColorSecondary, ColorSecondary)
+		line := components.Truncate(collapsedLine, totalWidth-4)
+		return components.RenderBox(titleText, []string{line}, totalWidth, panelHeight, components.ColorSecondary, components.ColorSecondary)
 	}
 	return a.renderSidePanel(id, title, items, cursor)
 }
@@ -957,27 +957,27 @@ func (a *App) renderSidePanel(id PanelID, title string, items []string, cursor i
 		if isHeader {
 			item = item[1:] // strip marker
 		}
-		displayItem := truncate(item, innerWidth)
+		displayItem := components.Truncate(item, innerWidth)
 		if i == cursor && isActive && !isHeader {
 			plain := ansi.Strip(displayItem)
 			visW := lipgloss.Width(plain)
 			if visW < innerWidth {
 				plain += strings.Repeat(" ", innerWidth-visW)
 			}
-			displayItem = SelectedItemStyle.Render(plain)
+			displayItem = components.SelectedItemStyle.Render(plain)
 		}
 		contentLines = append(contentLines, displayItem)
 	}
 
-	borderColor := ColorSecondary
-	titleColor := ColorSecondary
+	borderColor := components.ColorSecondary
+	titleColor := components.ColorSecondary
 	if isActive {
-		borderColor = ColorPrimary
-		titleColor = ColorPrimary
+		borderColor = components.ColorPrimary
+		titleColor = components.ColorPrimary
 	}
 
 	titleText := fmt.Sprintf("[%d] %s", a.panelNumber(id), title)
-	return renderBox(titleText, contentLines, totalWidth, panelHeight, borderColor, titleColor)
+	return components.RenderBox(titleText, contentLines, totalWidth, panelHeight, borderColor, titleColor)
 }
 
 func (a *App) detailTitle() string {
@@ -1044,59 +1044,11 @@ func (a *App) renderDetail() string {
 	}
 
 	lines := strings.Split(content, "\n")
-	borderColor := ColorSecondary
+	borderColor := components.ColorSecondary
 	if a.viewingJobs && a.jobTrace != "" {
-		borderColor = ColorPrimary
+		borderColor = components.ColorPrimary
 	}
-	return renderBox(a.detailTitle(), lines, totalWidth, totalHeight, borderColor, ColorPrimary)
-}
-
-// renderBox draws a bordered box with a title embedded in the top border line.
-func renderBox(title string, lines []string, totalWidth, totalHeight int, borderColor, titleColor color.Color) string {
-	contentWidth := totalWidth - 4
-	contentHeight := totalHeight - 2
-
-	if contentWidth < 1 {
-		contentWidth = 1
-	}
-	if contentHeight < 0 {
-		contentHeight = 0
-	}
-
-	bs := lipgloss.NewStyle().Foreground(borderColor)
-	ts := lipgloss.NewStyle().Bold(true).Foreground(titleColor)
-	truncStyle := lipgloss.NewStyle().MaxWidth(contentWidth)
-
-	// Top border: ╭─[1] Title──────────╮
-	fill := totalWidth - len(title) - 3
-	if fill < 0 {
-		fill = 0
-	}
-	top := bs.Render("╭─") + ts.Render(title) + bs.Render(strings.Repeat("─", fill)+"╮")
-
-	leftB := bs.Render("│")
-	rightB := bs.Render("│")
-
-	var result []string
-	result = append(result, top)
-
-	for i := 0; i < contentHeight; i++ {
-		var line string
-		if i < len(lines) {
-			line = truncStyle.Render(lines[i])
-		}
-		visLen := lipgloss.Width(line)
-		pad := contentWidth - visLen
-		if pad < 0 {
-			pad = 0
-		}
-		result = append(result, leftB+" "+line+strings.Repeat(" ", pad)+" "+rightB)
-	}
-
-	bottom := bs.Render("╰" + strings.Repeat("─", totalWidth-2) + "╯")
-	result = append(result, bottom)
-
-	return strings.Join(result, "\n")
+	return components.RenderBox(a.detailTitle(), lines, totalWidth, totalHeight, borderColor, components.ColorPrimary)
 }
 
 func (a *App) renderStatusBar() string {
@@ -1122,9 +1074,9 @@ func (a *App) renderStatusBar() string {
 	}
 
 	bar := left + strings.Repeat(" ", gap) + right + " "
-	style := StatusBarStyle
+	style := components.StatusBarStyle
 	if a.statusIsErr {
-		style = style.Foreground(ColorError)
+		style = style.Foreground(components.ColorError)
 	}
 	return style.Width(a.width).Render(bar)
 }
@@ -1197,18 +1149,18 @@ func (a *App) renderKeybindBar() string {
 	var parts []string
 	for _, h := range global {
 		parts = append(parts, fmt.Sprintf("%s: %s",
-			HelpDescStyle.Render(h.desc),
-			HelpKeyStyle.Render(h.key),
+			components.HelpDescStyle.Render(h.desc),
+			components.HelpKeyStyle.Render(h.key),
 		))
 	}
 	for _, h := range ctx {
 		parts = append(parts, fmt.Sprintf("%s: %s",
-			HelpDescStyle.Render(h.desc),
-			HelpKeyStyle.Render(h.key),
+			components.HelpDescStyle.Render(h.desc),
+			components.HelpKeyStyle.Render(h.key),
 		))
 	}
 
-	sep := HelpSepStyle.Render(" | ")
+	sep := components.HelpSepStyle.Render(" | ")
 	bar := " " + strings.Join(parts, sep)
 	return lipgloss.NewStyle().
 		Width(a.width).
@@ -1229,13 +1181,13 @@ func (a *App) renderConfirmOverlay(background string) string {
 
 	lines := []string{
 		"",
-		"  " + lipgloss.NewStyle().Bold(true).Foreground(ColorWarning).Render(prompt),
+		"  " + lipgloss.NewStyle().Bold(true).Foreground(components.ColorWarning).Render(prompt),
 		"",
-		"  " + HelpDescStyle.Render(hint),
+		"  " + components.HelpDescStyle.Render(hint),
 		"",
 	}
 
-	box := renderBox("Confirm", lines, boxWidth, len(lines)+2, ColorWarning, ColorWarning)
+	box := components.RenderBox("Confirm", lines, boxWidth, len(lines)+2, components.ColorWarning, components.ColorWarning)
 	overlay := lipgloss.Place(a.width, a.height, lipgloss.Center, lipgloss.Center, box)
 
 	// Merge overlay on top of background line by line
@@ -1286,7 +1238,7 @@ func (a *App) renderHelp() string {
 	}
 
 	var lines []string
-	lines = append(lines, TitleStyle.Render("Keybindings"))
+	lines = append(lines, components.TitleStyle.Render("Keybindings"))
 	lines = append(lines, "")
 	for _, h := range help {
 		if h.key == "" {
@@ -1294,16 +1246,16 @@ func (a *App) renderHelp() string {
 			continue
 		}
 		if strings.HasPrefix(h.key, "---") {
-			lines = append(lines, HelpDescStyle.Render(h.key))
+			lines = append(lines, components.HelpDescStyle.Render(h.key))
 			continue
 		}
 		lines = append(lines, fmt.Sprintf("  %s  %s",
-			HelpKeyStyle.Width(12).Render(h.key),
-			HelpDescStyle.Render(h.desc),
+			components.HelpKeyStyle.Width(12).Render(h.key),
+			components.HelpDescStyle.Render(h.desc),
 		))
 	}
 	lines = append(lines, "")
-	lines = append(lines, HelpDescStyle.Render("Press any key to close"))
+	lines = append(lines, components.HelpDescStyle.Render("Press any key to close"))
 
 	// Left-align the block, then center it as a unit (Place centers each line
 	// individually, which would leave the key column ragged).
@@ -1313,7 +1265,7 @@ func (a *App) renderHelp() string {
 
 func (a *App) renderBranchPicker(maxHeight int) string {
 	var lines []string
-	lines = append(lines, TitleStyle.Render("Select Branch"))
+	lines = append(lines, components.TitleStyle.Render("Select Branch"))
 	lines = append(lines, "")
 
 	if len(a.branches) == 0 {
@@ -1342,12 +1294,12 @@ func (a *App) renderBranchPicker(maxHeight int) string {
 
 		activity := ""
 		if !b.LastActivity.IsZero() {
-			activity = HelpDescStyle.Render(" " + util.TimeAgo(b.LastActivity))
+			activity = components.HelpDescStyle.Render(" " + util.TimeAgo(b.LastActivity))
 		}
 
 		line := fmt.Sprintf("%s%s%s", marker, b.Name, activity)
 		if i == a.branchCursor {
-			line = SelectedItemStyle.Render(fmt.Sprintf("%s%s", marker, b.Name))
+			line = components.SelectedItemStyle.Render(fmt.Sprintf("%s%s", marker, b.Name))
 			if activity != "" {
 				line += activity
 			}
@@ -1356,7 +1308,7 @@ func (a *App) renderBranchPicker(maxHeight int) string {
 	}
 
 	lines = append(lines, "")
-	lines = append(lines, HelpDescStyle.Render("Enter: select  Esc: cancel  j/k: navigate"))
+	lines = append(lines, components.HelpDescStyle.Render("Enter: select  Esc: cancel  j/k: navigate"))
 
 	return strings.Join(lines, "\n")
 }
@@ -1404,13 +1356,13 @@ func (a *App) collapsedPipelineLine() string {
 	idx := a.cursor[PanelPipelines]
 	if idx >= 0 && idx < len(a.pipelines) {
 		p := a.pipelines[idx]
-		return fmt.Sprintf("#%d %s %s (%s)", p.ID, PipelineStatusIcon(p.Status), p.Status, p.Ref)
+		return fmt.Sprintf("#%d %s %s (%s)", p.ID, components.StatusIcon(p.Status), p.Status, p.Ref)
 	}
 	if len(a.pipelines) == 0 {
 		return "No pipelines"
 	}
 	p := a.pipelines[0]
-	return fmt.Sprintf("#%d %s %s", p.ID, PipelineStatusIcon(p.Status), p.Status)
+	return fmt.Sprintf("#%d %s %s", p.ID, components.StatusIcon(p.Status), p.Status)
 }
 
 func (a *App) collapsedIssueLine() string {
@@ -1434,7 +1386,7 @@ func (a *App) mrItems() []string {
 		}
 		pipeIcon := ""
 		if mr.Pipeline != nil {
-			pipeIcon = " " + PipelineStatusIcon(mr.Pipeline.Status)
+			pipeIcon = " " + components.StatusIcon(mr.Pipeline.Status)
 		}
 		items[i] = fmt.Sprintf("!%d %s%s%s", mr.IID, prefix, mr.Title, pipeIcon)
 	}
@@ -1449,13 +1401,13 @@ func (a *App) pipelineItems() []string {
 		if title == "" {
 			title = p.Ref
 		}
-		t := util.TimeAgoShort(p.CreatedAt) // fixed width 4
-		icon := a.statusIcon(p.Status)      // 2 cells, colored
+		t := util.TimeAgoShort(p.CreatedAt)           // fixed width 4
+		icon := components.StatusIconPadded(p.Status) // 2 cells, colored
 		if a.activeBranch != nil {
 			// Branch shown in the panel title; drop the ref column.
 			items[i] = fmt.Sprintf("%s %s %s", t, icon, title)
 		} else {
-			ref := padRight(truncate(p.Ref, refWidth), refWidth)
+			ref := components.PadRight(components.Truncate(p.Ref, refWidth), refWidth)
 			items[i] = fmt.Sprintf("%s %s %s %s", t, icon, ref, title)
 		}
 	}
@@ -1484,10 +1436,10 @@ func (a *App) projectDetail() string {
 	}
 	p := a.projects[idx]
 	return fmt.Sprintf("%s\n\n%s\n\nDefault branch: %s\n%s",
-		TitleStyle.Render(p.NameWithNamespace),
+		components.TitleStyle.Render(p.NameWithNamespace),
 		p.Name,
 		p.DefaultBranch,
-		HelpDescStyle.Render(p.WebURL),
+		components.HelpDescStyle.Render(p.WebURL),
 	)
 }
 
@@ -1511,13 +1463,13 @@ func (a *App) mrDetail() string {
 	}
 
 	return fmt.Sprintf("%s%s\n\n%s -> %s\nAuthor: %s\nPipeline: %s\n\n%s\n\n%s",
-		TitleStyle.Render(fmt.Sprintf("!%d %s", mr.IID, mr.Title)),
+		components.TitleStyle.Render(fmt.Sprintf("!%d %s", mr.IID, mr.Title)),
 		draft,
 		mr.SourceBranch, mr.TargetBranch,
 		mr.Author,
 		pipeStatus,
 		mr.Description,
-		HelpDescStyle.Render(mr.WebURL),
+		components.HelpDescStyle.Render(mr.WebURL),
 	)
 }
 
@@ -1534,8 +1486,8 @@ func (a *App) pipelineDetail() string {
 	var lines []string
 	lines = append(lines,
 		fmt.Sprintf("Status:  %s %s",
-			PipelineStatusIcon(p.Status),
-			lipgloss.NewStyle().Foreground(PipelineStatusColor(p.Status)).Render(p.Status),
+			components.StatusIcon(p.Status),
+			lipgloss.NewStyle().Foreground(components.StatusColor(p.Status)).Render(p.Status),
 		),
 	)
 	lines = append(lines, fmt.Sprintf("Ref:     %s", p.Ref))
@@ -1549,20 +1501,20 @@ func (a *App) pipelineDetail() string {
 		lines = append(lines, fmt.Sprintf("Updated: %s", util.TimeAgo(p.UpdatedAt)))
 	}
 	lines = append(lines, "")
-	lines = append(lines, HelpDescStyle.Render(p.WebURL))
+	lines = append(lines, components.HelpDescStyle.Render(p.WebURL))
 
 	// Hover preview: the selected pipeline's jobs.
 	if a.previewPipelineID == p.ID {
 		if a.previewLoading {
-			lines = append(lines, "", HelpDescStyle.Render("Loading jobs…"))
+			lines = append(lines, "", components.HelpDescStyle.Render("Loading jobs…"))
 		} else if len(a.previewJobs) > 0 {
-			lines = append(lines, "", HelpDescStyle.Render("Jobs:"))
+			lines = append(lines, "", components.HelpDescStyle.Render("Jobs:"))
 			for _, j := range a.previewJobs {
 				dur := ""
 				if j.Duration > 0 {
 					dur = fmt.Sprintf("  (%ds)", int(j.Duration))
 				}
-				lines = append(lines, fmt.Sprintf("  %s %s  %s%s", a.statusIcon(j.Status), j.Name, j.Status, dur))
+				lines = append(lines, fmt.Sprintf("  %s %s  %s%s", components.StatusIconPadded(j.Status), j.Name, j.Status, dur))
 			}
 		}
 	}
@@ -1585,12 +1537,12 @@ func (a *App) jobDetail() string {
 
 	job := a.jobs[a.jobCursor]
 
-	statusColor := PipelineStatusColor(job.Status)
+	statusColor := components.StatusColor(job.Status)
 	coloredStatus := lipgloss.NewStyle().Foreground(statusColor).Render(job.Status)
 
 	var lines []string
 	lines = append(lines,
-		fmt.Sprintf("Status:   %s %s", PipelineStatusIcon(job.Status), coloredStatus),
+		fmt.Sprintf("Status:   %s %s", components.StatusIcon(job.Status), coloredStatus),
 	)
 	lines = append(lines, fmt.Sprintf("Stage:    %s", job.Stage))
 
@@ -1611,7 +1563,7 @@ func (a *App) jobDetail() string {
 		lines = append(lines, fmt.Sprintf("Started:  %s", util.TimeAgo(job.StartedAt)))
 	}
 	lines = append(lines, "")
-	lines = append(lines, HelpDescStyle.Render("Press Enter to view log"))
+	lines = append(lines, components.HelpDescStyle.Render("Press Enter to view log"))
 
 	return strings.Join(lines, "\n")
 }
@@ -1637,7 +1589,7 @@ func (a *App) jobTraceView() string {
 			continue
 		}
 		// Word-wrap long lines (break on spaces where possible)
-		cleaned = append(cleaned, wrapLine(line, contentWidth)...)
+		cleaned = append(cleaned, components.WrapLine(line, contentWidth)...)
 	}
 
 	// Update max scroll based on cleaned lines
@@ -1684,12 +1636,12 @@ func (a *App) issueDetail() string {
 	}
 
 	return fmt.Sprintf("%s\n\nAuthor: %s\nAssignees: %s\nLabels: %s\n\n%s\n\n%s",
-		TitleStyle.Render(fmt.Sprintf("#%d %s", issue.IID, issue.Title)),
+		components.TitleStyle.Render(fmt.Sprintf("#%d %s", issue.IID, issue.Title)),
 		issue.Author,
 		assignees,
 		labels,
 		issue.Description,
-		HelpDescStyle.Render(issue.WebURL),
+		components.HelpDescStyle.Render(issue.WebURL),
 	)
 }
 
@@ -2130,88 +2082,4 @@ func (a *App) openInBrowser() tea.Cmd {
 		}
 		return nil
 	})
-}
-
-// truncate shortens a string to maxLen.
-func truncate(s string, maxLen int) string {
-	if maxLen <= 0 {
-		return ""
-	}
-	if lipgloss.Width(s) <= maxLen {
-		return s
-	}
-	if maxLen <= 3 {
-		return ansi.Truncate(s, maxLen, "")
-	}
-	return ansi.Truncate(s, maxLen-3, "") + "..."
-}
-
-// wrapLine wraps a single (ANSI-stripped) line to width w, breaking on spaces
-// when possible and falling back to a hard rune break for overlong words.
-func wrapLine(line string, w int) []string {
-	if w < 1 {
-		w = 1
-	}
-	if lipgloss.Width(line) <= w {
-		return []string{line}
-	}
-	var out []string
-	var cur []rune
-	curW := 0
-	flush := func() {
-		out = append(out, string(cur))
-		cur = cur[:0]
-		curW = 0
-	}
-	for _, word := range strings.Split(line, " ") {
-		wl := len([]rune(word))
-		// Hard-break a single word longer than the width.
-		for wl > w {
-			if curW > 0 {
-				flush()
-			}
-			r := []rune(word)
-			out = append(out, string(r[:w]))
-			word = string(r[w:])
-			wl = len([]rune(word))
-		}
-		space := 0
-		if curW > 0 {
-			space = 1
-		}
-		if curW+space+wl > w {
-			flush()
-			space = 0
-		}
-		if space == 1 {
-			cur = append(cur, ' ')
-			curW++
-		}
-		cur = append(cur, []rune(word)...)
-		curW += wl
-	}
-	if curW > 0 || len(out) == 0 {
-		flush()
-	}
-	return out
-}
-
-// padRight pads s with spaces to the given display width (no-op if already wider).
-func padRight(s string, w int) string {
-	vis := lipgloss.Width(s)
-	if vis >= w {
-		return s
-	}
-	return s + strings.Repeat(" ", w-vis)
-}
-
-// statusIcon returns the pipeline/job status icon colored by status and padded
-// to 2 display cells so 1- and 2-cell glyphs align in a column.
-func (a *App) statusIcon(status string) string {
-	icon := PipelineStatusIcon(status)
-	colored := lipgloss.NewStyle().Foreground(PipelineStatusColor(status)).Render(icon)
-	if lipgloss.Width(icon) < 2 {
-		colored += " "
-	}
-	return colored
 }
