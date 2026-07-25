@@ -53,6 +53,19 @@ func (p *jobsPanel) open(pipelineID int) tea.Cmd {
 	return p.load()
 }
 
+// adopt takes a pipeline's jobs that someone else already fetched, so a page
+// showing them does not have to load them again to become interactive.
+func (p *jobsPanel) adopt(pipelineID int, jobs []gitlab.Job) {
+	if pipelineID != p.pipelineID {
+		p.cursor = 0
+		p.scroll = 0
+		p.trace = ""
+		p.traceScroll = 0
+	}
+	p.pipelineID = pipelineID
+	p.setJobs(jobs)
+}
+
 // close forgets the pipeline.
 func (p *jobsPanel) close() {
 	p.pipelineID = 0

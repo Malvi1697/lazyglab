@@ -187,8 +187,9 @@ func TestCommitDetail_EnterWithoutPipelineExplains(t *testing.T) {
 	}
 }
 
-func TestCommitDetail_EnterDrillsIntoTheJobsPanel(t *testing.T) {
-	// The pipeline is driven from here, not by being sent to another tab.
+func TestCommitDetail_EnterStepsIntoTheJobsOnThePage(t *testing.T) {
+	// The jobs are already rendered on the page, so Enter moves the focus into
+	// them rather than replacing the page with a panel.
 	v := NewCommitsView(&Context{})
 	v.width, v.height = 120, 30
 	v.commits = []gitlab.Commit{{ShortID: "38333fa4"}}
@@ -196,12 +197,48 @@ func TestCommitDetail_EnterDrillsIntoTheJobsPanel(t *testing.T) {
 	v.detail.sha = "38333fa4"
 	v.Update(loadedDetail("38333fa4"))
 
+	before := plain(v.Body(120, 30))
+
 	v.Update(enterKey)
-	if !v.detail.jobs.active() {
-		t.Fatal("Enter should open the jobs panel for the commit's pipeline")
+	if v.detail.focus != focusJobs {
+		t.Fatal("Enter should move the focus into the jobs")
 	}
 	if v.detail.jobs.pipelineID != 722175 {
 		t.Errorf("panel is on pipeline %d, want 722175", v.detail.jobs.pipelineID)
+	}
+
+	// The page is still the page: the commit message has not been swapped away.
+	after := plain(v.Body(120, 30))
+	for _, want := range []string{"38333fa4", "build", "deploy"} {
+		if !strings.Contains(after, want) {
+			t.Errorf("stepping in lost %q from the page", want)
+		}
+	}
+	if before == after {
+		t.Error("stepping in should show a cursor on a job")
+	}
+}
+
+func TestCommitDetail_LogTakesTheWholeBody(t *testing.T) {
+	// A log needs the room, so it is the one thing that replaces the page.
+	v := NewCommitsView(&Context{})
+	v.width, v.height = 120, 20
+	v.commits = []gitlab.Commit{{ShortID: "38333fa4"}}
+	v.Update(enterKey)
+	v.detail.sha = "38333fa4"
+	v.Update(loadedDetail("38333fa4"))
+	v.Update(enterKey) // focus the jobs
+	v.Update(JobTraceLoadedMsg{Trace: "line one\nline two\nline three"})
+
+	body := plain(v.Body(120, 20))
+	if !strings.Contains(body, "line two") {
+		t.Errorf("expected the log:\n%s", body)
+	}
+	if strings.Contains(body, "The header double-counted") {
+		t.Error("the log should take the body, not share it with the message")
+	}
+	if strings.Contains(body, "‹") {
+		t.Error("the step arrows belong to the page, not to a log")
 	}
 }
 
@@ -397,5 +434,76 @@ func TestCommitPage_NarrowTerminalDropsTheMargins(t *testing.T) {
 	body := plain(v.Body(24, 12))
 	if strings.Contains(body, "‹") {
 		t.Error("a narrow terminal should keep the text and drop the arrows")
+	}
+}
+
+func TestCommitDetail_FocusingJobsScrollsToThem(t *testing.T) {
+	// The jobs sit below a long message, so stepping in has to bring them into
+	// view — a cursor you cannot see is worse than no cursor.
+	v := NewCommitsView(&Context{})
+	v.width, v.height = 120, 14 // short enough that the message fills it
+	v.commits = []gitlab.Commit{{ShortID: "38333fa4"}}
+	v.Update(enterKey)
+	v.detail.sha = "38333fa4"
+
+	msg := loadedDetail("38333fa4")
+	msg.Commit.Message = "subject\n\n" + strings.Repeat("a long explanation line\n", 30)
+	v.Update(msg)
+
+	v.Body(120, 14)
+	if v.detail.scroll != 0 {
+		t.Fatalf("the page should start at the top, got scroll %d", v.detail.scroll)
+	}
+
+	v.Update(enterKey) // focus the jobs
+	body := plain(v.Body(120, 14))
+
+	if v.detail.scroll == 0 {
+		t.Error("focusing the jobs should scroll the page down to them")
+	}
+	if !strings.Contains(body, "build") {
+		t.Errorf("the highlighted job must be visible:\n%s", body)
+	}
+}
+
+func TestCommitDetail_JobCursorMovesWithinThePage(t *testing.T) {
+	v := NewCommitsView(&Context{})
+	v.width, v.height = 120, 30
+	v.commits = []gitlab.Commit{{ShortID: "38333fa4"}}
+	v.Update(enterKey)
+	v.detail.sha = "38333fa4"
+	v.Update(loadedDetail("38333fa4"))
+	v.Update(enterKey)
+
+	if v.detail.jobs.cursor != 0 {
+		t.Fatalf("cursor = %d, want the first job", v.detail.jobs.cursor)
+	}
+	v.Update(tea.KeyPressMsg{Code: 'j', Text: "j"})
+	if v.detail.jobs.cursor != 1 {
+		t.Errorf("j should move to the next job, got %d", v.detail.jobs.cursor)
+	}
+	// The page did not scroll away from itself: the commit is still on screen.
+	if !strings.Contains(plain(v.Body(120, 30)), "38333fa4") {
+		t.Error("moving between jobs should not leave the commit page")
+	}
+}
+
+func TestCommitDetail_StepInWithoutPipelineExplains(t *testing.T) {
+	v := NewCommitsView(&Context{})
+	v.width, v.height = 120, 30
+	v.commits = []gitlab.Commit{{ShortID: "aaa1111"}}
+	v.Update(enterKey)
+	v.detail.sha = "aaa1111"
+	v.Update(CommitDetailLoadedMsg{SHA: "aaa1111", Commit: &gitlab.Commit{ShortID: "aaa1111"}})
+
+	cmd := v.Update(enterKey)
+	if cmd == nil {
+		t.Fatal("Enter should report there is nothing to step into")
+	}
+	if msg := cmd().(StatusMsg); !msg.IsErr || !strings.Contains(msg.Text, "No pipeline") {
+		t.Errorf("status = %+v", msg)
+	}
+	if v.detail.focus != focusPage {
+		t.Error("focus must stay on the page when there are no jobs")
 	}
 }

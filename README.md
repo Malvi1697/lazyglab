@@ -150,10 +150,14 @@ pipelines it triggered together with their jobs grouped by stage. `j`/`k` scroll
 `Esc` goes back to the list, `R` retries the pipeline, `p` runs one on the branch
 head and `y` copies the SHA.
 
-`Enter` drills into that pipeline's **jobs** — the same interactive panel the
-Pipelines view uses, so a pipeline is driven identically wherever you meet it:
-navigate the jobs, `Enter` reads a log, `R` retries a job, `C` cancels one, `p`
+The jobs are already listed on the page, so `Enter` **steps the focus into them**
+rather than replacing the page: a cursor appears on a job while the message and
+branches stay above it, and the page scrolls down to bring the jobs into view.
+From there `Enter` reads that job's log — the one thing that does take the whole
+body, because a log needs the room — `R` retries a job, `C` cancels one and `p`
 plays a manual one. `Esc` unwinds log → jobs → page → list.
+
+`←`/`→` (or `H`/`L`) step to the previous and next commit without leaving the page.
 
 A commit that never triggered CI simply says so — the detail is still useful, and
 nothing jumps you elsewhere.

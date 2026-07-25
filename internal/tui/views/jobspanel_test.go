@@ -282,17 +282,22 @@ func TestCommitPage_RoutesJobMessagesToThePanel(t *testing.T) {
 			host.Update(enterKey) // open the commit page
 			detail.sha = "38333fa4"
 			host.Update(loadedDetail("38333fa4"))
-			host.Update(enterKey) // drill into the pipeline's jobs
 
-			if !detail.jobs.active() {
-				t.Fatal("expected the jobs panel to be open")
+			// The jobs the page loaded are the panel's own, without a second fetch.
+			if len(detail.jobs.jobs) != 3 {
+				t.Fatalf("the page's jobs never reached the panel: %v", detail.jobs.jobs)
+			}
+
+			host.Update(enterKey) // focus moves into them
+			if detail.focus != focusJobs {
+				t.Fatal("Enter should move the focus into the jobs")
 			}
 
 			host.Update(JobsLoadedMsg{Jobs: []gitlab.Job{
 				{ID: 1, Name: "build", Stage: "build", Status: "success"},
 			}})
 			if len(detail.jobs.jobs) != 1 {
-				t.Fatalf("the job list never reached the panel: %v", detail.jobs.jobs)
+				t.Fatalf("a refreshed job list never reached the panel: %v", detail.jobs.jobs)
 			}
 
 			host.Update(JobTraceLoadedMsg{Trace: "log output"})
@@ -308,28 +313,27 @@ func TestCommitPage_RoutesJobMessagesToThePanel(t *testing.T) {
 	}
 }
 
-func TestCommitPage_EscUnwindsLogThenJobsThenPage(t *testing.T) {
+func TestCommitPage_EscUnwindsLogThenJobsFocusThenPage(t *testing.T) {
 	v := NewCommitsView(&Context{})
 	v.width, v.height = 120, 30
 	v.commits = []gitlab.Commit{{ShortID: "38333fa4"}}
 	v.Update(enterKey)
 	v.detail.sha = "38333fa4"
-	v.Update(loadedDetail("38333fa4"))
-	v.Update(enterKey)
-	v.Update(JobsLoadedMsg{Jobs: []gitlab.Job{{ID: 1, Name: "build", Stage: "build"}}})
+	v.Update(loadedDetail("38333fa4")) // carries the jobs
+	v.Update(enterKey)                 // focus moves into the jobs on the page
 	v.Update(JobTraceLoadedMsg{Trace: "log"})
 
 	v.Update(escKey)
 	if v.detail.jobs.showingTrace() {
 		t.Fatal("the first Esc should close the log")
 	}
-	if !v.detail.jobs.active() {
-		t.Fatal("the jobs panel should still be open")
+	if v.detail.focus != focusJobs {
+		t.Fatal("closing the log should leave the focus in the jobs")
 	}
 
 	v.Update(escKey)
-	if v.detail.jobs.active() {
-		t.Fatal("the second Esc should leave the jobs panel")
+	if v.detail.focus != focusPage {
+		t.Fatal("the second Esc should hand the keys back to the page")
 	}
 	if !v.detail.active {
 		t.Fatal("the commit page should still be open")

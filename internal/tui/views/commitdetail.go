@@ -23,10 +23,9 @@ type commitDetail struct {
 	active bool
 	commit *gitlab.Commit
 
-	pipelines    []gitlab.Pipeline
-	refs         []gitlab.CommitRef
-	mrs          []gitlab.MergeRequest
-	pipelineJobs []gitlab.Job // shown on the page, read-only
+	pipelines []gitlab.Pipeline
+	refs      []gitlab.CommitRef
+	mrs       []gitlab.MergeRequest
 
 	sha     string // request in flight, to ignore stale replies
 	loading bool
@@ -35,11 +34,31 @@ type commitDetail struct {
 	// index and total place the commit within the list it was opened from, so the
 	// page can offer the neighbours and say where you are.
 	index, total int
+	// pageWidth is the last width the page was rendered at, so a selected job row
+	// can span it.
+	pageWidth int
 
-	// jobs is the same interactive panel the Pipelines view uses, so a pipeline
-	// can be driven straight from a commit.
+	// jobs is the same interactive panel the Pipelines view uses. Its rows are
+	// rendered inline in the page, and Enter moves the focus into them rather than
+	// swapping the screen for a panel — the jobs are already in front of you.
 	jobs jobsPanel
+
+	// focus says whether the keys drive the page or the jobs listed on it.
+	focus commitFocus
+	// jobCursorLine is the page line holding the highlighted job, so the page can
+	// scroll to keep it in view. Set while rendering, from the section-local
+	// jobCursorRow plus wherever the pipelines section starts.
+	jobCursorLine int
+	jobCursorRow  int
 }
+
+// commitFocus is which part of the commit page the keys drive.
+type commitFocus int
+
+const (
+	focusPage commitFocus = iota
+	focusJobs
+)
 
 // newCommitDetail builds the page, wiring the shared context into the nested
 // jobs panel too — forgetting that leaves a panel that silently cannot load.
@@ -56,8 +75,9 @@ func (d *commitDetail) openAt(c *gitlab.Commit, index, total int) tea.Cmd {
 	d.active = true
 	d.commit = c
 	d.index, d.total = index, total
-	d.pipelines, d.refs, d.mrs, d.pipelineJobs = nil, nil, nil, nil
+	d.pipelines, d.refs, d.mrs = nil, nil, nil
 	d.jobs.close()
+	d.focus = focusPage
 	d.scroll = 0
 	return d.load(c)
 }
@@ -70,7 +90,8 @@ func (d *commitDetail) hasNext() bool { return d.total > 0 && d.index < d.total-
 func (d *commitDetail) close() {
 	d.active = false
 	d.jobs.close()
-	d.pipelines, d.refs, d.mrs, d.pipelineJobs = nil, nil, nil, nil
+	d.pipelines, d.refs, d.mrs = nil, nil, nil
+	d.focus = focusPage
 	d.sha = ""
 	d.scroll = 0
 }
@@ -139,7 +160,12 @@ func (d *commitDetail) update(msg tea.Msg) (tea.Cmd, string) {
 		if m.Commit != nil {
 			d.commit = m.Commit
 		}
-		d.pipelines, d.refs, d.mrs, d.pipelineJobs = m.Pipelines, m.Refs, m.MRs, m.Jobs
+		d.pipelines, d.refs, d.mrs = m.Pipelines, m.Refs, m.MRs
+		// The panel takes the jobs we already have, so the rows on the page and the
+		// rows you act on are the same list.
+		if p := d.pipeline(); p != nil {
+			d.jobs.adopt(p.ID, m.Jobs)
+		}
 		return nil, ""
 
 	case JobsLoadedMsg:
@@ -175,15 +201,27 @@ func (d *commitDetail) update(msg tea.Msg) (tea.Cmd, string) {
 
 // handleKey drives the detail. Esc unwinds log -> jobs -> page -> list.
 func (d *commitDetail) handleKey(key string, height int) tea.Cmd {
-	// Drilled into the pipeline: the shared panel owns the keys it knows.
-	if d.jobs.active() {
+	// An open log is read full-screen; navigation scrolls it.
+	if d.jobs.showingTrace() {
 		if key == keyEscape {
-			if d.jobs.showingTrace() {
-				d.jobs.closeTrace()
-			} else {
-				d.jobs.close()
-			}
+			d.jobs.closeTrace()
 			return nil
+		}
+		if cmd, consumed := d.jobs.handleKey(key, height); consumed {
+			return cmd
+		}
+		return nil
+	}
+
+	// Focus inside the jobs listed on the page: the rows in front of you are the
+	// ones the keys act on, and the page keeps its context above them.
+	if d.focus == focusJobs {
+		switch key {
+		case keyEscape:
+			d.focus = focusPage
+			return nil
+		case keyCopy:
+			return d.copySHA()
 		}
 		if cmd, consumed := d.jobs.handleKey(key, height); consumed {
 			return cmd
@@ -212,13 +250,28 @@ func (d *commitDetail) handleKey(key string, height int) tea.Cmd {
 		}
 		return nil
 	case keyEnter:
-		// Drill into the pipeline's jobs, right here.
-		return d.openJobs()
+		// Step into the jobs already on the page rather than replacing it.
+		return d.focusJobs()
 	case keyRetry:
 		return d.retryPipeline()
 	case keyRun:
 		return d.runOnRef()
 	}
+	return nil
+}
+
+// focusJobs hands the keys to the jobs listed on the page.
+func (d *commitDetail) focusJobs() tea.Cmd {
+	if len(d.jobs.jobs) == 0 {
+		if d.pipeline() == nil {
+			return func() tea.Msg {
+				return StatusMsg{Text: "No pipeline ran for this commit", IsErr: true}
+			}
+		}
+		// The pipeline exists but its jobs have not arrived yet.
+		return d.jobs.load()
+	}
+	d.focus = focusJobs
 	return nil
 }
 
@@ -236,18 +289,6 @@ func (d *commitDetail) copySHA() tea.Cmd {
 		copyToClipboard(sha),
 		func() tea.Msg { return StatusMsg{Text: "Copied " + short + " to the clipboard"} },
 	)
-}
-
-// openJobs drills into the newest pipeline's jobs, where they can be retried,
-// canceled, played and read.
-func (d *commitDetail) openJobs() tea.Cmd {
-	p := d.pipeline()
-	if p == nil {
-		return func() tea.Msg {
-			return StatusMsg{Text: "No pipeline ran for this commit", IsErr: true}
-		}
-	}
-	return d.jobs.open(p.ID)
 }
 
 // pipeline returns the newest pipeline for the commit, or nil.
@@ -311,7 +352,7 @@ func (d *commitDetail) runOnRef() tea.Cmd {
 
 // keyHints are the detail's footer hints.
 func (d *commitDetail) keyHints() []KeyHint {
-	if d.jobs.active() {
+	if d.jobs.showingTrace() || d.focus == focusJobs {
 		return d.jobs.keyHints()
 	}
 	return []KeyHint{
@@ -335,9 +376,10 @@ const arrowGutter = 3
 // body renders the detail as the view's whole body, between two margins that
 // carry the arrows for stepping to the neighbouring commits.
 func (d *commitDetail) body(width, height int) string {
-	// Drilled into the pipeline: the panel takes over.
-	if d.jobs.active() {
-		return d.jobs.body(width, height)
+	// A log needs the room, so it is the one thing that replaces the page.
+	if d.jobs.showingTrace() {
+		return components.RenderPanel(d.jobs.detailTitle(),
+			splitLines(d.jobs.traceView(width, height)), width, height, true)
 	}
 
 	pageWidth := width - 2*arrowGutter
@@ -390,6 +432,7 @@ func commitStep(key string) (int, bool) {
 
 // page renders the commit itself.
 func (d *commitDetail) page(width, height int) string {
+	d.pageWidth = width
 
 	lines := d.lines(width - 4)
 	rows := height - 2
@@ -397,14 +440,19 @@ func (d *commitDetail) page(width, height int) string {
 		rows = 1
 	}
 
-	// The page is scrolled directly rather than followed around a cursor, so the
-	// offset only needs clamping — ScrollOffset would drag it back to keep a
-	// non-existent cursor in view.
-	if d.scroll > len(lines)-rows {
-		d.scroll = max(0, len(lines)-rows)
-	}
-	if d.scroll < 0 {
-		d.scroll = 0
+	if d.focus == focusJobs {
+		// Follow the highlighted job, which lives some way down the page.
+		d.scroll = components.ScrollOffset(d.scroll, d.jobCursorLine, len(lines), rows)
+	} else {
+		// The page is scrolled directly rather than followed around a cursor, so
+		// the offset only needs clamping — ScrollOffset would drag it back to keep
+		// a non-existent cursor in view.
+		if d.scroll > len(lines)-rows {
+			d.scroll = max(0, len(lines)-rows)
+		}
+		if d.scroll < 0 {
+			d.scroll = 0
+		}
 	}
 
 	end := min(d.scroll+rows, len(lines))
@@ -466,7 +514,14 @@ func (d *commitDetail) lines(width int) []string {
 	out = append(out, d.refLines()...)
 	out = append(out, d.mrLines()...)
 	add("")
+	// Where the pipelines section begins, so a highlighted job's line can be
+	// located on the page and scrolled to.
+	sectionStart := len(out)
+	d.jobCursorRow = -1
 	out = append(out, d.pipelineLines()...)
+	if d.jobCursorRow >= 0 {
+		d.jobCursorLine = sectionStart + d.jobCursorRow
+	}
 	add("")
 	wrap(components.HelpDescStyle.Render(c.WebURL))
 	return out
@@ -540,32 +595,39 @@ func (d *commitDetail) pipelineLines() []string {
 			components.HelpDescStyle.Render(p.Ref)))
 	}
 
-	if len(d.pipelineJobs) == 0 {
+	if len(d.jobs.jobs) == 0 {
 		return out
 	}
 
-	out = append(out, "", components.TitleStyle.Render("Jobs"))
-	stage := ""
-	for _, j := range d.pipelineJobs {
-		if j.Stage != stage {
-			stage = j.Stage
-			out = append(out, components.HelpDescStyle.Render("  "+stage))
+	// The jobs are the panel's own rows, so what you see is what you act on once
+	// the focus moves into them. Enter is offered on the heading, not in a footer
+	// only.
+	heading := components.TitleStyle.Render("Jobs")
+	if d.focus == focusJobs {
+		heading += "  " + components.HelpDescStyle.Render("Enter: log · R/C/p: retry/cancel/play · Esc: back")
+	} else {
+		heading += "  " + components.HelpDescStyle.Render("Enter: step in")
+	}
+	out = append(out, "", heading)
+
+	rows, jobToRow := d.jobs.items()
+	cursorRow := -1
+	if d.jobs.cursor >= 0 && d.jobs.cursor < len(jobToRow) {
+		cursorRow = jobToRow[d.jobs.cursor]
+	}
+	for i, row := range rows {
+		if len(row) > 0 && row[0] == '\x00' {
+			out = append(out, "  "+row[1:]) // stage heading
+			continue
 		}
-		out = append(out, fmt.Sprintf("    %s %s  %s",
-			components.StatusIconPadded(j.Status), j.Name,
-			components.HelpDescStyle.Render(jobDuration(j))))
+		if i == cursorRow && d.focus == focusJobs {
+			d.jobCursorRow = len(out)
+			out = append(out, components.SelectRow(strings.TrimLeft(row, " "), d.pageWidth-2, true))
+			continue
+		}
+		out = append(out, "  "+row)
 	}
 	return out
 }
 
 // jobDuration renders a job's runtime, or its status when it has not run.
-func jobDuration(j gitlab.Job) string {
-	if j.Duration <= 0 {
-		return j.Status
-	}
-	secs := int(j.Duration)
-	if secs < 60 {
-		return fmt.Sprintf("%ds", secs)
-	}
-	return fmt.Sprintf("%dm%ds", secs/60, secs%60)
-}
