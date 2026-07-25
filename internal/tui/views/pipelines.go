@@ -54,7 +54,13 @@ func NewPipelinesView(ctx *Context) *PipelinesView { return &PipelinesView{ctx: 
 func (v *PipelinesView) Title() string { return "Pipelines" }
 
 // Focus implements View: loads pipelines for the active project/branch.
-func (v *PipelinesView) Focus() tea.Cmd { return v.load() }
+// While an open job log is being viewed, do not disturb it on auto-refresh.
+func (v *PipelinesView) Focus() tea.Cmd {
+	if v.viewingJobs && v.jobTrace != "" {
+		return nil
+	}
+	return v.load()
+}
 
 // ============================================================================
 // Update

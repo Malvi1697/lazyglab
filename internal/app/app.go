@@ -9,6 +9,7 @@ import (
 
 	"github.com/Malvi1697/lazyglab/internal/gitlab"
 	"github.com/Malvi1697/lazyglab/internal/tui"
+	"github.com/Malvi1697/lazyglab/internal/tui/views"
 	"github.com/Malvi1697/lazyglab/internal/util"
 )
 
@@ -35,17 +36,21 @@ func Run() error {
 		}
 	}
 
-	// Resolve panel configuration and refresh interval from settings.
-	panels, warnings := tui.ParsePanels(cfg.Settings.Panels)
+	// Resolve view configuration and refresh interval from settings.
+	viewIDs, warnings := views.ParseViews(cfg.Settings.Views)
 	for _, w := range warnings {
 		fmt.Fprintf(os.Stderr, "  config: %s\n", w)
 	}
+	if len(cfg.Settings.Panels) > 0 {
+		fmt.Fprintln(os.Stderr, "  config: 'panels' is obsolete; use 'views'")
+	}
+	defaultIndex := views.DefaultViewIndex(viewIDs, cfg.Settings.DefaultView)
 	refreshInterval := time.Duration(cfg.Settings.RefreshSeconds()) * time.Second
 
 	fmt.Println("  Launching lazyglab...")
 	fmt.Println()
 
-	model := tui.NewApp(clients, hostNames, detectedHost, detectedPath, panels, refreshInterval)
+	model := tui.NewApp(clients, hostNames, detectedHost, detectedPath, viewIDs, defaultIndex, refreshInterval)
 	p := tea.NewProgram(model)
 	if _, err := p.Run(); err != nil {
 		return fmt.Errorf("running TUI: %w", err)

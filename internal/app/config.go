@@ -24,8 +24,11 @@ type HostConfig struct {
 
 // Settings holds global UI preferences.
 type Settings struct {
-	// Panels lists the visible sidebar panels in display order, by config name
-	// (projects, pipelines, merge_requests, issues). Empty = all four.
+	// Views lists enabled cockpit views in tab order (overview, pipelines, mrs, issues, commits). Empty = all.
+	Views []string `yaml:"views"`
+	// DefaultView is the view shown at launch. Empty/absent = first enabled.
+	DefaultView string `yaml:"default_view"`
+	// Panels is the obsolete v1 key, kept only to warn if present.
 	Panels []string `yaml:"panels"`
 	// RefreshInterval is the auto-refresh period in seconds. nil = default (30),
 	// 0 = disabled. Interpreted via RefreshSeconds().
