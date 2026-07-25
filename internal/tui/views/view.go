@@ -105,6 +105,10 @@ func DefaultViewIndex(views []ViewID, name string) int {
 	return 0
 }
 
+// authorWidth is the fixed width of the author column in commit lists, so the
+// titles beside it line up.
+const authorWidth = 16
+
 // splitLines splits a rendered detail string into lines for RenderBox.
 func splitLines(s string) []string { return strings.Split(s, "\n") }
 

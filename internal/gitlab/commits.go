@@ -25,6 +25,7 @@ func (c *Client) ListCommits(projectID int, ref string) ([]Commit, error) {
 	commits := make([]Commit, len(apiCommits))
 	for i, cm := range apiCommits {
 		commits[i] = Commit{
+			ID:         util.StripANSI(cm.ID),
 			ShortID:    util.StripANSI(cm.ShortID),
 			Title:      util.StripANSI(cm.Title),
 			AuthorName: util.StripANSI(cm.AuthorName),

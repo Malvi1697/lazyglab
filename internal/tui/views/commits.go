@@ -77,7 +77,27 @@ func (v *CommitsView) handleKey(msg tea.KeyMsg) tea.Cmd {
 	if key == keyEnter {
 		return v.showPipeline()
 	}
+	if key == keyCopy {
+		return v.copyHash()
+	}
 	return nil
+}
+
+// copyHash copies the selected commit's full SHA to the clipboard. The list
+// shows the author rather than the hash, so this is how the hash is obtained.
+func (v *CommitsView) copyHash() tea.Cmd {
+	if v.cursor >= len(v.commits) {
+		return nil
+	}
+	c := v.commits[v.cursor]
+	sha := c.ID
+	if sha == "" {
+		sha = c.ShortID
+	}
+	return tea.Batch(
+		copyToClipboard(sha),
+		func() tea.Msg { return StatusMsg{Text: "Copied " + c.ShortID + " to the clipboard"} },
+	)
 }
 
 // showPipeline asks the shell to open the selected commit's pipeline.
@@ -130,7 +150,7 @@ func (v *CommitsView) commitItems() []string {
 		items[i] = fmt.Sprintf("%s %s %s  %s",
 			util.TimeAgoShort(c.CreatedAt),
 			icon,
-			components.PadRight(c.ShortID, 8),
+			components.PadRight(components.Truncate(c.AuthorName, authorWidth), authorWidth),
 			c.Title,
 		)
 	}
@@ -162,6 +182,8 @@ func (v *CommitsView) commitDetail() string {
 // KeyHints implements View.
 func (v *CommitsView) KeyHints() []KeyHint {
 	return []KeyHint{
+		{"Enter", "Pipeline"},
+		{"y", "Copy SHA"},
 		{"o", "Open"},
 	}
 }

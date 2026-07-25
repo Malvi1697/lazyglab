@@ -491,6 +491,7 @@ func helpEntries() []helpEntry {
 
 		{"Commits & Overview", ""},
 		{"Enter", "Jump to the commit's pipeline"},
+		{"y", "Copy the commit SHA"},
 		{"o", "Open the commit in a browser"},
 
 		{"Merge Requests", ""},

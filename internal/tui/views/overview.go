@@ -99,7 +99,27 @@ func (v *OverviewView) handleKey(msg tea.KeyMsg) tea.Cmd {
 	if key == keyEnter {
 		return v.showPipeline()
 	}
+	if key == keyCopy {
+		return v.copyHash()
+	}
 	return nil
+}
+
+// copyHash copies the selected commit's full SHA to the clipboard, since the
+// list shows the author rather than the hash.
+func (v *OverviewView) copyHash() tea.Cmd {
+	if v.cursor >= len(v.commits) {
+		return nil
+	}
+	c := v.commits[v.cursor]
+	sha := c.ID
+	if sha == "" {
+		sha = c.ShortID
+	}
+	return tea.Batch(
+		copyToClipboard(sha),
+		func() tea.Msg { return StatusMsg{Text: "Copied " + c.ShortID + " to the clipboard"} },
+	)
 }
 
 // showPipeline asks the shell to open the selected commit's pipeline.
@@ -199,7 +219,7 @@ func (v *OverviewView) commitItems() []string {
 		items[i] = fmt.Sprintf("%s %s %s  %s",
 			util.TimeAgoShort(c.CreatedAt),
 			icon,
-			components.PadRight(c.ShortID, 8),
+			components.PadRight(components.Truncate(c.AuthorName, authorWidth), authorWidth),
 			c.Title,
 		)
 	}
@@ -276,7 +296,11 @@ func commitStatus(shortID string, pipelines []gitlab.Pipeline) string {
 
 // KeyHints implements View.
 func (v *OverviewView) KeyHints() []KeyHint {
-	return []KeyHint{{Key: "o", Desc: "Open commit"}}
+	return []KeyHint{
+		{Key: "Enter", Desc: "Pipeline"},
+		{Key: "y", Desc: "Copy SHA"},
+		{Key: "o", Desc: "Open commit"},
+	}
 }
 
 // ============================================================================

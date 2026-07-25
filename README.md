@@ -138,7 +138,7 @@ The five views:
 | 2 | **Pipelines** | Pipeline list; `Enter` drills into jobs grouped by stage, and into a job's log. |
 | 3 | **Merge Requests** | Open MRs, with approve/merge actions. |
 | 4 | **Issues** | Open issues, with close/reopen. |
-| 5 | **Commits** | Recent commits on the active branch. |
+| 5 | **Commits** | Recent commits on the active branch, with the author beside each one. `y` copies the full SHA. |
 
 `Enter` on a commit — in the Commits view or Overview's recent-commits list — jumps
 to the **Pipelines** view with the cursor on the pipeline built for that commit. If

@@ -86,6 +86,7 @@ type Issue struct {
 
 // Commit is a repository commit.
 type Commit struct {
+	ID         string // full SHA, used for copying and exact pipeline matching
 	ShortID    string
 	Title      string
 	AuthorName string
