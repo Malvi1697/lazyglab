@@ -89,6 +89,35 @@ lazyglab setup      # Re-run setup wizard
 lazyglab --version  # Show version
 ```
 
+## Configuration
+
+lazyglab stores its config at `~/.config/lazyglab/config.yml` (override with the
+`LAZYGLAB_CONFIG` environment variable). Besides the host/token entries written
+by the setup wizard, an optional `settings:` block tunes the UI:
+
+```yaml
+default_host: gitlab.com
+hosts:
+  gitlab.com:
+    token: "…"
+settings:
+  # Which sidebar panels to show, in display order. Omit any to hide it.
+  # (projects is always shown — it selects the active project.)
+  panels: [projects, pipelines, merge_requests, issues]
+  # Auto-refresh interval for the active panel, in seconds. 0 disables it.
+  refresh_interval: 30
+```
+
+- **panels** — reorder or hide panels. For example `[projects, pipelines]`
+  shows only Projects and Pipelines. Valid names: `projects`, `pipelines`,
+  `merge_requests`, `issues`. Unknown or duplicate names are ignored.
+- **refresh_interval** — the active panel reloads on this interval (paused while
+  a dialog/help/branch picker is open or while reading a job log). Values 1–4
+  are clamped to 5s; `0` disables auto-refresh. Omitted → 30s.
+
+With no `settings:` block, all four panels are shown and auto-refresh runs every
+30s.
+
 ## Keybindings
 
 ### Global

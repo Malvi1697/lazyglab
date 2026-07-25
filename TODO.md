@@ -61,8 +61,11 @@
 - [ ] Create Issue wizard
 - [ ] MR review workflow (line-level comments)
 - [ ] Notifications / Todos panel (5th panel)
-- [ ] Auto-detect project from `.git/config` remote URL
-- [ ] Auto-refresh on timer (configurable interval)
+- [x] Auto-detect project from `.git/config` remote URL
+- [x] Auto-refresh on timer (configurable interval)
+- [x] Configurable panels (show/hide + reorder via `settings.panels`)
+- [x] Pipeline panel redesign (aligned columns, colored status icons)
+- [x] Job preview in detail panel on hover (debounced + cached)
 
 ### Configuration
 - [ ] Own config file (`~/.config/lazyglab/config.yml`)
