@@ -58,8 +58,14 @@ func viewIDFromName(name string) (ViewID, bool) {
 	return 0, false
 }
 
+// defaultViews are the tabs shown when settings.views is absent.
+//
+// Commits is not among them: Overview already lists recent commits, and Enter
+// opens the full commit page in place, so a separate tab would only offer a
+// taller list of the same thing. It remains available via settings.views for
+// anyone who wants it.
 func defaultViews() []ViewID {
-	return []ViewID{ViewOverview, ViewPipelines, ViewMRs, ViewIssues, ViewCommits}
+	return []ViewID{ViewOverview, ViewPipelines, ViewMRs, ViewIssues}
 }
 
 // ParseViews converts config names into an ordered, deduplicated ViewID list.

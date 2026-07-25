@@ -26,10 +26,16 @@ type OverviewView struct {
 
 	cursor int // into commits
 	scroll int // first visible row, kept across frames
+
+	// detail is the in-place commit page, opened with Enter — the same one the
+	// Commits view uses, so drilling in never moves you to another tab.
+	detail commitDetail
 }
 
 // NewOverviewView creates an OverviewView bound to the shared session context.
-func NewOverviewView(ctx *Context) *OverviewView { return &OverviewView{ctx: ctx} }
+func NewOverviewView(ctx *Context) *OverviewView {
+	return &OverviewView{ctx: ctx, detail: commitDetail{ctx: ctx}}
+}
 
 // Title implements View.
 func (v *OverviewView) Title() string { return "Overview" }
@@ -55,6 +61,10 @@ func (v *OverviewView) Update(msg tea.Msg) tea.Cmd {
 
 	case tea.KeyMsg:
 		return v.handleKey(msg)
+
+	case CommitDetailLoadedMsg:
+		v.detail.update(msg)
+		return nil
 
 	case CommitsLoadedMsg:
 		if msg.Err == nil {
@@ -89,6 +99,10 @@ func (v *OverviewView) Update(msg tea.Msg) tea.Cmd {
 func (v *OverviewView) handleKey(msg tea.KeyMsg) tea.Cmd {
 	key := msg.String()
 
+	if v.detail.active {
+		return v.detail.handleKey(key, v.height)
+	}
+
 	if act := components.NavFor(key); act != components.NavNone {
 		v.cursor = components.ApplyNav(act, v.cursor, len(v.commits), listRows(v.height))
 		return nil
@@ -97,7 +111,7 @@ func (v *OverviewView) handleKey(msg tea.KeyMsg) tea.Cmd {
 		return v.openCommitInBrowser()
 	}
 	if key == keyEnter {
-		return v.showPipeline()
+		return v.detail.open(v.selectedCommit())
 	}
 	if key == keyCopy {
 		return v.copyHash()
@@ -122,14 +136,12 @@ func (v *OverviewView) copyHash() tea.Cmd {
 	)
 }
 
-// showPipeline asks the shell to open the selected commit in the Commits view,
-// where its detail and pipelines live.
-func (v *OverviewView) showPipeline() tea.Cmd {
-	if v.cursor >= len(v.commits) {
+// selectedCommit returns the highlighted commit, or nil.
+func (v *OverviewView) selectedCommit() *gitlab.Commit {
+	if v.cursor < 0 || v.cursor >= len(v.commits) {
 		return nil
 	}
-	sha := v.commits[v.cursor].ShortID
-	return func() tea.Msg { return ShowCommitMsg{ShortSHA: sha} }
+	return &v.commits[v.cursor]
 }
 
 func (v *OverviewView) clampCursor() {
@@ -167,6 +179,11 @@ func (v *OverviewView) openCommitInBrowser() tea.Cmd {
 func (v *OverviewView) Body(width, height int) string {
 	v.width = width
 	v.height = height
+
+	// Drilled into a commit: the page takes the whole body.
+	if v.detail.active {
+		return v.detail.body(width, height)
+	}
 
 	topHeight := height / 2
 	bottomHeight := height - topHeight
@@ -302,6 +319,9 @@ func commitStatus(shortID string, pipelines []gitlab.Pipeline) string {
 
 // KeyHints implements View.
 func (v *OverviewView) KeyHints() []KeyHint {
+	if v.detail.active {
+		return v.detail.keyHints()
+	}
 	return []KeyHint{
 		{Key: "Enter", Desc: "Pipeline"},
 		{Key: "y", Desc: "Copy SHA"},

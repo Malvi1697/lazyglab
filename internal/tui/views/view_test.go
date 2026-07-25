@@ -3,9 +3,11 @@ package views
 import "testing"
 
 func TestParseViews(t *testing.T) {
-	t.Run("empty returns all five in default order", func(t *testing.T) {
+	t.Run("empty returns the default tabs", func(t *testing.T) {
 		got, warnings := ParseViews(nil)
-		want := []ViewID{ViewOverview, ViewPipelines, ViewMRs, ViewIssues, ViewCommits}
+		// Commits is deliberately not a default tab: Overview lists recent commits
+		// and Enter opens the full commit page in place. It stays opt-in.
+		want := []ViewID{ViewOverview, ViewPipelines, ViewMRs, ViewIssues}
 		if len(got) != len(want) {
 			t.Fatalf("want %d views, got %d (%v)", len(want), len(got), got)
 		}

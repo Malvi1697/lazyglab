@@ -138,12 +138,17 @@ The five views:
 | 2 | **Pipelines** | Pipeline list; `Enter` drills into jobs grouped by stage, and into a job's log. |
 | 3 | **Merge Requests** | Open MRs, with approve/merge actions. |
 | 4 | **Issues** | Open issues, with close/reopen. |
-| 5 | **Commits** | Recent commits on the active branch, with the author beside each one. `y` copies the full SHA. |
 
-`Enter` on a commit — in the Commits view or Overview's recent-commits list — opens
-the **commit detail**: its full message and every pipeline GitLab ran for that
-commit. From there `Enter` opens the pipeline in the Pipelines view (jobs, logs),
-`R` retries it, `y` copies the SHA and `Esc` goes back.
+A fifth view, **Commits** (a full-height commit list), exists but is not a default
+tab: Overview already lists recent commits and `Enter` opens the commit page in
+place. Add `commits` to `settings.views` to get the tab back.
+
+`Enter` on a commit opens the **commit page in place** — no tab switching — with
+the same things GitLab's commit page shows: the message, the author, the parent,
+the branches and tags containing it, the merge requests it belongs to, and the
+pipelines it triggered together with their jobs grouped by stage. `j`/`k` scroll it,
+`Esc` goes back to the list, `Enter` hands off to the Pipelines view for job logs,
+`R` retries the pipeline and `y` copies the SHA.
 
 A commit that never triggered CI simply says so — the detail is still useful, and
 nothing jumps you elsewhere.

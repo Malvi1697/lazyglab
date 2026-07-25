@@ -291,15 +291,6 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.setStatus(fmt.Sprintf("Branch: %s", branch.Name), false)
 		return a, a.activeView().Focus()
 
-	case views.ShowCommitMsg:
-		idx := a.viewIndex(views.ViewCommits)
-		if idx < 0 {
-			a.setStatus("Commits view is not enabled", true)
-			return a, nil
-		}
-		a.switchView(idx)
-		return a, tea.Batch(a.activeView().Update(msg), a.activeView().Focus())
-
 	case views.ShowCommitPipelineMsg:
 		idx := a.viewIndex(views.ViewPipelines)
 		if idx < 0 {

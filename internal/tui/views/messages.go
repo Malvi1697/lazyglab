@@ -104,12 +104,9 @@ type CommitDetailLoadedMsg struct {
 	Pipelines []gitlab.Pipeline
 	Refs      []gitlab.CommitRef
 	MRs       []gitlab.MergeRequest
+	Jobs      []gitlab.Job
 	Err       error
 }
-
-// ShowCommitMsg asks the shell to focus the Commits view on a commit and open its
-// detail, used when drilling in from Overview.
-type ShowCommitMsg struct{ ShortSHA string }
 
 // ShowCommitPipelineMsg asks the shell to switch to the Pipelines view and put
 // the cursor on the pipeline built for a commit. Views cannot switch views, so

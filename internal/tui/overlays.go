@@ -489,15 +489,17 @@ func helpEntries() []helpEntry {
 		{"R", "Retry"},
 		{"C", "Cancel"},
 
-		{"Commits & Overview", ""},
-		{"Enter", "Commit detail (message, pipelines)"},
+		{"Commit lists", ""},
+		{"Enter", "Open the commit page in place"},
 		{"y", "Copy the commit SHA"},
 		{"o", "Open the commit in a browser"},
 
-		{"Commit detail", ""},
+		{"Commit page", ""},
+		{"j / k", "Scroll the page"},
 		{"Enter", "Open its pipeline in Pipelines"},
 		{"R", "Retry the commit's pipeline"},
 		{"p", "Run a pipeline on the branch head"},
+		{"y", "Copy the SHA"},
 		{"Esc", "Back to the list"},
 
 		{"Merge Requests", ""},
