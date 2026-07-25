@@ -101,5 +101,6 @@ func (c *Client) ListPipelinesByRef(projectID int, ref string) ([]Pipeline, erro
 	}
 
 	c.fillCommitTitles(projectID, pipelines)
+	c.fillWarnings(projectID, pipelines)
 	return pipelines, nil
 }

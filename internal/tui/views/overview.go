@@ -122,13 +122,14 @@ func (v *OverviewView) copyHash() tea.Cmd {
 	)
 }
 
-// showPipeline asks the shell to open the selected commit's pipeline.
+// showPipeline asks the shell to open the selected commit in the Commits view,
+// where its detail and pipelines live.
 func (v *OverviewView) showPipeline() tea.Cmd {
 	if v.cursor >= len(v.commits) {
 		return nil
 	}
 	sha := v.commits[v.cursor].ShortID
-	return func() tea.Msg { return ShowCommitPipelineMsg{ShortSHA: sha} }
+	return func() tea.Msg { return ShowCommitMsg{ShortSHA: sha} }
 }
 
 func (v *OverviewView) clampCursor() {
@@ -280,10 +281,15 @@ func (v *OverviewView) issueLines() []string {
 }
 
 // commitStatus maps a commit to its CI status by matching a pipeline SHA that
-// starts with the commit's ShortID (or vice versa). Returns "" if none.
+// starts with the commit's ShortID. A success with warnings reports the warning
+// pseudo-status, so a failed allowed-to-fail job is not hidden behind a green
+// tick — GitLab flags those in its own commit list. Returns "" if none.
 func commitStatus(shortID string, pipelines []gitlab.Pipeline) string {
 	for _, p := range pipelines {
 		if shortID != "" && strings.HasPrefix(p.SHA, shortID) {
+			if p.HasWarnings {
+				return components.StatusWarning
+			}
 			return p.Status
 		}
 	}

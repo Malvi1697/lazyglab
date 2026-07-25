@@ -6,9 +6,16 @@ import (
 	"charm.land/lipgloss/v2"
 )
 
+// StatusWarning is the pseudo-status for a pipeline that succeeded while an
+// allowed-to-fail job failed — GitLab calls it "passed with warnings" and shows
+// it in orange rather than green, because a plain ✓ would hide a real failure.
+const StatusWarning = "success-with-warnings"
+
 // StatusColor returns the appropriate color for a pipeline status.
 func StatusColor(status string) color.Color {
 	switch status {
+	case StatusWarning:
+		return ColorWarning
 	case "success":
 		return ColorSuccess
 	case "failed":
@@ -29,6 +36,8 @@ func StatusColor(status string) color.Color {
 // StatusIcon returns a colored icon for a pipeline status.
 func StatusIcon(status string) string {
 	switch status {
+	case StatusWarning:
+		return lipgloss.NewStyle().Foreground(ColorWarning).Render("!")
 	case "success":
 		return lipgloss.NewStyle().Foreground(ColorSuccess).Render("✓")
 	case "failed":

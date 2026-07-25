@@ -46,6 +46,19 @@ type Pipeline struct {
 	WebURL      string
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
+
+	// StatusLabel is GitLab's own wording for the status, e.g. "passed with
+	// warnings" — a success whose allowed-to-fail jobs failed. Only the single
+	// pipeline endpoint reports it, so it is empty for pipelines from a list.
+	StatusLabel string
+	// HasWarnings is true when StatusLabel describes a success with warnings.
+	HasWarnings bool
+}
+
+// CommitRef is a branch or tag that contains a commit.
+type CommitRef struct {
+	Type string // "branch" or "tag"
+	Name string
 }
 
 // Job represents a CI/CD job within a pipeline.
@@ -88,6 +101,8 @@ type Issue struct {
 type Commit struct {
 	ID         string // full SHA, used for copying and exact pipeline matching
 	ShortID    string
+	Message    string   // full commit message; only set by GetCommit
+	ParentIDs  []string // parent SHAs; only set by GetCommit
 	Title      string
 	AuthorName string
 	CreatedAt  time.Time

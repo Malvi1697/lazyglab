@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"sync"
 	"time"
 
 	gogitlab "gitlab.com/gitlab-org/api/client-go"
@@ -14,6 +15,18 @@ import (
 type Client struct {
 	api      *gogitlab.Client
 	hostname string
+
+	// warningCache remembers which finished pipelines "passed with warnings".
+	// List endpoints do not report it, so it costs one request per pipeline —
+	// but a finished pipeline's verdict never changes, so it is asked once and
+	// auto-refreshes stay free.
+	warningCache sync.Map // pipeline ID (int) -> pipelineVerdict
+}
+
+// pipelineVerdict is the cached detailed status of a finished pipeline.
+type pipelineVerdict struct {
+	label    string
+	warnings bool
 }
 
 // NewClient creates a new GitLab API client.

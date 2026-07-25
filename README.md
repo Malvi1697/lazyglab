@@ -140,11 +140,24 @@ The five views:
 | 4 | **Issues** | Open issues, with close/reopen. |
 | 5 | **Commits** | Recent commits on the active branch, with the author beside each one. `y` copies the full SHA. |
 
-`Enter` on a commit — in the Commits view or Overview's recent-commits list — jumps
-to the **Pipelines** view with the cursor on the pipeline built for that commit. If
-no pipeline among those loaded matches it (an old commit, or a branch filter that
-excludes it), the status bar says so rather than moving the cursor somewhere
-arbitrary.
+`Enter` on a commit — in the Commits view or Overview's recent-commits list — opens
+the **commit detail**: its full message and every pipeline GitLab ran for that
+commit. From there `Enter` opens the pipeline in the Pipelines view (jobs, logs),
+`R` retries it, `y` copies the SHA and `Esc` goes back.
+
+A commit that never triggered CI simply says so — the detail is still useful, and
+nothing jumps you elsewhere.
+
+Pipelines that **passed with warnings** (a success whose allowed-to-fail job
+failed) show an orange `!` rather than a green check, matching what GitLab shows.
+Only GitLab's single-pipeline endpoint reports this, so it costs one request per
+successful pipeline the first time it is seen; the verdict is then cached for the
+session, since a finished pipeline cannot change its mind.
+
+Note that `p` in the detail runs a pipeline **on the branch head, not on the
+commit**: GitLab creates pipelines for a ref (branch or tag), never for an
+arbitrary past commit, so that is the closest thing that exists. The confirmation
+prompt names the branch it will build.
 
 Press `P` to switch projects and `b` to switch branches from any view — both
 open as overlays on top of the current view. `r` refreshes the active view.

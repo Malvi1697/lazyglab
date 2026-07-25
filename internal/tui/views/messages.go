@@ -96,6 +96,21 @@ type ConfirmMsg struct {
 	Action tea.Cmd
 }
 
+// CommitDetailLoadedMsg carries a commit's full message and the pipelines run for
+// it (GitLab creates pipelines per ref, so there may be none).
+type CommitDetailLoadedMsg struct {
+	SHA       string
+	Commit    *gitlab.Commit
+	Pipelines []gitlab.Pipeline
+	Refs      []gitlab.CommitRef
+	MRs       []gitlab.MergeRequest
+	Err       error
+}
+
+// ShowCommitMsg asks the shell to focus the Commits view on a commit and open its
+// detail, used when drilling in from Overview.
+type ShowCommitMsg struct{ ShortSHA string }
+
 // ShowCommitPipelineMsg asks the shell to switch to the Pipelines view and put
 // the cursor on the pipeline built for a commit. Views cannot switch views, so
 // this goes through the shell, which then hands it to the Pipelines view.
@@ -123,6 +138,8 @@ func LoadErr(msg tea.Msg) error {
 	case IssuesLoadedMsg:
 		return m.Err
 	case CommitsLoadedMsg:
+		return m.Err
+	case CommitDetailLoadedMsg:
 		return m.Err
 	case ErrorMsg:
 		return m.Err

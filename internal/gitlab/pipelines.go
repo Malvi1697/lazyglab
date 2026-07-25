@@ -2,6 +2,7 @@ package gitlab
 
 import (
 	"bytes"
+	"strings"
 	"sync"
 
 	gogitlab "gitlab.com/gitlab-org/api/client-go"
@@ -51,6 +52,7 @@ func (c *Client) ListPipelines(projectID int) ([]Pipeline, error) {
 	}
 
 	c.fillCommitTitles(projectID, pipelines)
+	c.fillWarnings(projectID, pipelines)
 	return pipelines, nil
 }
 
@@ -189,4 +191,114 @@ func (c *Client) GetJobTrace(projectID, jobID int) (string, error) {
 		return "", err
 	}
 	return buf.String(), nil
+}
+
+// ListPipelinesBySHA returns the pipelines run for one commit. GitLab creates
+// pipelines for refs, so a commit can have several (re-runs, or the same commit
+// on more than one branch) or none at all.
+func (c *Client) ListPipelinesBySHA(projectID int, sha string) ([]Pipeline, error) {
+	opts := &gogitlab.ListProjectPipelinesOptions{
+		SHA:         gogitlab.Ptr(sha),
+		ListOptions: gogitlab.ListOptions{PerPage: 20},
+	}
+
+	apiPipelines, _, err := c.api.Pipelines.ListProjectPipelines(projectID, opts)
+	if err != nil {
+		return nil, err
+	}
+
+	pipelines := make([]Pipeline, len(apiPipelines))
+	for i, p := range apiPipelines {
+		pipelines[i] = Pipeline{
+			ID:     int(p.ID),
+			Status: util.StripANSI(p.Status),
+			Ref:    util.StripANSI(p.Ref),
+			SHA:    util.StripANSI(p.SHA),
+			WebURL: util.StripANSI(p.WebURL),
+		}
+		if p.CreatedAt != nil {
+			pipelines[i].CreatedAt = *p.CreatedAt
+		}
+		if p.UpdatedAt != nil {
+			pipelines[i].UpdatedAt = *p.UpdatedAt
+		}
+	}
+
+	c.fillWarnings(projectID, pipelines)
+	return pipelines, nil
+}
+
+// GetPipeline returns one pipeline including GitLab's detailed status, which is
+// how "passed with warnings" (a success with failed allowed-to-fail jobs) is
+// distinguished from a plain success. The list endpoints do not carry it.
+func (c *Client) GetPipeline(projectID, pipelineID int) (*Pipeline, error) {
+	p, _, err := c.api.Pipelines.GetPipeline(projectID, int64(pipelineID))
+	if err != nil {
+		return nil, err
+	}
+
+	pipeline := &Pipeline{
+		ID:     int(p.ID),
+		Status: util.StripANSI(p.Status),
+		Ref:    util.StripANSI(p.Ref),
+		SHA:    util.StripANSI(p.SHA),
+		WebURL: util.StripANSI(p.WebURL),
+	}
+	if p.CreatedAt != nil {
+		pipeline.CreatedAt = *p.CreatedAt
+	}
+	if p.UpdatedAt != nil {
+		pipeline.UpdatedAt = *p.UpdatedAt
+	}
+	if d := p.DetailedStatus; d != nil {
+		pipeline.StatusLabel = util.StripANSI(d.Label)
+		// GitLab groups this as "success-with-warnings"; match loosely so a
+		// wording change does not silently drop the distinction.
+		pipeline.HasWarnings = strings.Contains(d.Group, "warning") ||
+			strings.Contains(strings.ToLower(d.Label), "warning")
+	}
+	return pipeline, nil
+}
+
+// fillWarnings marks the pipelines that succeeded with warnings.
+//
+// Only the single-pipeline endpoint reports GitLab's detailed status, so this
+// costs one request per successful pipeline the first time it is seen. Results
+// are cached on the client: a finished pipeline's verdict cannot change, so
+// auto-refreshes reuse them. Requests are bounded like the commit-title fan-out.
+func (c *Client) fillWarnings(projectID int, pipelines []Pipeline) {
+	var wg sync.WaitGroup
+	sem := make(chan struct{}, 6)
+
+	for i := range pipelines {
+		// Only a success can be a success-with-warnings, and an unfinished one
+		// would have to be asked again anyway.
+		if pipelines[i].Status != "success" {
+			continue
+		}
+		if v, ok := c.warningCache.Load(pipelines[i].ID); ok {
+			verdict := v.(pipelineVerdict)
+			pipelines[i].StatusLabel = verdict.label
+			pipelines[i].HasWarnings = verdict.warnings
+			continue
+		}
+
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+
+			full, err := c.GetPipeline(projectID, pipelines[i].ID)
+			if err != nil {
+				return
+			}
+			c.warningCache.Store(pipelines[i].ID, pipelineVerdict{
+				label: full.StatusLabel, warnings: full.HasWarnings,
+			})
+			pipelines[i].StatusLabel = full.StatusLabel
+			pipelines[i].HasWarnings = full.HasWarnings
+		}(i)
+	}
+	wg.Wait()
 }

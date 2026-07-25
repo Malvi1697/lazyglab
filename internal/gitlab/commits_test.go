@@ -2,6 +2,7 @@ package gitlab
 
 import (
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 )
@@ -151,5 +152,34 @@ func TestListCommits_stripANSI(t *testing.T) {
 	}
 	if commits[0].Title != "malicious" {
 		t.Errorf("ANSI not stripped: got %q", commits[0].Title)
+	}
+}
+
+func TestGetCommit_includesFullMessage(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v4/projects/1/repository/commits/abc123", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"id": "abc123def456789",
+			"short_id": "abc123d",
+			"title": "fix: the thing",
+			"message": "fix: the thing\n\nWith a longer explanation.\n",
+			"author_name": "Jan",
+			"web_url": "https://gitlab.example.com/g/p/-/commit/abc123def456789"
+		}`))
+	})
+
+	client, srv := setupTestClient(t, mux)
+	defer srv.Close()
+
+	c, err := client.GetCommit(1, "abc123")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if c.ID != "abc123def456789" {
+		t.Errorf("ID = %q, want the full SHA", c.ID)
+	}
+	if !strings.Contains(c.Message, "longer explanation") {
+		t.Errorf("Message = %q, want the full body", c.Message)
 	}
 }

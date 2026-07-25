@@ -3,6 +3,8 @@ package gitlab
 import (
 	"fmt"
 	"net/http"
+	"strings"
+	"sync"
 	"testing"
 )
 
@@ -382,5 +384,134 @@ func TestPlayJob_notFound(t *testing.T) {
 	err := client.PlayJob(42, 9999)
 	if err == nil {
 		t.Fatal("expected error for 404 response, got nil")
+	}
+}
+
+func TestListPipelinesBySHA(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v4/projects/1/pipelines", func(w http.ResponseWriter, r *http.Request) {
+		// GitLab filters by commit with the sha query parameter.
+		if got := r.URL.Query().Get("sha"); got != "abc123" {
+			t.Errorf("want sha=abc123, got %q", got)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`[
+			{"id": 722331, "status": "failed", "ref": "develop", "sha": "abc123def"},
+			{"id": 722100, "status": "success", "ref": "develop", "sha": "abc123def"}
+		]`))
+	})
+
+	client, srv := setupTestClient(t, mux)
+	defer srv.Close()
+
+	pipelines, err := client.ListPipelinesBySHA(1, "abc123")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(pipelines) != 2 {
+		t.Fatalf("want 2 pipelines, got %d", len(pipelines))
+	}
+	if pipelines[0].ID != 722331 || pipelines[0].Ref != "develop" {
+		t.Errorf("unexpected first pipeline: %+v", pipelines[0])
+	}
+}
+
+func TestListPipelinesBySHA_none(t *testing.T) {
+	// A commit that never triggered CI: an empty list, not an error.
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v4/projects/1/pipelines", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`[]`))
+	})
+
+	client, srv := setupTestClient(t, mux)
+	defer srv.Close()
+
+	pipelines, err := client.ListPipelinesBySHA(1, "nopipeline")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(pipelines) != 0 {
+		t.Errorf("want none, got %d", len(pipelines))
+	}
+}
+
+func TestFillWarnings_marksSuccessWithWarnings(t *testing.T) {
+	// Only the single-pipeline endpoint reports detailed status, so the list has
+	// to be enriched from it — and only for successes, which are the only ones
+	// that can be "passed with warnings".
+	var mu sync.Mutex
+	asked := []string{}
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v4/projects/1/pipelines/", func(w http.ResponseWriter, r *http.Request) {
+		id := strings.TrimPrefix(r.URL.Path, "/api/v4/projects/1/pipelines/")
+		mu.Lock()
+		asked = append(asked, id)
+		mu.Unlock()
+
+		w.Header().Set("Content-Type", "application/json")
+		if id == "10" {
+			_, _ = w.Write([]byte(`{"id":10,"status":"success","detailed_status":
+				{"group":"success-with-warnings","label":"passed with warnings"}}`))
+			return
+		}
+		_, _ = w.Write([]byte(`{"id":11,"status":"success","detailed_status":
+			{"group":"success","label":"passed"}}`))
+	})
+
+	client, srv := setupTestClient(t, mux)
+	defer srv.Close()
+
+	pipelines := []Pipeline{
+		{ID: 10, Status: "success"},
+		{ID: 11, Status: "success"},
+		{ID: 12, Status: "failed"},  // cannot be a warning
+		{ID: 13, Status: "running"}, // not finished
+	}
+	client.fillWarnings(1, pipelines)
+
+	if !pipelines[0].HasWarnings || pipelines[0].StatusLabel != "passed with warnings" {
+		t.Errorf("pipeline 10 = %+v, want it flagged with warnings", pipelines[0])
+	}
+	if pipelines[1].HasWarnings {
+		t.Errorf("pipeline 11 = %+v, want a plain success", pipelines[1])
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if len(asked) != 2 {
+		t.Errorf("asked for %v, want only the two successes", asked)
+	}
+}
+
+func TestFillWarnings_cachesTheVerdict(t *testing.T) {
+	// A finished pipeline's verdict cannot change, so auto-refresh must not keep
+	// paying for it.
+	var mu sync.Mutex
+	requests := 0
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v4/projects/1/pipelines/", func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		requests++
+		mu.Unlock()
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"id":10,"status":"success","detailed_status":
+			{"group":"success-with-warnings","label":"passed with warnings"}}`))
+	})
+
+	client, srv := setupTestClient(t, mux)
+	defer srv.Close()
+
+	for i := 0; i < 3; i++ {
+		pipelines := []Pipeline{{ID: 10, Status: "success"}}
+		client.fillWarnings(1, pipelines)
+		if !pipelines[0].HasWarnings {
+			t.Fatalf("round %d: verdict lost", i)
+		}
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	if requests != 1 {
+		t.Errorf("made %d requests, want 1 (the rest cached)", requests)
 	}
 }
