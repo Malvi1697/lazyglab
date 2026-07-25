@@ -78,6 +78,11 @@ func (v *CommitsView) handleKey(msg tea.KeyMsg) tea.Cmd {
 	key := msg.String()
 
 	if v.detail.active {
+		// Stepping to the neighbouring commit belongs to the list's owner, since
+		// the page itself does not know what comes next.
+		if step, ok := commitStep(key); ok {
+			return v.stepCommit(step)
+		}
 		return v.detail.handleKey(key, v.height)
 	}
 
@@ -90,7 +95,7 @@ func (v *CommitsView) handleKey(msg tea.KeyMsg) tea.Cmd {
 		return v.openCommitInBrowser()
 	}
 	if key == keyEnter {
-		return v.detail.open(v.selected())
+		return v.detail.openAt(v.selected(), v.cursor, len(v.commits))
 	}
 	if key == keyCopy {
 		return v.copyHash()
@@ -111,6 +116,16 @@ func (v *CommitsView) handleKey(msg tea.KeyMsg) tea.Cmd {
 // builds the ref's current head — which is only this commit if it happens to be
 // the tip. The confirmation says so instead of implying otherwise.
 // focusPending moves the cursor to pendingSHA and reports whether it was found.
+// stepCommit moves to the neighbouring commit, keeping the page open.
+func (v *CommitsView) stepCommit(step int) tea.Cmd {
+	next := v.cursor + step
+	if next < 0 || next >= len(v.commits) {
+		return nil // already at an end; the arrow is drawn faint there
+	}
+	v.cursor = next
+	return v.detail.openAt(v.selected(), v.cursor, len(v.commits))
+}
+
 // selected returns the highlighted commit, or nil.
 func (v *CommitsView) selected() *gitlab.Commit {
 	if v.cursor < 0 || v.cursor >= len(v.commits) {
@@ -177,7 +192,7 @@ func (v *CommitsView) Body(width, height int) string {
 func (v *CommitsView) commitItems() []string {
 	items := make([]string, len(v.commits))
 	for i, c := range v.commits {
-		items[i] = commitRow(util.TimeAgoShort(c.CreatedAt), commitStatusIcon(c.Status),
+		items[i] = commitRow(util.CommitTime(c.CreatedAt), commitStatusIcon(c.Status),
 			c.AuthorName, c.Title)
 	}
 	return items

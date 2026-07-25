@@ -161,3 +161,39 @@ func TestTimeAgoShort_UniformWidth(t *testing.T) {
 		}
 	}
 }
+
+func TestCommitTime(t *testing.T) {
+	now := time.Date(2026, time.July, 25, 9, 30, 0, 0, time.UTC)
+
+	cases := []struct {
+		name string
+		when time.Time
+		want string
+	}{
+		{"this morning shows the clock", now.Add(-2 * time.Hour), " 07:30"},
+		{"earlier today too", time.Date(2026, time.July, 25, 17, 21, 0, 0, time.UTC), " 17:21"},
+		{"yesterday shows the date, not an age", now.Add(-24 * time.Hour), "24 Jul"},
+		{"earlier this year", time.Date(2026, time.February, 3, 8, 0, 0, 0, time.UTC), " 3 Feb"},
+		{"another year shows month and year", time.Date(2025, time.December, 30, 8, 0, 0, 0, time.UTC), "Dec 25"},
+		{"zero time is blank, not epoch", time.Time{}, "      "},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := commitTimeAt(tc.when, now); got != tc.want {
+				t.Errorf("commitTimeAt = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestCommitTime_FixedWidth(t *testing.T) {
+	now := time.Date(2026, time.July, 25, 9, 30, 0, 0, time.UTC)
+	for _, when := range []time.Time{
+		now, now.Add(-30 * time.Hour), now.AddDate(-1, 0, 0), {},
+		time.Date(2026, time.July, 9, 4, 5, 0, 0, time.UTC), // single-digit day and hour
+	} {
+		if got := commitTimeAt(when, now); len([]rune(got)) != 6 {
+			t.Errorf("commitTimeAt(%v) = %q, width %d, want 6", when, got, len([]rune(got)))
+		}
+	}
+}

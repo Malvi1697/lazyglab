@@ -24,11 +24,12 @@ func renderContextBar(width int, ctx *views.Context, status string, statusIsErr 
 		}
 	}
 
-	// The branch is the thing you check, so it carries the accent; the project
-	// name is context and stays quieter.
+	// The branch is what you check first, so it is bold; the project name is
+	// context and stays quieter. Neither takes the accent — that belongs to the
+	// active tab on the row below, which would otherwise have to compete with it.
 	left := " "
 	if branch != "" {
-		left += components.TitleStyle.Render(" "+branch) + "  "
+		left += lipgloss.NewStyle().Bold(true).Render(" "+branch) + "  "
 	}
 	left += components.MutedStyle.Render(project)
 

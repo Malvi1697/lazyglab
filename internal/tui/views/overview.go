@@ -99,6 +99,11 @@ func (v *OverviewView) handleKey(msg tea.KeyMsg) tea.Cmd {
 	key := msg.String()
 
 	if v.detail.active {
+		// Stepping to the neighbouring commit belongs to the list's owner, since
+		// the page itself does not know what comes next.
+		if step, ok := commitStep(key); ok {
+			return v.stepCommit(step)
+		}
 		return v.detail.handleKey(key, v.height)
 	}
 
@@ -110,7 +115,7 @@ func (v *OverviewView) handleKey(msg tea.KeyMsg) tea.Cmd {
 		return v.openCommitInBrowser()
 	}
 	if key == keyEnter {
-		return v.detail.open(v.selectedCommit())
+		return v.detail.openAt(v.selectedCommit(), v.cursor, len(v.commits))
 	}
 	if key == keyCopy {
 		return v.copyHash()
@@ -133,6 +138,16 @@ func (v *OverviewView) copyHash() tea.Cmd {
 		copyToClipboard(sha),
 		func() tea.Msg { return StatusMsg{Text: "Copied " + c.ShortID + " to the clipboard"} },
 	)
+}
+
+// stepCommit moves to the neighbouring commit, keeping the page open.
+func (v *OverviewView) stepCommit(step int) tea.Cmd {
+	next := v.cursor + step
+	if next < 0 || next >= len(v.commits) {
+		return nil // already at an end; the arrow is drawn faint there
+	}
+	v.cursor = next
+	return v.detail.openAt(v.selectedCommit(), v.cursor, len(v.commits))
 }
 
 // selectedCommit returns the highlighted commit, or nil.
@@ -188,8 +203,23 @@ func (v *OverviewView) Body(width, height int) string {
 	// frame to do the separating, the two halves otherwise run into each other.
 	const gap = 1
 
-	topHeight := (height - gap) / 2
-	bottomHeight := height - gap - topHeight
+	// The summaries take the height their content needs — they hold at most
+	// summaryRows entries — and the commit list gets everything left over. Split
+	// evenly, three short lists were stretched down half a tall terminal while
+	// the list you actually read was cut off.
+	bottomHeight := 1 + maxInt(
+		len(v.pipelineLines()),
+		len(v.mrLines()),
+		len(v.issueLines()),
+	)
+	if bottomHeight < 4 {
+		bottomHeight = 4 // a heading and room to say "nothing here"
+	}
+	if maxBottom := (height - gap) / 2; bottomHeight > maxBottom {
+		bottomHeight = maxBottom
+	}
+
+	topHeight := height - gap - bottomHeight
 	if topHeight < 1 {
 		topHeight = 1
 	}
@@ -210,6 +240,17 @@ func (v *OverviewView) Body(width, height int) string {
 	bottom := lipgloss.JoinHorizontal(lipgloss.Top, pipelines, " ", rule, " ", mrs, " ", rule, " ", issues)
 
 	return lipgloss.JoinVertical(lipgloss.Left, top, "", bottom)
+}
+
+// maxInt returns the largest of its arguments.
+func maxInt(ns ...int) int {
+	out := 0
+	for _, n := range ns {
+		if n > out {
+			out = n
+		}
+	}
+	return out
 }
 
 func (v *OverviewView) commitsTitle() string {
@@ -233,7 +274,7 @@ func (v *OverviewView) issuesTitle() string {
 func (v *OverviewView) commitItems() []string {
 	items := make([]string, len(v.commits))
 	for i, c := range v.commits {
-		items[i] = commitRow(util.TimeAgoShort(c.CreatedAt),
+		items[i] = commitRow(util.CommitTime(c.CreatedAt),
 			commitStatusIcon(commitStatus(c.ShortID, v.pipelines)),
 			c.AuthorName, c.Title)
 	}
@@ -242,7 +283,7 @@ func (v *OverviewView) commitItems() []string {
 
 // pipelineLines renders a short list of the most recent pipelines.
 func (v *OverviewView) pipelineLines() []string {
-	const maxRows = 8
+	const maxRows = summaryRows
 	n := len(v.pipelines)
 	if n > maxRows {
 		n = maxRows
@@ -261,7 +302,7 @@ func (v *OverviewView) pipelineLines() []string {
 
 // mrLines renders a short list of the most recent merge requests.
 func (v *OverviewView) mrLines() []string {
-	const maxRows = 8
+	const maxRows = summaryRows
 	n := len(v.mrs)
 	if n > maxRows {
 		n = maxRows
@@ -280,7 +321,7 @@ func (v *OverviewView) mrLines() []string {
 
 // issueLines renders a short list of the most recent issues.
 func (v *OverviewView) issueLines() []string {
-	const maxRows = 8
+	const maxRows = summaryRows
 	n := len(v.issues)
 	if n > maxRows {
 		n = maxRows
@@ -292,6 +333,10 @@ func (v *OverviewView) issueLines() []string {
 	}
 	return lines
 }
+
+// summaryRows caps each of Overview's three summary lists, which also decides how
+// tall the bottom row of the dashboard is.
+const summaryRows = 8
 
 // commitStatusIcon renders a commit's CI state, or a faint dot when no pipeline
 // ran for it — a blank would break the column that the eye follows down.

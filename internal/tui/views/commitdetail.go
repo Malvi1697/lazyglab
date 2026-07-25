@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"github.com/Malvi1697/lazyglab/internal/gitlab"
 	"github.com/Malvi1697/lazyglab/internal/tui/components"
@@ -31,6 +32,10 @@ type commitDetail struct {
 	loading bool
 	scroll  int
 
+	// index and total place the commit within the list it was opened from, so the
+	// page can offer the neighbours and say where you are.
+	index, total int
+
 	// jobs is the same interactive panel the Pipelines view uses, so a pipeline
 	// can be driven straight from a commit.
 	jobs jobsPanel
@@ -42,17 +47,24 @@ func newCommitDetail(ctx *Context) commitDetail {
 	return commitDetail{ctx: ctx, jobs: jobsPanel{ctx: ctx}}
 }
 
-// open drills into a commit and starts loading everything about it.
-func (d *commitDetail) open(c *gitlab.Commit) tea.Cmd {
+// openAt drills into a commit, remembering its place in the list so the page can
+// step to the neighbouring commits.
+func (d *commitDetail) openAt(c *gitlab.Commit, index, total int) tea.Cmd {
 	if c == nil {
 		return nil
 	}
 	d.active = true
 	d.commit = c
+	d.index, d.total = index, total
 	d.pipelines, d.refs, d.mrs, d.pipelineJobs = nil, nil, nil, nil
+	d.jobs.close()
 	d.scroll = 0
 	return d.load(c)
 }
+
+// hasPrev and hasNext report whether the page can step to a neighbour.
+func (d *commitDetail) hasPrev() bool { return d.total > 0 && d.index > 0 }
+func (d *commitDetail) hasNext() bool { return d.total > 0 && d.index < d.total-1 }
 
 // close returns to the list.
 func (d *commitDetail) close() {
@@ -303,6 +315,7 @@ func (d *commitDetail) keyHints() []KeyHint {
 		return d.jobs.keyHints()
 	}
 	return []KeyHint{
+		{"←/→", "Prev/next commit"},
 		{"Enter", "Jobs"},
 		{"R", "Retry pipeline"},
 		{"p", "Run on branch"},
@@ -316,12 +329,67 @@ func (d *commitDetail) keyHints() []KeyHint {
 // Rendering
 // ============================================================================
 
-// body renders the detail as the view's whole body.
+// arrowGutter is the width of the margins that carry the ‹ › step arrows.
+const arrowGutter = 3
+
+// body renders the detail as the view's whole body, between two margins that
+// carry the arrows for stepping to the neighbouring commits.
 func (d *commitDetail) body(width, height int) string {
 	// Drilled into the pipeline: the panel takes over.
 	if d.jobs.active() {
 		return d.jobs.body(width, height)
 	}
+
+	pageWidth := width - 2*arrowGutter
+	if pageWidth < 20 {
+		// Too narrow for margins; drop them rather than squeezing the text.
+		return d.page(width, height)
+	}
+	return d.withArrows(d.page(pageWidth, height))
+}
+
+// withArrows frames the page with ‹ and › in the left and right margins, level
+// with the middle of the page. They are the shape of the keys that move between
+// commits, put where the movement happens rather than only named in the footer;
+// an arrow with nowhere to go is faint.
+func (d *commitDetail) withArrows(page string) string {
+	lines := strings.Split(page, "\n")
+	middle := len(lines) / 2
+
+	style := func(available bool) lipgloss.Style {
+		if available {
+			return components.TitleStyle
+		}
+		return components.FaintStyle
+	}
+
+	pad := strings.Repeat(" ", arrowGutter)
+	out := make([]string, len(lines))
+	for i, line := range lines {
+		left, right := pad, pad
+		if i == middle {
+			left = " " + style(d.hasPrev()).Render("‹") + " "
+			right = " " + style(d.hasNext()).Render("›") + " "
+		}
+		out[i] = left + line + right
+	}
+	return strings.Join(out, "\n")
+}
+
+// commitStep maps a key to a move between commits: the arrows, plus H/L for
+// hands that stay on the home row.
+func commitStep(key string) (int, bool) {
+	switch key {
+	case "left", "H":
+		return -1, true
+	case "right", "L":
+		return 1, true
+	}
+	return 0, false
+}
+
+// page renders the commit itself.
+func (d *commitDetail) page(width, height int) string {
 
 	lines := d.lines(width - 4)
 	rows := height - 2
@@ -346,8 +414,13 @@ func (d *commitDetail) body(width, height int) string {
 	if d.commit != nil {
 		title = "Commit " + d.commit.ShortID
 	}
+	// Where this commit sits in the list it was opened from, so stepping through
+	// with the arrows has a sense of place.
+	if d.total > 0 {
+		title = fmt.Sprintf("%s  %d/%d", title, d.index+1, d.total)
+	}
 	if len(lines) > rows {
-		title = fmt.Sprintf("%s  (%d-%d of %d)", title, d.scroll+1, end, len(lines))
+		title = fmt.Sprintf("%s  ·  scrolled %d-%d of %d", title, d.scroll+1, end, len(lines))
 	}
 	return components.RenderPanel(title, visible, width, height, true)
 }

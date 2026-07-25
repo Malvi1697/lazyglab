@@ -296,3 +296,106 @@ func batchMentions(cmd tea.Cmd, text string) bool {
 	}
 	return false
 }
+
+func TestCommitPage_ArrowsStepBetweenCommits(t *testing.T) {
+	v := NewCommitsView(&Context{})
+	v.width, v.height = 120, 30
+	v.commits = []gitlab.Commit{
+		{ShortID: "aaa1111", Title: "first"},
+		{ShortID: "bbb2222", Title: "second"},
+		{ShortID: "ccc3333", Title: "third"},
+	}
+	v.Update(enterKey) // page for the first commit
+
+	if v.detail.index != 0 || v.detail.total != 3 {
+		t.Fatalf("position = %d/%d, want 0/3", v.detail.index, v.detail.total)
+	}
+	if v.detail.hasPrev() {
+		t.Error("the first commit has no previous")
+	}
+
+	right := tea.KeyPressMsg{Code: tea.KeyRight}
+	v.Update(right)
+	if v.detail.commit.ShortID != "bbb2222" {
+		t.Errorf("after →, page is on %s, want bbb2222", v.detail.commit.ShortID)
+	}
+	if !v.detail.active {
+		t.Error("stepping must keep the page open")
+	}
+	if v.cursor != 1 {
+		t.Errorf("the list cursor should follow, got %d", v.cursor)
+	}
+
+	left := tea.KeyPressMsg{Code: tea.KeyLeft}
+	v.Update(left)
+	if v.detail.commit.ShortID != "aaa1111" {
+		t.Errorf("after ←, page is on %s, want aaa1111", v.detail.commit.ShortID)
+	}
+
+	// H and L do the same, for hands that stay on the home row.
+	v.Update(tea.KeyPressMsg{Code: 'L', Text: "L"})
+	if v.detail.commit.ShortID != "bbb2222" {
+		t.Errorf("after L, page is on %s", v.detail.commit.ShortID)
+	}
+	v.Update(tea.KeyPressMsg{Code: 'H', Text: "H"})
+	if v.detail.commit.ShortID != "aaa1111" {
+		t.Errorf("after H, page is on %s", v.detail.commit.ShortID)
+	}
+}
+
+func TestCommitPage_ArrowsStopAtTheEnds(t *testing.T) {
+	v := NewCommitsView(&Context{})
+	v.width, v.height = 120, 30
+	v.commits = []gitlab.Commit{{ShortID: "only", Title: "one"}}
+	v.Update(enterKey)
+
+	v.Update(tea.KeyPressMsg{Code: tea.KeyLeft})
+	v.Update(tea.KeyPressMsg{Code: tea.KeyRight})
+	if v.detail.commit.ShortID != "only" || !v.detail.active {
+		t.Error("a single commit must not be stepped off")
+	}
+	if v.detail.hasPrev() || v.detail.hasNext() {
+		t.Error("neither neighbour exists for a single commit")
+	}
+}
+
+func TestCommitPage_ArrowsAreDrawnInTheMargins(t *testing.T) {
+	v := NewCommitsView(&Context{})
+	v.width, v.height = 120, 20
+	v.commits = []gitlab.Commit{{ShortID: "a"}, {ShortID: "b"}, {ShortID: "c"}}
+	v.cursor = 1
+	v.Update(enterKey)
+
+	body := plain(v.Body(120, 20))
+	if !strings.Contains(body, "‹") || !strings.Contains(body, "›") {
+		t.Fatalf("expected step arrows in the margins:\n%s", body)
+	}
+	// They belong on one row, level with the middle of the page.
+	rows := strings.Split(body, "\n")
+	arrowRows := 0
+	for _, r := range rows {
+		if strings.Contains(r, "‹") {
+			arrowRows++
+		}
+	}
+	if arrowRows != 1 {
+		t.Errorf("arrows appear on %d rows, want 1", arrowRows)
+	}
+	// And the page says where you are.
+	if !strings.Contains(body, "2/3") {
+		t.Errorf("expected the position in the heading:\n%s", rows[0])
+	}
+}
+
+func TestCommitPage_NarrowTerminalDropsTheMargins(t *testing.T) {
+	// Squeezing the text to keep decoration would be the wrong trade.
+	v := NewCommitsView(&Context{})
+	v.width, v.height = 24, 12
+	v.commits = []gitlab.Commit{{ShortID: "a", Title: "a commit title here"}}
+	v.Update(enterKey)
+
+	body := plain(v.Body(24, 12))
+	if strings.Contains(body, "‹") {
+		t.Error("a narrow terminal should keep the text and drop the arrows")
+	}
+}

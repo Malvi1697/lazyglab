@@ -60,3 +60,36 @@ func TimeAgo(t time.Time) string {
 		return fmt.Sprintf("%d months ago", months)
 	}
 }
+
+// CommitTime formats a commit's timestamp for a list column, padded to a fixed
+// width of 6 so the column stays a column.
+//
+// A relative age is the wrong unit here: a day's work shows as "1d" on every row,
+// which says nothing about order or when anything happened. So today's commits
+// get a clock time, this year's a day and month, and older ones a month and year.
+func CommitTime(t time.Time) string { return commitTimeAt(t, time.Now()) }
+
+// commitTimeAt is CommitTime with an explicit "now", for tests.
+func commitTimeAt(t, now time.Time) string {
+	if t.IsZero() {
+		return "      "
+	}
+
+	var s string
+	switch {
+	case sameDay(t, now):
+		s = t.Format("15:04")
+	case t.Year() == now.Year():
+		s = t.Format("2 Jan")
+	default:
+		s = t.Format("Jan 06")
+	}
+	return fmt.Sprintf("%6s", s)
+}
+
+// sameDay reports whether two times fall on the same calendar day.
+func sameDay(a, b time.Time) bool {
+	ay, am, ad := a.Date()
+	by, bm, bd := b.Date()
+	return ay == by && am == bm && ad == bd
+}

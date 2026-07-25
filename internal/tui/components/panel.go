@@ -26,9 +26,12 @@ func RenderPanel(title string, lines []string, width, height int, focused bool) 
 		height = 2
 	}
 
+	// Headings are bold, not accented. The accent marks one thing — where you are
+	// — and spending it on every heading as well leaves three coloured, bold rows
+	// stacked at the top of the screen, all shouting equally.
 	titleStyle, ruleStyle := MutedTitleStyle, FaintStyle
 	if focused {
-		titleStyle, ruleStyle = TitleStyle, lipgloss.NewStyle().Foreground(ColorPrimary)
+		titleStyle = lipgloss.NewStyle().Bold(true)
 	}
 
 	head := titleStyle.Render(title)

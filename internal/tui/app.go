@@ -500,7 +500,9 @@ func (a *App) View() tea.View {
 	contextBar := renderContextBar(a.width, a.ctx, a.statusText, a.statusIsErr)
 	tabs := renderTabs(a.width, a.viewIDs, a.active, titles)
 
-	bodyHeight := a.height - 3
+	// A blank row between the tabs and the body: without it the context line, the
+	// tabs and the first heading pile up as three rows of bold text.
+	bodyHeight := a.height - 4
 	if bodyHeight < 1 {
 		bodyHeight = 1
 	}
@@ -508,7 +510,7 @@ func (a *App) View() tea.View {
 
 	footer := renderFooter(a.width, a.globalHints(), a.activeView().KeyHints())
 
-	frame := lipgloss.JoinVertical(lipgloss.Left, contextBar, tabs, body, footer)
+	frame := lipgloss.JoinVertical(lipgloss.Left, contextBar, tabs, "", body, footer)
 
 	if a.overlay != overlayNone {
 		if box := a.overlayBox(); box != "" {

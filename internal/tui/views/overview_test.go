@@ -1,9 +1,12 @@
 package views
 
 import (
+	"strings"
 	"testing"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/Malvi1697/lazyglab/internal/gitlab"
 )
@@ -89,5 +92,85 @@ func TestOverviewView_EmptyListNavigationIsSafe(t *testing.T) {
 	}
 	if cmd := v.Update(tea.KeyPressMsg{Code: 'o', Text: "o"}); cmd != nil {
 		t.Error("o with no commits must do nothing")
+	}
+}
+
+func TestOverviewLayout_SummariesTakeOnlyWhatTheyNeed(t *testing.T) {
+	// Splitting the body in half stretched three short lists down half a tall
+	// terminal while the commit list — the thing you read — was cut off.
+	v := NewOverviewView(&Context{})
+	for i := 0; i < 40; i++ {
+		v.commits = append(v.commits, gitlab.Commit{ShortID: "c", Title: "commit", AuthorName: "A"})
+	}
+	v.pipelines = []gitlab.Pipeline{{ID: 1, Status: "success", Ref: "main"}}
+	v.mrs = []gitlab.MergeRequest{{IID: 1, Title: "mr"}}
+
+	const height = 40
+	rows := strings.Split(v.Body(120, height), "\n")
+	if len(rows) != height {
+		t.Fatalf("body is %d rows, want %d", len(rows), height)
+	}
+
+	// Find where the summaries start: the row carrying their headings.
+	summaryRow := -1
+	for i, r := range rows {
+		if strings.Contains(ansi.Strip(r), "Pipelines (") {
+			summaryRow = i
+			break
+		}
+	}
+	if summaryRow == -1 {
+		t.Fatal("the summary row was not rendered")
+	}
+
+	// With one pipeline and one MR, the summaries need a heading plus a few rows,
+	// so they must sit near the bottom rather than halfway up.
+	if summaryRow < height*2/3 {
+		t.Errorf("summaries start at row %d of %d; they should hug the bottom", summaryRow, height)
+	}
+	// And the row above them is the blank separator.
+	if strings.TrimSpace(ansi.Strip(rows[summaryRow-1])) != "" {
+		t.Errorf("expected a blank row above the summaries, got %q", rows[summaryRow-1])
+	}
+}
+
+func TestOverviewLayout_SummariesNeverTakeMoreThanHalf(t *testing.T) {
+	v := NewOverviewView(&Context{})
+	v.commits = []gitlab.Commit{{ShortID: "c", Title: "t"}}
+	// More summary content than a short terminal can give room to.
+	for i := 0; i < 20; i++ {
+		v.pipelines = append(v.pipelines, gitlab.Pipeline{ID: i, Status: "success"})
+	}
+
+	const height = 14
+	rows := strings.Split(v.Body(120, height), "\n")
+	if len(rows) != height {
+		t.Fatalf("body is %d rows, want %d", len(rows), height)
+	}
+	summaryRow := -1
+	for i, r := range rows {
+		if strings.Contains(ansi.Strip(r), "Pipelines (") {
+			summaryRow = i
+			break
+		}
+	}
+	if summaryRow < height/2-1 {
+		t.Errorf("summaries start at row %d of %d, taking more than half", summaryRow, height)
+	}
+}
+
+func TestOverviewRows_ShowClockOrDateNotAnAge(t *testing.T) {
+	// Every row reading "1d" told you nothing; a clock time or a date does.
+	v := NewOverviewView(&Context{})
+	v.commits = []gitlab.Commit{{
+		ShortID: "a", Title: "today", AuthorName: "A", CreatedAt: time.Now().Add(-2 * time.Hour),
+	}}
+
+	row := ansi.Strip(v.commitItems()[0])
+	if strings.Contains(row, "1d") || strings.Contains(row, "2h") {
+		t.Errorf("row = %q, should not show a relative age", row)
+	}
+	if !strings.Contains(row, ":") {
+		t.Errorf("row = %q, want a clock time for a commit from today", row)
 	}
 }
