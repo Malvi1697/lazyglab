@@ -6,29 +6,30 @@ import (
 
 // Color palette.
 //
-// Two ideas hold it together. Text has three weights — bright for what you read,
-// muted for metadata you scan past, faint for structure — so the eye lands on
-// content rather than on chrome. And the accent is reserved: it marks what has
-// focus and nothing else, which leaves the status colours (green, red, amber) as
-// the only other saturated things on screen, so they read as information.
+// The colours are the terminal's own 16, referenced by index, not fixed hex
+// values: index 2 is whatever green your theme calls green. That way lazyglab
+// looks like the rest of your terminal instead of imposing a palette on it —
+// change your theme and it follows.
+//
+// Body text sets no colour at all, so it inherits the terminal's foreground.
+//
+// Two ideas hold the rest together. Text has three weights — default for what you
+// read, grey for metadata you scan past, dimmed grey for structure — so the eye
+// lands on content rather than on chrome. And the accent is reserved: it marks
+// what has focus and nothing else, leaving the status colours as the only other
+// saturated things on screen, so they read as information.
 var (
-	ColorPrimary   = lipgloss.Color("#8B80F9") // accent: focus, headings, selection
-	ColorSecondary = lipgloss.Color("#8B92A5") // muted text: metadata
-	ColorFaint     = lipgloss.Color("#3E4352") // structure: rules, separators
-	ColorText      = lipgloss.Color("#D7DAE0") // body text, softer than pure white
-	ColorSuccess   = lipgloss.Color("#5FD68A")
-	ColorError     = lipgloss.Color("#F0716F")
-	ColorWarning   = lipgloss.Color("#E8B84B")
-	ColorRunning   = lipgloss.Color("#66B2F0")
-	ColorPending   = lipgloss.Color("#E8B84B")
-	ColorCanceled  = lipgloss.Color("#6B7280")
-	ColorManual    = lipgloss.Color("#4FD1C5")
-	ColorDraft     = lipgloss.Color("#6B7280")
-
-	// colorSelectedBg is the current row: a tint of the accent rather than the
-	// accent itself, so a highlighted line does not shout across the width of a
-	// terminal. The accent returns as a bar in the row's gutter.
-	colorSelectedBg = lipgloss.Color("#2E2B4A")
+	ColorPrimary   = lipgloss.Color("13") // accent: focus, headings, selection
+	ColorSecondary = lipgloss.Color("8")  // muted text: metadata
+	ColorFaint     = lipgloss.Color("8")  // structure; dimmed further via Faint
+	ColorSuccess   = lipgloss.Color("2")
+	ColorError     = lipgloss.Color("1")
+	ColorWarning   = lipgloss.Color("3")
+	ColorRunning   = lipgloss.Color("4")
+	ColorPending   = lipgloss.Color("3")
+	ColorCanceled  = lipgloss.Color("8")
+	ColorManual    = lipgloss.Color("6")
+	ColorDraft     = lipgloss.Color("8")
 )
 
 // Text styles.
@@ -39,32 +40,31 @@ var (
 	// MutedTitleStyle is the heading of a section that does not have focus.
 	MutedTitleStyle = lipgloss.NewStyle().Bold(true).Foreground(ColorSecondary)
 
-	// BodyStyle is ordinary content.
-	BodyStyle = lipgloss.NewStyle().Foreground(ColorText)
+	// BodyStyle is ordinary content: the terminal's own foreground.
+	BodyStyle = lipgloss.NewStyle()
 
 	// MutedStyle is metadata beside content: timestamps, authors, counts.
 	MutedStyle = lipgloss.NewStyle().Foreground(ColorSecondary)
 
-	// FaintStyle is structure: rules, separators, gutters.
-	FaintStyle = lipgloss.NewStyle().Foreground(ColorFaint)
+	// FaintStyle is structure: rules, separators, gutters. Grey and dimmed, so it
+	// sits a step behind metadata even though both use the same palette entry.
+	FaintStyle = lipgloss.NewStyle().Foreground(ColorFaint).Faint(true)
 
-	// SelectedItemStyle is the current row of a list.
-	SelectedItemStyle = lipgloss.NewStyle().
-				Bold(true).
-				Foreground(lipgloss.Color("#F2F3F5")).
-				Background(colorSelectedBg)
+	// SelectedItemStyle is the current row of a list: the theme's grey behind
+	// bold text, rather than a saturated band.
+	SelectedItemStyle = lipgloss.NewStyle().Bold(true).Background(ColorSecondary)
 
-	NormalItemStyle = lipgloss.NewStyle().Foreground(ColorText)
+	NormalItemStyle = lipgloss.NewStyle()
 
-	// StatusBarStyle is the context line at the top of the screen. No background:
-	// a full-width grey band competes with the content under it.
-	StatusBarStyle = lipgloss.NewStyle().Foreground(ColorText)
+	// StatusBarStyle is the context line at the top. No background: a full-width
+	// band competes with the content under it.
+	StatusBarStyle = lipgloss.NewStyle()
 
 	HelpKeyStyle = lipgloss.NewStyle().Bold(true).Foreground(ColorPrimary)
 
 	HelpDescStyle = lipgloss.NewStyle().Foreground(ColorSecondary)
 
-	HelpSepStyle = lipgloss.NewStyle().Foreground(ColorFaint)
+	HelpSepStyle = lipgloss.NewStyle().Foreground(ColorFaint).Faint(true)
 
 	ErrorStyle = lipgloss.NewStyle().Foreground(ColorError).Bold(true)
 )

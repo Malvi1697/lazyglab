@@ -205,6 +205,13 @@ and reopened on the next launch. Running lazyglab inside a git repository whose
 remote points at a configured GitLab host overrides it — being in that repo is the
 clearer signal about what you want to look at.
 
+## Colors
+
+lazyglab draws with the terminal's own 16 colors, referenced by index rather than
+as fixed values: "green" is whatever green your theme calls green, and body text
+sets no color at all, so it inherits your foreground. Change your terminal theme
+and lazyglab follows it — nothing here overrides your palette.
+
 ## Configuration
 
 lazyglab stores its config at `~/.config/lazyglab/config.yml` (override with the

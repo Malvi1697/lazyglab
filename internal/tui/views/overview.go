@@ -184,8 +184,12 @@ func (v *OverviewView) Body(width, height int) string {
 		return v.detail.body(width, height)
 	}
 
-	topHeight := height / 2
-	bottomHeight := height - topHeight
+	// A blank row between the commit list and the summaries below it. Without a
+	// frame to do the separating, the two halves otherwise run into each other.
+	const gap = 1
+
+	topHeight := (height - gap) / 2
+	bottomHeight := height - gap - topHeight
 	if topHeight < 1 {
 		topHeight = 1
 	}
@@ -205,7 +209,7 @@ func (v *OverviewView) Body(width, height int) string {
 	rule := components.VRule(bottomHeight)
 	bottom := lipgloss.JoinHorizontal(lipgloss.Top, pipelines, " ", rule, " ", mrs, " ", rule, " ", issues)
 
-	return lipgloss.JoinVertical(lipgloss.Left, top, bottom)
+	return lipgloss.JoinVertical(lipgloss.Left, top, "", bottom)
 }
 
 func (v *OverviewView) commitsTitle() string {
