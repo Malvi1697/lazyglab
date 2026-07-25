@@ -189,3 +189,68 @@ func TestGetProjectByPath_notFound(t *testing.T) {
 		t.Fatal("expected an error for a missing project")
 	}
 }
+
+func TestListProjects_paginatesAllPages(t *testing.T) {
+	// A single page would hide the rest of the user's projects from the switcher,
+	// so every page must be followed.
+	var requestedPages []string
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v4/projects", func(w http.ResponseWriter, r *http.Request) {
+		page := r.URL.Query().Get("page")
+		requestedPages = append(requestedPages, page)
+		if got := r.URL.Query().Get("per_page"); got != "100" {
+			t.Errorf("want per_page=100, got %q", got)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		switch page {
+		case "", "1":
+			w.Header().Set("X-Next-Page", "2")
+			_, _ = w.Write([]byte(`[{"id":1,"path_with_namespace":"g/one"}]`))
+		case "2":
+			w.Header().Set("X-Next-Page", "3")
+			_, _ = w.Write([]byte(`[{"id":2,"path_with_namespace":"g/two"}]`))
+		default:
+			// Last page: no X-Next-Page header.
+			_, _ = w.Write([]byte(`[{"id":3,"path_with_namespace":"g/three"}]`))
+		}
+	})
+
+	client, srv := setupTestClient(t, mux)
+	defer srv.Close()
+
+	projects, err := client.ListProjects()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(projects) != 3 {
+		t.Fatalf("want 3 projects across pages, got %d", len(projects))
+	}
+	if projects[2].PathWithNamespace != "g/three" {
+		t.Errorf("want the last page's project, got %q", projects[2].PathWithNamespace)
+	}
+	if len(requestedPages) != 3 {
+		t.Errorf("want 3 requests, got %d (%v)", len(requestedPages), requestedPages)
+	}
+}
+
+func TestListProjects_stopsAtPageCap(t *testing.T) {
+	// A server that always advertises another page must not loop forever.
+	requests := 0
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v4/projects", func(w http.ResponseWriter, r *http.Request) {
+		requests++
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("X-Next-Page", "99")
+		_, _ = w.Write([]byte(`[{"id":1,"path_with_namespace":"g/p"}]`))
+	})
+
+	client, srv := setupTestClient(t, mux)
+	defer srv.Close()
+
+	if _, err := client.ListProjects(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if requests != maxProjectPages {
+		t.Errorf("want the fetch capped at %d requests, got %d", maxProjectPages, requests)
+	}
+}

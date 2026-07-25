@@ -38,6 +38,10 @@ type App struct {
 	branchCursor      int
 	pendingConfirm    *confirmAction
 
+	// Incremental "/" search inside the project and branch pickers.
+	projectFilter listFilter
+	branchFilter  listFilter
+
 	// Re-authentication overlay: opened automatically when the stored token is
 	// rejected, or on demand with "A".
 	reconfigure         ReconfigureFunc
@@ -186,8 +190,19 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// With bracketed paste (on by default) pasted text arrives as its own
 		// message rather than as key presses, so the re-authentication form has to
 		// accept it explicitly — a token is pasted far more often than typed.
-		if a.overlay == overlayReconfig {
+		switch a.overlay {
+		case overlayReconfig:
 			a.pasteIntoReconfig(msg.Content)
+		case overlayProject:
+			if a.projectFilter.active {
+				a.projectFilter.query += strings.TrimSpace(msg.Content)
+				a.projectCursor = 0
+			}
+		case overlayBranch:
+			if a.branchFilter.active {
+				a.branchFilter.query += strings.TrimSpace(msg.Content)
+				a.branchCursor = 0
+			}
 		}
 		return a, nil
 
@@ -239,6 +254,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		a.branches = msg.Branches
 		a.branchCursor = 0
+		a.branchFilter.reset()
 		a.overlay = overlayBranch
 		return a, nil
 
@@ -341,6 +357,9 @@ func (a *App) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		a.switchView((a.active - 1 + len(a.viewIDs)) % len(a.viewIDs))
 		return a, a.activeView().Focus()
 	case "P": // project switcher (uppercase so "p" stays free for view actions)
+		// Each visit starts unfiltered; a stale query would hide most projects.
+		a.projectFilter.reset()
+		a.projectCursor = 0
 		a.wantProjectPicker = true
 		if len(a.projects) > 0 {
 			a.wantProjectPicker = false

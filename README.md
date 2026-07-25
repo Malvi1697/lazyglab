@@ -144,10 +144,16 @@ Press `P` to switch projects and `b` to switch branches from any view — both
 open as overlays on top of the current view. `r` refreshes the active view.
 `h`/`l` step between views, like `Shift+Tab`/`Tab`.
 
+Both the project and branch pickers support incremental search: press `/`, type
+to narrow the list (matching the display name or the `group/project` path), and
+`Enter` opens the highlighted match. The title shows `matched/total`. `Esc` leaves
+the search, a second `Esc` closes the picker; arrows and `Ctrl+d`/`Ctrl+u` still
+navigate while you type.
+
 ### Favorites
 
-The project switcher lists only the 50 most recently active projects, so the ones
-you actually work on daily can fall off it. Star them instead:
+Star the projects you work on daily so they are one keystroke away instead of
+somewhere in a list of hundreds:
 
 - In the project switcher (`P`), highlight a project and press `f`. Starred
   projects are marked `★`.
@@ -156,8 +162,8 @@ you actually work on daily can fall off it. Star them instead:
 
 Favorites are stored per host in the config (`hosts.<host>.favorites`) as
 `group/project` paths, so they survive restarts and can be edited by hand. A
-favorite outside the recent-projects list is fetched directly by path, which is
-the point — it stays reachable no matter how long ago you touched it.
+favorite is fetched directly by path when it is not among the loaded projects, so
+it stays reachable regardless.
 
 ## Configuration
 
@@ -209,6 +215,7 @@ Overview is shown first, and auto-refresh runs every 30s.
 | `h` / `l` | Previous / next view |
 | `P` | Project switcher (`f` stars the highlighted project) |
 | `f` | Favorites picker (`f` again unstars) |
+| `/` | Search inside the project / branch picker |
 | `b` | Branch switcher |
 | `A` | Reconnect (change host / replace token) |
 | `r` | Refresh active view |

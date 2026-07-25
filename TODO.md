@@ -56,7 +56,7 @@
 
 ### Polish (Step 8)
 - [x] Help overlay (`?` key)
-- [ ] Search/filter overlay (`/` key)
+- [x] Incremental `/` search in the project and branch pickers
 - [ ] Confirmation dialogs for destructive actions (merge, close)
 - [x] Error display in status bar
 - [ ] Loading spinners during API calls
