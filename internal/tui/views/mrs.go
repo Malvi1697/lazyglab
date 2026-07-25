@@ -74,31 +74,8 @@ func (v *MRsView) Update(msg tea.Msg) tea.Cmd {
 func (v *MRsView) handleKey(msg tea.KeyMsg) tea.Cmd {
 	key := msg.String()
 
-	if isNavUp(msg) {
-		v.moveCursor(-1)
-		return nil
-	}
-	if isNavDown(msg) {
-		v.moveCursor(1)
-		return nil
-	}
-	if key == keyTop {
-		v.cursor = 0
-		return nil
-	}
-	if key == keyBottom {
-		v.cursor = len(v.mrs) - 1
-		if v.cursor < 0 {
-			v.cursor = 0
-		}
-		return nil
-	}
-	if key == keyHalfDown {
-		v.moveCursor(halfPage(v.height))
-		return nil
-	}
-	if key == keyHalfUp {
-		v.moveCursor(-halfPage(v.height))
+	if act := components.NavFor(key); act != components.NavNone {
+		v.cursor = components.ApplyNav(act, v.cursor, len(v.mrs), listRows(v.height))
 		return nil
 	}
 
@@ -281,20 +258,6 @@ func (v *MRsView) openMRInBrowser() tea.Cmd {
 // ============================================================================
 // Helpers
 // ============================================================================
-
-func (v *MRsView) moveCursor(delta int) {
-	n := len(v.mrs)
-	if n == 0 {
-		return
-	}
-	v.cursor += delta
-	if v.cursor < 0 {
-		v.cursor = 0
-	}
-	if v.cursor >= n {
-		v.cursor = n - 1
-	}
-}
 
 func (v *MRsView) clampCursor() {
 	n := len(v.mrs)

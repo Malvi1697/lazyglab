@@ -129,24 +129,9 @@ func (a *App) handleBranchPickerKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			a.branchCursor = 0
 		}
 		return a, nil
-	case isNavigateUp(msg):
-		if a.branchCursor > 0 {
-			a.branchCursor--
-		}
-		return a, nil
-	case isNavigateDown(msg):
-		if a.branchCursor < len(visible)-1 {
-			a.branchCursor++
-		}
-		return a, nil
-	case key == KeyTop:
-		a.branchCursor = 0
-		return a, nil
-	case key == KeyBottom:
-		a.branchCursor = len(visible) - 1
-		if a.branchCursor < 0 {
-			a.branchCursor = 0
-		}
+	case components.NavFor(key) != components.NavNone:
+		_, boxHeight := a.overlayBoxSize()
+		a.branchCursor = components.ApplyNav(components.NavFor(key), a.branchCursor, len(visible), boxHeight-4)
 		return a, nil
 	case key == KeyEnter:
 		if a.branchCursor >= 0 && a.branchCursor < len(visible) {
@@ -260,24 +245,9 @@ func (a *App) handleProjectPickerKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			a.projectCursor = 0
 		}
 		return a, nil
-	case isNavigateUp(msg):
-		if a.projectCursor > 0 {
-			a.projectCursor--
-		}
-		return a, nil
-	case isNavigateDown(msg):
-		if a.projectCursor < len(visible)-1 {
-			a.projectCursor++
-		}
-		return a, nil
-	case key == KeyTop:
-		a.projectCursor = 0
-		return a, nil
-	case key == KeyBottom:
-		a.projectCursor = len(visible) - 1
-		if a.projectCursor < 0 {
-			a.projectCursor = 0
-		}
+	case components.NavFor(key) != components.NavNone:
+		_, boxHeight := a.overlayBoxSize()
+		a.projectCursor = components.ApplyNav(components.NavFor(key), a.projectCursor, len(visible), boxHeight-4)
 		return a, nil
 	case key == KeyFavorite:
 		if a.projectCursor >= 0 && a.projectCursor < len(visible) {
@@ -444,58 +414,134 @@ func (a *App) overlayBoxSize() (int, int) {
 // Help overlay
 // ============================================================================
 
-func (a *App) renderHelp() string {
-	help := []struct{ key, desc string }{
+// helpEntry is one row of the help overlay: a section heading when desc is
+// empty, otherwise a key and what it does.
+type helpEntry struct{ key, desc string }
+
+// helpEntries is the full keymap. Navigation follows lazygit's vocabulary, so
+// the keys below are the same ones muscle memory already knows from there.
+func helpEntries() []helpEntry {
+	return []helpEntry{
+		{"Global", ""},
 		{"q / Ctrl+c", "Quit"},
-		{"?", "Toggle help"},
-		{"1-9", "Switch view"},
-		{"Tab / S-Tab", "Next / prev view"},
-		{"h / l", "Prev / next view"},
+		{"?", "Toggle this help"},
+		{"1-9", "Switch to view by number"},
+		{"Tab / S-Tab", "Next / previous view"},
+		{"l / h", "Next / previous view"},
+		{"] / [", "Next / previous view"},
 		{"P", "Project switcher"},
-		{"f", "Favorites (f again: star/unstar)"},
+		{"f", "Favorites picker"},
 		{"b", "Branch filter"},
-		{"r", "Refresh view"},
-		{"A", "Reconnect (host / token)"},
-		{"/", "Search in a picker"},
-		{"j / k", "Navigate down / up"},
-		{"g / G", "Top / bottom"},
-		{"Ctrl+d/u", "Half page down / up"},
+		{"r", "Refresh the active view"},
+		{"A", "Reconnect (change host / token)"},
+
+		{"Lists", ""},
+		{"j / k", "Down / up"},
+		{"↓ / ↑", "Down / up"},
+		{". / ,", "Page down / up"},
+		{"Ctrl+d / Ctrl+u", "Half page down / up"},
+		{"> / <", "Jump to bottom / top"},
+		{"G / g", "Jump to bottom / top"},
+		{"End / Home", "Jump to bottom / top"},
 		{"Enter", "Select / drill in"},
 		{"Esc", "Back / cancel"},
 		{"o", "Open in browser"},
-		{"", ""},
-		{"--- Pipelines ---", ""},
-		{"Enter", "View jobs / log"},
+
+		{"Pickers (P / b / f)", ""},
+		{"/", "Search; Enter applies it, Esc clears"},
+		{"f", "Star / unstar the highlighted project"},
+		{"Backspace", "Edit the search"},
+
+		{"Pipelines", ""},
+		{"Enter", "Jobs, then a job's log"},
+		{"p", "Run a new pipeline / play a manual job"},
 		{"R", "Retry"},
 		{"C", "Cancel"},
-		{"", ""},
-		{"--- Merge Requests ---", ""},
+
+		{"Merge Requests", ""},
 		{"a", "Approve"},
 		{"m", "Merge"},
-		{"", ""},
-		{"--- Issues ---", ""},
+
+		{"Issues", ""},
 		{"c", "Close / reopen"},
+	}
+}
+
+// handleHelpKey scrolls the help, or closes it on Esc/?/q.
+func (a *App) handleHelpKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	key := msg.String()
+	switch key {
+	case KeyEscape, KeyHelp, KeyQuit, KeyEnter:
+		a.overlay = overlayNone
+		a.helpScroll = 0
+		return a, nil
+	}
+
+	entries := helpEntries()
+	_, boxHeight := a.helpBoxSize(entries)
+	if act := components.NavFor(key); act != components.NavNone {
+		// The help is scrolled rather than "selected": drive the offset directly.
+		a.helpScroll = components.ApplyNav(act, a.helpScroll, len(entries), boxHeight-2)
+		return a, nil
+	}
+	return a, nil
+}
+
+// helpBoxSize returns the help overlay's width and height, capped to the screen.
+func (a *App) helpBoxSize(entries []helpEntry) (int, int) {
+	width := 56
+	if width > a.width-2 {
+		width = a.width - 2
+	}
+	// +2 for the borders, +1 for the footer hint.
+	height := len(entries) + 3
+	if max := a.height - 2; height > max {
+		height = max
+	}
+	if height < 6 {
+		height = 6
+	}
+	return width, height
+}
+
+func (a *App) renderHelp() string {
+	entries := helpEntries()
+	boxWidth, boxHeight := a.helpBoxSize(entries)
+	innerWidth := boxWidth - 4
+	rows := boxHeight - 3 // content rows, leaving the footer hint
+
+	// Clamp an offset left over from a taller terminal.
+	if maxOffset := len(entries) - rows; a.helpScroll > maxOffset {
+		a.helpScroll = maxOffset
+	}
+	if a.helpScroll < 0 {
+		a.helpScroll = 0
 	}
 
 	var lines []string
-	lines = append(lines, components.TitleStyle.Render("Keybindings"))
-	lines = append(lines, "")
-	for _, h := range help {
-		switch {
-		case h.key == "":
-			lines = append(lines, "")
-		case strings.HasPrefix(h.key, "---"):
-			lines = append(lines, components.HelpDescStyle.Render(h.key))
-		default:
-			lines = append(lines, fmt.Sprintf("  %s  %s",
-				components.HelpKeyStyle.Width(14).Render(h.key),
-				components.HelpDescStyle.Render(h.desc),
-			))
+	for i := a.helpScroll; i < len(entries) && len(lines) < rows; i++ {
+		e := entries[i]
+		if e.desc == "" {
+			// Section heading, blank line above it except at the very top.
+			if len(lines) > 0 && len(lines) < rows-1 {
+				lines = append(lines, "")
+			}
+			lines = append(lines, components.TitleStyle.Render(e.key))
+			continue
 		}
+		lines = append(lines, fmt.Sprintf("%s %s",
+			components.HelpKeyStyle.Render(components.PadRight(e.key, 16)),
+			components.HelpDescStyle.Render(components.Truncate(e.desc, innerWidth-17)),
+		))
 	}
-	lines = append(lines, "")
-	lines = append(lines, components.HelpDescStyle.Render("Press any key to close"))
 
-	// Left-align the block as a unit, then let View center it.
-	return lipgloss.NewStyle().Align(lipgloss.Left).Render(strings.Join(lines, "\n"))
+	hint := "Esc: close"
+	if len(entries) > rows {
+		hint = fmt.Sprintf("j/k: scroll (%d-%d of %d)  Esc: close",
+			a.helpScroll+1, min(a.helpScroll+rows, len(entries)), len(entries))
+	}
+	lines = append(lines, components.HelpSepStyle.Render(hint))
+
+	return components.RenderBox("Keybindings", lines, boxWidth, boxHeight,
+		components.ColorPrimary, components.ColorPrimary)
 }

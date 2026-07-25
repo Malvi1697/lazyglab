@@ -1,58 +1,24 @@
 package tui
 
-import tea "charm.land/bubbletea/v2"
-
 // Key constants for consistent keybinding references.
 const (
-	KeyQuit       = "q"
-	KeyHelp       = "?"
-	KeySearch     = "/"
-	KeyRefresh    = "r"
-	KeyEnter      = "enter"
-	KeyEscape     = "esc"
-	KeyTab        = "tab"
-	KeyShiftTab   = "shift+tab"
-	KeyUp         = "up"
-	KeyDown       = "down"
-	KeyVimUp      = "k"
-	KeyVimDown    = "j"
-	KeyVimLeft    = "h"
-	KeyVimRight   = "l"
-	KeyTop        = "g"
-	KeyBottom     = "G"
-	KeyHalfDown   = "ctrl+d"
-	KeyHalfUp     = "ctrl+u"
-	KeyOpenBrowse = "o"
-	KeyBranch     = "b"
-	KeyReauth     = "A" // reconnect: change host / replace token
-	KeyFavorite   = "f" // favorites picker; inside a picker: star/unstar
-
-	// Panel selection
-	KeyPanel1 = "1"
-	KeyPanel2 = "2"
-	KeyPanel3 = "3"
-	KeyPanel4 = "4"
-
-	// MR-specific
-	KeyApprove = "a"
-	KeyMerge   = "m"
-	KeyComment = "c"
-
-	// Pipeline-specific
-	KeyRetry  = "R"
-	KeyCancel = "C"
-	KeyRun    = "p" // run/trigger new pipeline
-
-	// Job-specific (inside job view)
-	KeyPlayJob = "p" // play manual job
+	KeyQuit     = "q"
+	KeyHelp     = "?"
+	KeySearch   = "/"
+	KeyRefresh  = "r"
+	KeyEnter    = "enter"
+	KeyEscape   = "esc"
+	KeyTab      = "tab"
+	KeyShiftTab = "shift+tab"
+	KeyUp       = "up"
+	KeyDown     = "down"
+	KeyVimLeft  = "h"
+	KeyVimRight = "l"
+	KeyHalfDown = "ctrl+d"
+	KeyHalfUp   = "ctrl+u"
+	KeyBranch   = "b"
+	KeyReauth   = "A" // reconnect: change host / replace token
+	KeyFavorite = "f" // favorites picker; inside a picker: star/unstar
+	KeyNextTab  = "]" // next view, as in lazygit
+	KeyPrevTab  = "[" // previous view, as in lazygit
 )
-
-// isNavigateUp checks if the key is an up-navigation key.
-func isNavigateUp(msg tea.KeyMsg) bool {
-	return msg.String() == KeyUp || msg.String() == KeyVimUp
-}
-
-// isNavigateDown checks if the key is a down-navigation key.
-func isNavigateDown(msg tea.KeyMsg) bool {
-	return msg.String() == KeyDown || msg.String() == KeyVimDown
-}

@@ -66,31 +66,8 @@ func (v *CommitsView) Update(msg tea.Msg) tea.Cmd {
 func (v *CommitsView) handleKey(msg tea.KeyMsg) tea.Cmd {
 	key := msg.String()
 
-	if isNavUp(msg) {
-		v.moveCursor(-1)
-		return nil
-	}
-	if isNavDown(msg) {
-		v.moveCursor(1)
-		return nil
-	}
-	if key == keyTop {
-		v.cursor = 0
-		return nil
-	}
-	if key == keyBottom {
-		v.cursor = len(v.commits) - 1
-		if v.cursor < 0 {
-			v.cursor = 0
-		}
-		return nil
-	}
-	if key == keyHalfDown {
-		v.moveCursor(halfPage(v.height))
-		return nil
-	}
-	if key == keyHalfUp {
-		v.moveCursor(-halfPage(v.height))
+	if act := components.NavFor(key); act != components.NavNone {
+		v.cursor = components.ApplyNav(act, v.cursor, len(v.commits), listRows(v.height))
 		return nil
 	}
 
@@ -211,20 +188,6 @@ func (v *CommitsView) openCommitInBrowser() tea.Cmd {
 // ============================================================================
 // Helpers
 // ============================================================================
-
-func (v *CommitsView) moveCursor(delta int) {
-	n := len(v.commits)
-	if n == 0 {
-		return
-	}
-	v.cursor += delta
-	if v.cursor < 0 {
-		v.cursor = 0
-	}
-	if v.cursor >= n {
-		v.cursor = n - 1
-	}
-}
 
 func (v *CommitsView) clampCursor() {
 	n := len(v.commits)

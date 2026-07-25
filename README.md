@@ -226,13 +226,17 @@ Overview is shown first, and auto-refresh runs every 30s.
 | `1-5` | Switch view |
 | `Tab` / `Shift+Tab` | Next/previous view |
 | `h` / `l` | Previous / next view |
+| `[` / `]` | Previous / next view |
 | `P` | Project switcher (`f` stars the highlighted project) |
 | `f` | Favorites picker (`f` again unstars) |
 | `/` | Search inside the project / branch picker |
 | `b` | Branch switcher |
 | `A` | Reconnect (change host / replace token) |
 | `r` | Refresh active view |
-| `j/k` | Navigate down/up |
+| `j` / `k`, `↓` / `↑` | Down / up |
+| `.` / `,` | Page down / up |
+| `Ctrl+d` / `Ctrl+u` | Half page down / up |
+| `>` / `<`, `G` / `g`, `End` / `Home` | Jump to bottom / top |
 | `g/G` | Go to top/bottom |
 | `Ctrl+d/u` | Half page down/up |
 | `Esc` | Close overlay / go back |

@@ -89,29 +89,14 @@ func (v *OverviewView) Update(msg tea.Msg) tea.Cmd {
 func (v *OverviewView) handleKey(msg tea.KeyMsg) tea.Cmd {
 	key := msg.String()
 
-	switch {
-	case isNavUp(msg):
-		v.moveCursor(-1)
-	case isNavDown(msg):
-		v.moveCursor(1)
-	case key == keyTop:
-		v.cursor = 0
-	case key == keyBottom:
-		v.cursor = len(v.commits) - 1
-		v.clampCursor()
-	case key == keyHalfDown:
-		v.moveCursor(halfPage(v.height))
-	case key == keyHalfUp:
-		v.moveCursor(-halfPage(v.height))
-	case key == keyOpenBrowse:
+	if act := components.NavFor(key); act != components.NavNone {
+		v.cursor = components.ApplyNav(act, v.cursor, len(v.commits), listRows(v.height))
+		return nil
+	}
+	if key == keyOpenBrowse {
 		return v.openCommitInBrowser()
 	}
 	return nil
-}
-
-func (v *OverviewView) moveCursor(delta int) {
-	v.cursor += delta
-	v.clampCursor()
 }
 
 func (v *OverviewView) clampCursor() {

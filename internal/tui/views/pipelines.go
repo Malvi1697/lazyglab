@@ -19,10 +19,6 @@ import (
 const (
 	keyEnter      = "enter"
 	keyEscape     = "esc"
-	keyTop        = "g"
-	keyBottom     = "G"
-	keyHalfDown   = "ctrl+d"
-	keyHalfUp     = "ctrl+u"
 	keyOpenBrowse = "o"
 	keyRetry      = "R"
 	keyCancel     = "C"
@@ -158,31 +154,8 @@ func (v *PipelinesView) handleKey(msg tea.KeyMsg) tea.Cmd {
 	}
 
 	// Pipeline list navigation
-	if isNavUp(msg) {
-		v.moveCursor(-1)
-		return nil
-	}
-	if isNavDown(msg) {
-		v.moveCursor(1)
-		return nil
-	}
-	if key == keyTop {
-		v.cursor = 0
-		return nil
-	}
-	if key == keyBottom {
-		v.cursor = len(v.pipelines) - 1
-		if v.cursor < 0 {
-			v.cursor = 0
-		}
-		return nil
-	}
-	if key == keyHalfDown {
-		v.moveCursor(halfPage(v.height))
-		return nil
-	}
-	if key == keyHalfUp {
-		v.moveCursor(-halfPage(v.height))
+	if act := components.NavFor(key); act != components.NavNone {
+		v.cursor = components.ApplyNav(act, v.cursor, len(v.pipelines), listRows(v.height))
 		return nil
 	}
 
@@ -224,83 +197,49 @@ func (v *PipelinesView) handleJobViewKey(msg tea.KeyMsg) tea.Cmd {
 	// When a trace is loaded, navigation scrolls the log. Actions (R/C/p/o)
 	// fall through to the job-action handling below.
 	if v.jobTrace != "" {
-		traceHeight := v.height - 2
-		if traceHeight < 1 {
-			traceHeight = 1
-		}
-		switch {
-		case isNavDown(msg):
+		rows := listRows(v.height)
+		// The log is scrolled with the same keys that move a list cursor; the end
+		// is clamped by jobTraceView, which knows the wrapped line count.
+		switch components.NavFor(key) {
+		case components.NavDown:
 			v.jobTraceScroll++
 			return nil
-		case isNavUp(msg):
+		case components.NavUp:
 			if v.jobTraceScroll > 0 {
 				v.jobTraceScroll--
 			}
 			return nil
-		case key == keyHalfDown:
-			v.jobTraceScroll += traceHeight / 2
+		case components.NavHalfDown:
+			v.jobTraceScroll += rows / 2
 			return nil
-		case key == keyHalfUp:
-			v.jobTraceScroll -= traceHeight / 2
-			if v.jobTraceScroll < 0 {
-				v.jobTraceScroll = 0
-			}
+		case components.NavHalfUp:
+			v.jobTraceScroll = max(0, v.jobTraceScroll-rows/2)
 			return nil
-		case key == keyTop:
+		case components.NavPageDown:
+			v.jobTraceScroll += rows
+			return nil
+		case components.NavPageUp:
+			v.jobTraceScroll = max(0, v.jobTraceScroll-rows)
+			return nil
+		case components.NavTop:
 			v.jobTraceScroll = 0
 			return nil
-		case key == keyBottom:
-			v.jobTraceScroll = len(v.jobTrace) // clamped by jobTraceView
+		case components.NavBottom:
+			v.jobTraceScroll = len(v.jobTrace)
 			return nil
 		}
 	}
 
-	if isNavUp(msg) {
-		if v.jobCursor > 0 {
-			v.jobCursor--
+	// Job list navigation. Moving off a job drops the log shown beside it.
+	if act := components.NavFor(key); act != components.NavNone {
+		if moved := components.ApplyNav(act, v.jobCursor, len(v.jobs), listRows(v.height)); moved != v.jobCursor {
+			v.jobCursor = moved
 			v.jobTrace = ""
 		}
-		return nil
-	}
-	if isNavDown(msg) {
-		if v.jobCursor < len(v.jobs)-1 {
-			v.jobCursor++
-			v.jobTrace = ""
-		}
-		return nil
-	}
-	if key == keyTop {
-		v.jobCursor = 0
-		v.jobTrace = ""
-		return nil
-	}
-	if key == keyBottom {
-		v.jobCursor = len(v.jobs) - 1
-		if v.jobCursor < 0 {
-			v.jobCursor = 0
-		}
-		v.jobTrace = ""
 		return nil
 	}
 
 	switch key {
-	case keyHalfDown:
-		v.jobCursor += halfPage(v.height)
-		if v.jobCursor >= len(v.jobs) {
-			v.jobCursor = len(v.jobs) - 1
-		}
-		if v.jobCursor < 0 {
-			v.jobCursor = 0
-		}
-		v.jobTrace = ""
-		return nil
-	case keyHalfUp:
-		v.jobCursor -= halfPage(v.height)
-		if v.jobCursor < 0 {
-			v.jobCursor = 0
-		}
-		v.jobTrace = ""
-		return nil
 	case keyEnter:
 		return v.loadJobTrace()
 	case keyOpenBrowse:
@@ -792,20 +731,6 @@ func (v *PipelinesView) openPipelineInBrowser() tea.Cmd {
 // Helpers
 // ============================================================================
 
-func (v *PipelinesView) moveCursor(delta int) {
-	n := len(v.pipelines)
-	if n == 0 {
-		return
-	}
-	v.cursor += delta
-	if v.cursor < 0 {
-		v.cursor = 0
-	}
-	if v.cursor >= n {
-		v.cursor = n - 1
-	}
-}
-
 func (v *PipelinesView) clampCursor() {
 	n := len(v.pipelines)
 	if v.cursor >= n {
@@ -834,20 +759,12 @@ func execBrowser(cmd *exec.Cmd) tea.Cmd {
 	})
 }
 
-func halfPage(height int) int {
-	hp := (height - 2) / 2
-	if hp < 1 {
-		hp = 1
+// listRows is how many list rows a view of the given height shows, i.e. the box
+// height minus its borders. It is the page size for navigation.
+func listRows(height int) int {
+	rows := height - 2
+	if rows < 1 {
+		rows = 1
 	}
-	return hp
-}
-
-func isNavUp(msg tea.KeyMsg) bool {
-	s := msg.String()
-	return s == "up" || s == "k"
-}
-
-func isNavDown(msg tea.KeyMsg) bool {
-	s := msg.String()
-	return s == "down" || s == "j"
+	return rows
 }

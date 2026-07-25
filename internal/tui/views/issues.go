@@ -71,31 +71,8 @@ func (v *IssuesView) Update(msg tea.Msg) tea.Cmd {
 func (v *IssuesView) handleKey(msg tea.KeyMsg) tea.Cmd {
 	key := msg.String()
 
-	if isNavUp(msg) {
-		v.moveCursor(-1)
-		return nil
-	}
-	if isNavDown(msg) {
-		v.moveCursor(1)
-		return nil
-	}
-	if key == keyTop {
-		v.cursor = 0
-		return nil
-	}
-	if key == keyBottom {
-		v.cursor = len(v.issues) - 1
-		if v.cursor < 0 {
-			v.cursor = 0
-		}
-		return nil
-	}
-	if key == keyHalfDown {
-		v.moveCursor(halfPage(v.height))
-		return nil
-	}
-	if key == keyHalfUp {
-		v.moveCursor(-halfPage(v.height))
+	if act := components.NavFor(key); act != components.NavNone {
+		v.cursor = components.ApplyNav(act, v.cursor, len(v.issues), listRows(v.height))
 		return nil
 	}
 
@@ -259,20 +236,6 @@ func (v *IssuesView) openIssueInBrowser() tea.Cmd {
 // ============================================================================
 // Helpers
 // ============================================================================
-
-func (v *IssuesView) moveCursor(delta int) {
-	n := len(v.issues)
-	if n == 0 {
-		return
-	}
-	v.cursor += delta
-	if v.cursor < 0 {
-		v.cursor = 0
-	}
-	if v.cursor >= n {
-		v.cursor = n - 1
-	}
-}
 
 func (v *IssuesView) clampCursor() {
 	n := len(v.issues)

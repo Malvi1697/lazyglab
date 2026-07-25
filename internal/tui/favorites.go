@@ -90,22 +90,9 @@ func (a *App) handleFavoritesKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case key == KeyEscape || key == KeyQuit:
 		a.overlay = overlayNone
 		return a, nil
-	case isNavigateUp(msg):
-		if a.favoriteCursor > 0 {
-			a.favoriteCursor--
-		}
-		return a, nil
-	case isNavigateDown(msg):
-		if a.favoriteCursor < len(a.favorites)-1 {
-			a.favoriteCursor++
-		}
-		return a, nil
-	case key == KeyTop:
-		a.favoriteCursor = 0
-		return a, nil
-	case key == KeyBottom:
-		a.favoriteCursor = len(a.favorites) - 1
-		a.clampFavoriteCursor()
+	case components.NavFor(key) != components.NavNone:
+		_, boxHeight := a.overlayBoxSize()
+		a.favoriteCursor = components.ApplyNav(components.NavFor(key), a.favoriteCursor, len(a.favorites), boxHeight-4)
 		return a, nil
 	case key == KeyFavorite:
 		// Unstar from inside the picker, so cleaning up needs no detour.
@@ -132,9 +119,9 @@ func (a *App) selectedFavorite() string {
 }
 
 // selectProjectByPath activates a project identified by path. Already-loaded
-// projects are used directly; anything else is fetched, since ListProjects only
-// returns the 50 most recently active projects and a favorite is often outside
-// that set — which is much of the point of having favorites.
+// projects are used directly; anything else is fetched by path, which covers a
+// favorite beyond the page cap and a remembered project restored at startup
+// before the list has arrived.
 func (a *App) selectProjectByPath(path string) tea.Cmd {
 	for _, p := range a.projects {
 		if strings.EqualFold(p.PathWithNamespace, path) {
