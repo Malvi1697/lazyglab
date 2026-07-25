@@ -6,13 +6,18 @@ Manage merge requests, pipelines, and issues without leaving your terminal.
 
 ## Features
 
+- A cockpit layout: a context bar (active project/branch) and tabs on top,
+  one full-screen view below, switched with number keys or Tab
+- Overview dashboard summarizing recent commits, pipelines, MRs, and issues
+  at a glance
 - Browse and switch between GitLab projects
 - View, approve, and merge MRs
-- Monitor pipelines, view jobs grouped by stage
+- Monitor pipelines, view jobs grouped by stage, and read job logs
 - Run, retry, and cancel pipelines and individual jobs
 - Play manual jobs directly from the TUI
 - Filter pipelines by branch
 - Browse and manage issues (close/reopen)
+- Browse recent commits, with CI status mapped in from pipelines
 - Vim-style keyboard navigation (j/k/h/l/g/G/Ctrl+d/Ctrl+u)
 - Context-sensitive keybinding hints at the bottom
 - Interactive first-run setup wizard — no external tools required
@@ -89,6 +94,26 @@ lazyglab setup      # Re-run setup wizard
 lazyglab --version  # Show version
 ```
 
+## The cockpit
+
+lazyglab is a cockpit: a context bar and a row of tabs stay on screen, and the
+space below shows one full-screen view at a time. Switch views with the number
+keys (`1`-`5`) or `Tab`/`Shift+Tab`. The context bar shows the active project
+and branch, plus the latest status/error message.
+
+The five views:
+
+| # | View | What it shows |
+|---|------|----------------|
+| 1 | **Overview** | Dashboard: recent commits (with CI status) plus summaries of pipelines, merge requests, and issues. Read-only, default view. |
+| 2 | **Pipelines** | Pipeline list; `Enter` drills into jobs grouped by stage, and into a job's log. |
+| 3 | **Merge Requests** | Open MRs, with approve/merge actions. |
+| 4 | **Issues** | Open issues, with close/reopen. |
+| 5 | **Commits** | Recent commits on the active branch. |
+
+Press `p` to switch projects and `b` to switch branches from any view — both
+open as overlays on top of the current view. `r` refreshes the active view.
+
 ## Configuration
 
 lazyglab stores its config at `~/.config/lazyglab/config.yml` (override with the
@@ -101,22 +126,25 @@ hosts:
   gitlab.com:
     token: "…"
 settings:
-  # Which sidebar panels to show, in display order. Omit any to hide it.
-  # (projects is always shown — it selects the active project.)
-  panels: [projects, pipelines, merge_requests, issues]
-  # Auto-refresh interval for the active panel, in seconds. 0 disables it.
+  # Enabled tabs, in display order. Omit any to hide it. Empty/omitted = all five.
+  views: [overview, pipelines, mrs, issues, commits]
+  # The view shown at launch. Empty/omitted = first enabled view.
+  default_view: overview
+  # Auto-refresh interval for the active view, in seconds. 0 disables it.
   refresh_interval: 30
 ```
 
-- **panels** — reorder or hide panels. For example `[projects, pipelines]`
-  shows only Projects and Pipelines. Valid names: `projects`, `pipelines`,
-  `merge_requests`, `issues`. Unknown or duplicate names are ignored.
-- **refresh_interval** — the active panel reloads on this interval (paused while
-  a dialog/help/branch picker is open or while reading a job log). Values 1–4
-  are clamped to 5s; `0` disables auto-refresh. Omitted → 30s.
+- **views** — reorder or hide tabs. For example `[overview, pipelines]` shows
+  only those two. Valid names: `overview`, `pipelines`, `mrs`, `issues`,
+  `commits`. Unknown or duplicate names are dropped with a warning.
+- **default_view** — which view is active on launch, by name. Falls back to
+  the first enabled view if empty, unknown, or not in `views`.
+- **refresh_interval** — the active view reloads on this interval (paused while
+  an overlay — help/project/branch/confirm — is open). Values 1–4 are clamped
+  to 5s; `0` disables auto-refresh. Omitted → 30s.
 
-With no `settings:` block, all four panels are shown and auto-refresh runs every
-30s.
+With no `settings:` block, all five views are enabled in the order above,
+Overview is shown first, and auto-refresh runs every 30s.
 
 ## Keybindings
 
@@ -126,17 +154,26 @@ With no `settings:` block, all four panels are shown and auto-refresh runs every
 |-----|--------|
 | `q` | Quit |
 | `?` | Help overlay |
-| `1-4` | Switch panel |
-| `h/l` | Previous/next panel |
-| `Tab/S-Tab` | Next/previous panel |
+| `1-5` | Switch view |
+| `Tab` / `Shift+Tab` | Next/previous view |
+| `p` | Project switcher |
+| `b` | Branch switcher |
+| `r` | Refresh active view |
 | `j/k` | Navigate down/up |
 | `g/G` | Go to top/bottom |
 | `Ctrl+d/u` | Half page down/up |
-| `Enter` | Select / view detail |
-| `Esc` | Go back / clear filter |
-| `b` | Select branch |
-| `r` | Refresh |
+| `Esc` | Close overlay / go back |
+
+### Pipelines
+
+| Key | Action |
+|-----|--------|
+| `Enter` | View jobs (then a job's log) |
+| `R` | Retry pipeline / job |
+| `C` | Cancel pipeline / job |
+| `p` | Run new pipeline / play manual job |
 | `o` | Open in browser |
+| `Esc` | Back (job log → jobs → pipeline list) |
 
 ### Merge Requests
 
@@ -144,31 +181,22 @@ With no `settings:` block, all four panels are shown and auto-refresh runs every
 |-----|--------|
 | `a` | Approve MR |
 | `m` | Merge MR |
-
-### Pipelines
-
-| Key | Action |
-|-----|--------|
-| `Enter` | View jobs |
-| `p` | Run new pipeline |
-| `R` | Retry pipeline |
-| `C` | Cancel pipeline |
-
-### Jobs (inside job view)
-
-| Key | Action |
-|-----|--------|
-| `R` | Retry job |
-| `C` | Cancel job |
-| `p` | Play manual job |
 | `o` | Open in browser |
-| `Esc` | Back to pipeline list |
 
 ### Issues
 
 | Key | Action |
 |-----|--------|
 | `c` | Close/reopen issue |
+| `o` | Open in browser |
+
+### Commits
+
+| Key | Action |
+|-----|--------|
+| `o` | Open commit in browser |
+
+Overview is read-only and has no view-specific keys.
 
 ## License
 

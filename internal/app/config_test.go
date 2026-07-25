@@ -287,6 +287,42 @@ hosts:
 	}
 }
 
+func TestLoadConfig_Settings(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "config.yml")
+	writeTestFile(t, cfgPath, `
+default_host: gitlab.com
+hosts:
+  gitlab.com:
+    token: glpat-xxxxxxxxxxxxxxxxxxxx
+settings:
+  views: [pipelines, commits]
+  default_view: pipelines
+  refresh_interval: 45
+`)
+
+	cfg, err := LoadConfigFrom(cfgPath)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	wantViews := []string{"pipelines", "commits"}
+	if len(cfg.Settings.Views) != len(wantViews) {
+		t.Fatalf("want %d views, got %d (%v)", len(wantViews), len(cfg.Settings.Views), cfg.Settings.Views)
+	}
+	for i, v := range wantViews {
+		if cfg.Settings.Views[i] != v {
+			t.Errorf("view %d: want %q, got %q", i, v, cfg.Settings.Views[i])
+		}
+	}
+	if cfg.Settings.DefaultView != "pipelines" {
+		t.Errorf("want default_view=pipelines, got %q", cfg.Settings.DefaultView)
+	}
+	if got := cfg.Settings.RefreshSeconds(); got != 45 {
+		t.Errorf("want RefreshSeconds()=45, got %d", got)
+	}
+}
+
 func TestLoadConfig_invalidYAML(t *testing.T) {
 	dir := t.TempDir()
 	cfgPath := filepath.Join(dir, "config.yml")

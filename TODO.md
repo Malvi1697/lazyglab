@@ -1,5 +1,12 @@
 # Lazyglab — TODO
 
+> **v2 cockpit rework:** the TUI was reworked from four side-by-side sidebar
+> panels into a cockpit layout — a context bar + tabs on top, one full-screen
+> view below (Overview, Pipelines, Merge Requests, Issues, Commits), switched
+> with number keys or Tab. See the README's "The cockpit" and "Configuration"
+> sections for the current model. Several items below (panels, panel
+> components) predate the rework and are superseded rather than literally done.
+
 ## Phase 1: MVP
 
 ### Foundation
@@ -60,15 +67,17 @@
 - [ ] Create MR wizard
 - [ ] Create Issue wizard
 - [ ] MR review workflow (line-level comments)
-- [ ] Notifications / Todos panel (5th panel)
+- [x] Commits view — recent commits with CI status mapped in from pipelines
+- [ ] Notifications / Todos view
 - [x] Auto-detect project from `.git/config` remote URL
-- [x] Auto-refresh on timer (configurable interval)
-- [x] Configurable panels (show/hide + reorder via `settings.panels`)
-- [x] Pipeline panel redesign (aligned columns, colored status icons)
+- [x] Auto-refresh on timer (configurable interval, `settings.refresh_interval`)
+- [x] Cockpit rework: full-screen views + tabs, replacing the four sidebar panels
+- [x] Configurable views (show/hide + reorder via `settings.views` / `settings.default_view`)
+- [x] Pipeline view redesign (aligned columns, colored status icons)
 - [x] Job preview in detail panel on hover (debounced + cached)
 
 ### Configuration
-- [ ] Own config file (`~/.config/lazyglab/config.yml`)
+- [x] Own config file (`~/.config/lazyglab/config.yml`)
 - [ ] Custom keybinding overrides
 - [ ] Theme/color customization
 - [ ] Default filters (e.g., only show MRs assigned to me)
