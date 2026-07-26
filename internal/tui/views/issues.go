@@ -200,7 +200,7 @@ func (v *IssuesView) detailTitle() string {
 
 // issueRow renders one issue list row.
 func issueRow(issue gitlab.Issue) string {
-	return fmt.Sprintf("#%d %s", issue.IID, issue.Title)
+	return refAndTitle(fmt.Sprintf("#%d", issue.IID), issue.Title)
 }
 
 func (v *IssuesView) issueDetail() string {

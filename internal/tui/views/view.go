@@ -134,6 +134,19 @@ func commitRow(when, icon, author, title string) string {
 	)
 }
 
+// refAndTitle renders a row that names something by number — "!42", "#7" — and
+// then says what it is. The number is how you refer to it, not what it is about,
+// so it is metadata to scan past, exactly like a commit's "feat(scope):" prefix.
+//
+// Every list that carries a title goes through here, or the same commit reads one
+// way in Recent Commits and another in Pipelines.
+func refAndTitle(ref, title string) string {
+	if ref == "" {
+		return styleCommitTitle(title)
+	}
+	return components.MutedStyle.Render(ref) + " " + styleCommitTitle(title)
+}
+
 // styleCommitTitle dims a leading "type(scope):" so the subject stands out.
 func styleCommitTitle(title string) string {
 	if i := strings.Index(title, ": "); i > 0 && i < 24 && !strings.Contains(title[:i], " ") {

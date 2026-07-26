@@ -310,7 +310,7 @@ func (v *OverviewView) pipelineLines() []string {
 		if title == "" {
 			title = p.Ref
 		}
-		lines[i] = fmt.Sprintf("%s %s", components.StatusIconPadded(p.Status), title)
+		lines[i] = fmt.Sprintf("%s %s", components.StatusIconPadded(p.Status), styleCommitTitle(title))
 	}
 	return lines
 }
@@ -329,7 +329,7 @@ func (v *OverviewView) mrLines() []string {
 		if mr.Pipeline != nil {
 			pipeIcon = " " + components.StatusIcon(mr.Pipeline.Status)
 		}
-		lines[i] = fmt.Sprintf("!%d %s%s", mr.IID, mr.Title, pipeIcon)
+		lines[i] = refAndTitle(fmt.Sprintf("!%d", mr.IID), mr.Title) + pipeIcon
 	}
 	return lines
 }
@@ -344,7 +344,7 @@ func (v *OverviewView) issueLines() []string {
 	lines := make([]string, n)
 	for i := 0; i < n; i++ {
 		issue := v.issues[i]
-		lines[i] = fmt.Sprintf("#%d %s", issue.IID, issue.Title)
+		lines[i] = refAndTitle(fmt.Sprintf("#%d", issue.IID), issue.Title)
 	}
 	return lines
 }

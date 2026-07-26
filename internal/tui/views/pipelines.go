@@ -271,9 +271,9 @@ func pipelineRow(p gitlab.Pipeline) string {
 		title = p.Ref
 	}
 	return fmt.Sprintf("%s %s %s",
-		util.TimeAgoShort(p.CreatedAt),
+		components.MutedStyle.Render(util.TimeAgoShort(p.CreatedAt)),
 		components.StatusIconPadded(p.Status),
-		title,
+		styleCommitTitle(title),
 	)
 }
 

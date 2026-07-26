@@ -210,15 +210,15 @@ func (v *MRsView) detailTitle() string {
 
 // mrRow renders one merge-request list row.
 func mrRow(mr gitlab.MergeRequest) string {
-	prefix := ""
+	title := mr.Title
 	if mr.Draft {
-		prefix = "[Draft] "
+		title = "[Draft] " + title
 	}
 	pipeIcon := ""
 	if mr.Pipeline != nil {
 		pipeIcon = " " + components.StatusIcon(mr.Pipeline.Status)
 	}
-	return fmt.Sprintf("!%d %s%s%s", mr.IID, prefix, mr.Title, pipeIcon)
+	return refAndTitle(fmt.Sprintf("!%d", mr.IID), title) + pipeIcon
 }
 
 func (v *MRsView) mrDetail() string {

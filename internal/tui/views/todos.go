@@ -197,7 +197,7 @@ func todoRow(t gitlab.Todo) string {
 		components.MutedStyle.Render(util.TimeAgoShort(t.CreatedAt)),
 		todoActionTag(t.Action),
 		components.MutedStyle.Render(components.PadRight(components.Truncate(project, 16), 16)),
-		todoLabel(t),
+		refAndTitle(t.Reference, t.Title),
 	)
 }
 
@@ -243,7 +243,8 @@ func (v *TodosView) todoDetail() string {
 	return strings.Join(lines, "\n")
 }
 
-// todoLabel is the to-do's reference and title as one string.
+// todoLabel is the to-do's reference and title as one string, for a prompt or a
+// status line: plain text, no styling.
 func todoLabel(t gitlab.Todo) string {
 	if t.Reference == "" {
 		return t.Title
