@@ -425,7 +425,7 @@ func (d *commitDetail) handleKey(key string, height int) tea.Cmd {
 
 // cycleFocus hands the keys to the next of the page's boxes.
 func (d *commitDetail) cycleFocus(step int) tea.Cmd {
-	d.focus = cycleFocus(d.focus, step, len(d.diffs) > 0, len(d.jobs.jobs) > 0)
+	d.focus = cycleFocus(d.focus, step, len(d.diffs) > 0, len(d.jobs.jobs) > 0, false)
 	if d.focus == focusJobs {
 		return d.focusJobs()
 	}

@@ -66,12 +66,27 @@ type MRDetailLoadedMsg struct {
 	Pipeline  *gitlab.Pipeline
 	Jobs      []gitlab.Job
 	Diffs     []gitlab.FileDiff
+	Notes     []gitlab.Note
 	Err       error
 }
 
 // MRActionDoneMsg is sent after approving or merging, so the page can refetch:
 // both change what it says about itself.
 type MRActionDoneMsg struct {
+	Text  string
+	IsErr bool
+}
+
+// IssueNotesLoadedMsg carries an issue's discussion.
+type IssueNotesLoadedMsg struct {
+	IID   int
+	Notes []gitlab.Note
+	Err   error
+}
+
+// IssueActionDoneMsg is sent after commenting on an issue, so the discussion can
+// be refetched.
+type IssueActionDoneMsg struct {
 	Text  string
 	IsErr bool
 }
@@ -163,6 +178,7 @@ func (m TodosLoadedMsg) loadErr() error        { return m.Err }
 func (m CommitsLoadedMsg) loadErr() error      { return m.Err }
 func (m CommitDetailLoadedMsg) loadErr() error { return m.Err }
 func (m MRDetailLoadedMsg) loadErr() error     { return m.Err }
+func (m IssueNotesLoadedMsg) loadErr() error   { return m.Err }
 func (m ErrorMsg) loadErr() error              { return m.Err }
 
 // IsLoadResult reports whether a message is a data load reporting back, whether

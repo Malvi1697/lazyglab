@@ -170,3 +170,21 @@ type Todo struct {
 	WebURL      string
 	CreatedAt   time.Time
 }
+
+// Note is one comment in a discussion — on a merge request or an issue.
+//
+// System notes are GitLab's own bookkeeping ("added 3 commits", "approved this
+// merge request"): part of the record, but not something a person wrote, so the
+// UI shows them a weight quieter rather than hiding them.
+type Note struct {
+	ID         int
+	Author     string
+	Body       string
+	System     bool
+	Internal   bool // an internal note, visible only to the project's members
+	Resolvable bool
+	Resolved   bool
+	OnPath     string // set when the comment is on a line of a diff
+	OnLine     int
+	CreatedAt  time.Time
+}

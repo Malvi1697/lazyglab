@@ -24,10 +24,16 @@ type IssuesView struct {
 	scroll int // first visible row, kept across frames
 
 	search listSearch
+
+	// detail is the in-place issue page, opened with Enter: the issue and its
+	// discussion, which is the one thing the list row does not carry.
+	detail issueDetail
 }
 
 // NewIssuesView creates an IssuesView bound to the shared session context.
-func NewIssuesView(ctx *Context) *IssuesView { return &IssuesView{ctx: ctx} }
+func NewIssuesView(ctx *Context) *IssuesView {
+	return &IssuesView{ctx: ctx, detail: newIssueDetail(ctx)}
+}
 
 // Title implements View.
 func (v *IssuesView) Title() string { return "Issues" }
@@ -56,18 +62,33 @@ func (v *IssuesView) Update(msg tea.Msg) tea.Cmd {
 		return nil
 
 	case tea.PasteMsg:
-		v.search.paste(msg.Content, &v.cursor)
+		if !v.detail.active {
+			v.search.paste(msg.Content, &v.cursor)
+		}
 		return nil
 
 	case tea.KeyMsg:
 		return v.handleKey(msg)
 	}
-	return nil
+
+	// Everything else may belong to the issue page.
+	return v.detail.update(msg)
 }
 
 // CapturingText implements TextCapturer: while the search is being typed, the
 // shell must not read the letters as its own commands.
-func (v *IssuesView) CapturingText() bool { return v.search.capturing() }
+func (v *IssuesView) CapturingText() bool { return !v.detail.active && v.search.capturing() }
+
+// stepIssue moves to the neighbouring issue, keeping the page open.
+func (v *IssuesView) stepIssue(step int) tea.Cmd {
+	visible := v.visible()
+	next := v.cursor + step
+	if next < 0 || next >= len(visible) {
+		return nil // already at an end; the arrow is drawn faint there
+	}
+	v.cursor = next
+	return v.detail.stepAt(v.selected(), v.cursor, len(visible))
+}
 
 // visible is the issues matching the search; the cursor indexes it.
 func (v *IssuesView) visible() []gitlab.Issue {
@@ -86,11 +107,21 @@ func (v *IssuesView) selected() *gitlab.Issue {
 }
 
 func (v *IssuesView) handleKey(msg tea.KeyMsg) tea.Cmd {
+	key := msg.String()
+
+	if v.detail.active {
+		// Stepping to the neighbouring issue belongs to the list's owner — but not
+		// while the thread is open, where the arrows belong to what you are reading.
+		if step, ok := stepKey(key); ok && !v.detail.readingBody() {
+			return v.stepIssue(step)
+		}
+		return v.detail.handleKey(key, v.height)
+	}
+
 	if v.search.handleKey(msg, &v.cursor) {
 		return nil
 	}
 
-	key := msg.String()
 	if act := components.NavFor(key); act != components.NavNone {
 		v.cursor = components.ApplyNav(act, v.cursor, len(v.visible()), listRows(v.height))
 		return nil
@@ -101,6 +132,8 @@ func (v *IssuesView) handleKey(msg tea.KeyMsg) tea.Cmd {
 		return nil
 	}
 	switch key {
+	case keyEnter:
+		return v.detail.openAt(issue, v.cursor, len(v.visible()))
 	case keyClose:
 		action := "Close"
 		if issue.State != "opened" {
@@ -128,6 +161,11 @@ func (v *IssuesView) handleKey(msg tea.KeyMsg) tea.Cmd {
 func (v *IssuesView) Body(width, height int) string {
 	v.width = width
 	v.height = height
+
+	// Drilled into an issue: the page takes the whole body.
+	if v.detail.active {
+		return v.detail.body(width, height)
+	}
 
 	leftWidth := width * 45 / 100
 	if leftWidth < 20 {
@@ -186,13 +224,14 @@ func (v *IssuesView) issueDetail() string {
 		assignees = strings.Join(issue.Assignees, ", ")
 	}
 
-	return fmt.Sprintf("%s\n\nAuthor: %s\nAssignees: %s\nLabels: %s\n\n%s\n\n%s",
+	return fmt.Sprintf("%s\n\nAuthor: %s\nAssignees: %s\nLabels: %s\n\n%s\n\n%s\n\n%s",
 		components.TitleStyle.Render(fmt.Sprintf("#%d %s", issue.IID, issue.Title)),
 		issue.Author,
 		assignees,
 		labels,
 		issue.Description,
 		components.HelpDescStyle.Render(issue.WebURL),
+		components.HelpDescStyle.Render("Enter: the issue page and its discussion"),
 	)
 }
 
@@ -202,7 +241,11 @@ func (v *IssuesView) issueDetail() string {
 
 // KeyHints implements View.
 func (v *IssuesView) KeyHints() []KeyHint {
+	if v.detail.active {
+		return v.detail.keyHints()
+	}
 	return []KeyHint{
+		{"Enter", "Issue page"},
 		{"c", "Close/reopen"},
 		{"o", "Open"},
 		{"y/Y", "Copy #/link"},

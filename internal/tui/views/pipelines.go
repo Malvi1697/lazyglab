@@ -24,6 +24,8 @@ const (
 	keyRun        = "p" // run new pipeline / play manual job
 	keyCopy       = "y" // copy the selected item's identifier, as in lazygit
 	keyCopyLink   = "Y" // copy the selected item's URL
+	keyComment    = "c" // write a comment, on a page that has a discussion
+	keySystem     = "s" // show/hide GitLab's own record in a discussion
 	keyTab        = "tab"
 	keyShiftTab   = "shift+tab"
 )

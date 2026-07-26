@@ -90,18 +90,22 @@ const (
 	focusPage pageFocus = iota
 	focusFiles
 	focusJobs
+	focusNotes
 )
 
 // cycleFocus moves the focus between a page's boxes: the text at the top, the
 // changed files and the jobs, in that order, wrapping in the given direction.
 // Boxes with nothing in them are skipped, so Tab never lands somewhere empty.
-func cycleFocus(current pageFocus, step int, hasFiles, hasJobs bool) pageFocus {
+func cycleFocus(current pageFocus, step int, hasFiles, hasJobs, hasNotes bool) pageFocus {
 	order := []pageFocus{focusPage}
 	if hasFiles {
 		order = append(order, focusFiles)
 	}
 	if hasJobs {
 		order = append(order, focusJobs)
+	}
+	if hasNotes {
+		order = append(order, focusNotes)
 	}
 	if len(order) == 1 {
 		return current // only the text; nothing to cycle to

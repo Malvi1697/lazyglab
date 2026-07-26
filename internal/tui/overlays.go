@@ -556,8 +556,15 @@ func helpEntries() []helpEntry {
 		{"Esc", "Back to the list"},
 
 		{"Issues", ""},
+		{"Enter", "Open the issue page in place"},
 		{"c", "Close / reopen"},
 		{"y / Y", "Copy #7 / the link"},
+
+		{"Discussions (MR / issue page)", ""},
+		{"Tab", "Reach the discussion box"},
+		{"Enter", "Read the whole thread"},
+		{"c", "Write a comment in $EDITOR"},
+		{"Esc", "Back (thread, then box)"},
 
 		{"Todos", ""},
 		{"Enter / o", "Open it on GitLab"},

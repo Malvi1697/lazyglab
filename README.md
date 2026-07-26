@@ -138,7 +138,7 @@ The five views:
 | 1 | **Overview** | Dashboard: a navigable recent-commits list (with CI status) plus summaries of pipelines, merge requests, and issues. Default view. |
 | 2 | **Pipelines** | Pipeline list; `Enter` drills into jobs grouped by stage, and into a job's log. |
 | 3 | **Merge Requests** | Open MRs; `Enter` opens the full merge-request page in place, with approve/merge. |
-| 4 | **Issues** | Open issues, with close/reopen. |
+| 4 | **Issues** | Open issues, with close/reopen; `Enter` opens the issue page and its discussion. |
 | 5 | **Todos** | Your GitLab To-Do list, across every project: reviews asked of you, mentions, assignments, failed pipelines. `d` marks one done, `D` clears the list. |
 
 **Todos** is the only view that ignores the selected project — it answers "what is
@@ -184,6 +184,19 @@ its changed files with diffs, and its pipeline's jobs. `a` approves, `m` merges
 (both say what stands in the way rather than sending a request that cannot
 succeed), `R` retries the pipeline, and `←`/`→` (or `h`/`l`) step between merge
 requests without leaving the page.
+
+### Discussions
+
+The merge-request and issue pages carry the **conversation**: `Tab` reaches the
+discussion box, `Enter` reads the whole thread as prose (author, when, the file
+and line a review comment is on, whether it was resolved), and **`c` writes a
+comment in `$EDITOR`** — the same editor git gives you, because a comment is prose
+and `#` lines are stripped exactly as in a commit message. An empty comment is not
+posted.
+
+GitLab's own record ("added 3 commits", "changed the description") is hidden by
+default — an issue can carry a hundred of those and no conversation at all — and
+the heading says how many are being left out. `s` shows them.
 
 `Tab` cycles the page's boxes — message, changes, jobs — skipping any that are
 empty. The jobs are already listed on the page, so `Enter` **steps the focus into them**

@@ -29,6 +29,7 @@ type mrDetail struct {
 	pipeline  *gitlab.Pipeline
 
 	changesBox
+	notesBox
 	pageFrame
 
 	// descScrollable is learned while rendering, so the footer offers j/k for the
@@ -56,6 +57,7 @@ type mrPage struct {
 	pipeline  *gitlab.Pipeline
 	jobs      []gitlab.Job
 	diffs     []gitlab.FileDiff
+	notes     []gitlab.Note
 }
 
 // mrPagesKept bounds the cache; a page holds its diffs, which can be large.
@@ -91,6 +93,7 @@ func (d *mrDetail) showAt(mr *gitlab.MergeRequest, index, total int, delay time.
 	d.jobs.close()
 	d.focus = focusPage
 	d.resetFiles()
+	d.resetNotes()
 	d.scroll = 0
 	d.iid, d.requested = mr.IID, 0
 
@@ -113,6 +116,7 @@ func (d *mrDetail) close() {
 	d.mr, d.approvals, d.pipeline = nil, nil, nil
 	d.focus = focusPage
 	d.resetFiles()
+	d.resetNotes()
 	d.resetSearchState()
 }
 
@@ -129,6 +133,7 @@ func (d *mrDetail) restore(page mrPage) {
 	}
 	d.approvals, d.pipeline = page.approvals, page.pipeline
 	d.setDiffs(page.diffs)
+	d.setNotes(page.notes)
 	if d.pipeline != nil {
 		d.jobs.adopt(d.pipeline.ID, page.jobs)
 	}
@@ -163,7 +168,9 @@ func (d *mrDetail) forget(iid int) {
 
 // readingBody reports whether something long-form has the screen — a diff or a
 // job's log — so the view hosting the page knows the arrows are not its to act on.
-func (d *mrDetail) readingBody() bool { return d.reading || d.jobs.showingTrace() }
+func (d *mrDetail) readingBody() bool {
+	return d.reading || d.threadOpen || d.jobs.showingTrace()
+}
 
 // ============================================================================
 // Loading
@@ -191,6 +198,7 @@ func (d *mrDetail) load(iid int) tea.Cmd {
 
 		approvals, _ := client.GetMergeRequestApprovals(projectID, iid)
 		diffs, _ := client.GetMergeRequestDiff(projectID, iid)
+		notes, _ := client.ListMergeRequestNotes(projectID, iid)
 
 		var pipeline *gitlab.Pipeline
 		var jobs []gitlab.Job
@@ -201,7 +209,7 @@ func (d *mrDetail) load(iid int) tea.Cmd {
 
 		return MRDetailLoadedMsg{
 			IID: iid, MR: mr, Approvals: approvals,
-			Pipeline: pipeline, Jobs: jobs, Diffs: diffs,
+			Pipeline: pipeline, Jobs: jobs, Diffs: diffs, Notes: notes,
 		}
 	}
 }
@@ -233,12 +241,13 @@ func (d *mrDetail) update(msg tea.Msg) tea.Cmd {
 		}
 		d.approvals, d.pipeline = m.Approvals, m.Pipeline
 		d.setDiffs(m.Diffs)
+		d.setNotes(m.Notes)
 		if d.pipeline != nil {
 			d.jobs.adopt(d.pipeline.ID, m.Jobs)
 		}
 		d.remember(m.IID, mrPage{
 			mr: m.MR, approvals: m.Approvals, pipeline: m.Pipeline,
-			jobs: m.Jobs, diffs: m.Diffs,
+			jobs: m.Jobs, diffs: m.Diffs, notes: m.Notes,
 		})
 		return nil
 
@@ -269,6 +278,15 @@ func (d *mrDetail) update(msg tea.Msg) tea.Cmd {
 		}
 		return tea.Batch(d.jobs.load(), statusCmd(m.Text, false))
 
+	case commentWrittenMsg:
+		if m.err != nil {
+			return statusCmd(fmt.Sprintf("Could not open an editor: %v", m.err), true)
+		}
+		if m.body == "" {
+			return statusCmd("Empty comment, nothing posted", false)
+		}
+		return d.postComment(m.body)
+
 	case MRActionDoneMsg:
 		if m.IsErr {
 			return statusCmd(m.Text, true)
@@ -287,6 +305,23 @@ func (d *mrDetail) update(msg tea.Msg) tea.Cmd {
 
 // handleKey drives the page. Esc unwinds log -> box -> page -> list.
 func (d *mrDetail) handleKey(key string, height int) tea.Cmd {
+	// The thread has the screen: it scrolls, and c replies to what you are reading.
+	if d.threadOpen {
+		switch key {
+		case keyEscape:
+			d.closeThread()
+			return nil
+		case keyComment:
+			return d.comment()
+		case keySystem:
+			return d.toggleSystem()
+		}
+		if d.threadKey(key, height) {
+			return nil
+		}
+		return nil
+	}
+
 	if d.reading {
 		if key == keyEscape {
 			d.closeReader()
@@ -338,6 +373,22 @@ func (d *mrDetail) handleKey(key string, height int) tea.Cmd {
 		return nil
 	}
 
+	if d.focus == focusNotes {
+		switch key {
+		case keyEscape:
+			d.focus = focusPage
+			return nil
+		case keyComment:
+			return d.comment()
+		case keySystem:
+			return d.toggleSystem()
+		}
+		if d.notesKey(key, height) {
+			return nil
+		}
+		return d.copyKeys(key)
+	}
+
 	if act := components.NavFor(key); act != components.NavNone {
 		// The description scrolls; there is nothing to select in it.
 		d.scroll = components.ApplyNav(act, d.scroll, len(d.topLines(0)), listRows(height))
@@ -363,6 +414,8 @@ func (d *mrDetail) handleKey(key string, height int) tea.Cmd {
 		return d.merge()
 	case keyRetry:
 		return d.retryPipeline()
+	case keyComment:
+		return d.comment()
 	case keyOpenBrowse:
 		if d.mr == nil {
 			return nil
@@ -375,11 +428,36 @@ func (d *mrDetail) handleKey(key string, height int) tea.Cmd {
 }
 
 func (d *mrDetail) cycleFocus(step int) tea.Cmd {
-	d.focus = cycleFocus(d.focus, step, len(d.diffs) > 0, len(d.jobs.jobs) > 0)
+	// The discussion is always in the cycle, even when empty: c is how you start
+	// one, so a merge request nobody has commented on still needs somewhere to
+	// stand.
+	d.focus = cycleFocus(d.focus, step, len(d.diffs) > 0, len(d.jobs.jobs) > 0, true)
 	if d.focus == focusJobs {
 		return d.focusJobs()
 	}
 	return nil
+}
+
+// comment opens the editor for a new comment on this merge request.
+func (d *mrDetail) comment() tea.Cmd {
+	if d.mr == nil {
+		return nil
+	}
+	return composeComment(fmt.Sprintf("!%d %s", d.mr.IID, d.mr.Title))
+}
+
+// postComment sends what the editor produced, then reloads the discussion.
+func (d *mrDetail) postComment(body string) tea.Cmd {
+	if d.mr == nil || d.ctx == nil || d.ctx.Project == nil || d.ctx.Client == nil {
+		return nil
+	}
+	client, projectID, iid := d.ctx.Client, d.ctx.Project.ID, d.mr.IID
+	return func() tea.Msg {
+		if err := client.CreateMergeRequestNote(projectID, iid, body); err != nil {
+			return MRActionDoneMsg{Text: fmt.Sprintf("Comment failed: %v", err), IsErr: true}
+		}
+		return MRActionDoneMsg{Text: fmt.Sprintf("Commented on !%d", iid)}
+	}
 }
 
 // focusJobs hands the keys to the jobs listed on the page.
@@ -496,6 +574,12 @@ func (d *mrDetail) body(width, height int) string {
 			d.fileCursor > 0, d.fileCursor < len(d.diffs)-1)
 	}
 
+	// A conversation is read end to end, so it takes the body like a log does.
+	if d.threadOpen {
+		return components.RenderPanel(d.threadTitle(),
+			splitLines(d.threadView(width, height)), width, height, true)
+	}
+
 	// A log needs the room, so it is the one thing that replaces the page.
 	if d.jobs.showingTrace() {
 		return components.RenderPanel(d.jobs.detailTitle(),
@@ -569,25 +653,44 @@ func (d *mrDetail) window(lines []string, rows int) []string {
 	return lines[d.scroll:min(d.scroll+rows, len(lines))]
 }
 
-// columns renders the changed files beside the jobs.
+// columns renders the three lists you act on: the changed files, the jobs and the
+// discussion. On a narrow terminal the discussion drops out of the row — Tab
+// still reaches it, and it takes the body when read.
 func (d *mrDetail) columns(width, height int) string {
-	leftWidth := width / 2
-	if leftWidth < 20 {
-		leftWidth = 20
-	}
-	rightWidth := width - leftWidth - 3 // the rule and its spaces
+	const rule = 3 // the rule and its spaces
 
-	files := d.filesBox(leftWidth, height, d.focus == focusFiles, d.loading)
+	showNotes := width >= 130
+	share := width / 2
+	if showNotes {
+		share = width / 3
+	}
+	if share < 20 {
+		share = 20
+	}
+
+	files := d.filesBox(share, height, d.focus == focusFiles, d.loading)
 
 	jobRows, jobToRow := d.jobs.items()
 	jobCursor := -1
 	if d.focus == focusJobs && d.jobs.cursor < len(jobToRow) {
 		jobCursor = jobToRow[d.jobs.cursor]
 	}
-	jobs := renderListBox(rightWidth, height,
+
+	jobsWidth := width - share - rule
+	if showNotes {
+		jobsWidth = share
+	}
+	jobs := renderListBox(jobsWidth, height,
 		fmt.Sprintf("Jobs (%d)", len(d.jobs.jobs)), jobRows, jobCursor, &d.jobs.scroll)
 
-	return lipgloss.JoinHorizontal(lipgloss.Top, files, " ", components.VRule(height), " ", jobs)
+	out := lipgloss.JoinHorizontal(lipgloss.Top, files, " ", components.VRule(height), " ", jobs)
+	if !showNotes {
+		return out
+	}
+
+	notesWidth := width - 2*share - 2*rule
+	notes := d.notesPanel(notesWidth, height, d.focus == focusNotes, d.loading)
+	return lipgloss.JoinHorizontal(lipgloss.Top, out, " ", components.VRule(height), " ", notes)
 }
 
 // topLines is the title, then what the merge request is and what stands between
@@ -727,6 +830,16 @@ func (d *mrDetail) approvalLine(a *gitlab.MRApprovals) string {
 // ============================================================================
 
 func (d *mrDetail) keyHints() []KeyHint {
+	if d.threadOpen {
+		return d.threadHints()
+	}
+	if d.focus == focusNotes {
+		return append(d.boxHints(),
+			KeyHint{"←/→ h/l", "MR"},
+			KeyHint{"Tab", "Changes"},
+			KeyHint{"Esc", "Back"},
+		)
+	}
 	if d.reading {
 		return d.readerHints("Copy !/link")
 	}
@@ -761,6 +874,7 @@ func (d *mrDetail) keyHints() []KeyHint {
 	return append(hints,
 		KeyHint{"a", "Approve"},
 		KeyHint{"m", "Merge"},
+		KeyHint{"c", "Comment"},
 		KeyHint{"R", "Retry pipeline"},
 		KeyHint{"y/Y", "Copy !/link"},
 		KeyHint{"o", "Open"},
