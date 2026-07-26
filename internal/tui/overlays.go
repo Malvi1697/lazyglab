@@ -231,9 +231,14 @@ func (a *App) renderBranchPicker() string {
 			}
 		}
 	}
+	// The hint follows the search's stage, as the project picker's does: while
+	// typing, Enter applies; once applied, Esc clears before it cancels.
 	hint := "Enter: select  /: search  Esc: cancel"
-	if a.branchFilter.Active {
-		hint = a.branchFilter.Hint()
+	switch {
+	case a.branchFilter.Active:
+		hint = a.branchFilter.Hint() + components.HelpDescStyle.Render("   Enter: apply")
+	case a.branchFilter.Applied():
+		hint = a.branchFilter.Hint() + components.HelpDescStyle.Render("   Enter: select  Esc: clear")
 	}
 	lines = append(lines, "", components.HelpDescStyle.Render(hint))
 
