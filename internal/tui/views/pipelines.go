@@ -23,6 +23,7 @@ const (
 	keyCancel     = "C"
 	keyRun        = "p" // run new pipeline / play manual job
 	keyCopy       = "y" // copy the selected item's identifier, as in lazygit
+	keyCopyLink   = "Y" // copy the selected item's URL
 	keyTab        = "tab"
 	keyShiftTab   = "shift+tab"
 )
@@ -210,6 +211,14 @@ func (v *PipelinesView) handleKey(msg tea.KeyMsg) tea.Cmd {
 		if p := v.selectedPipeline(); p != nil {
 			return confirmCmd(fmt.Sprintf("Cancel pipeline #%d?", p.ID), v.cancelPipeline())
 		}
+	case keyCopy:
+		if p := v.selectedPipeline(); p != nil {
+			return copyRef(fmt.Sprintf("#%d", p.ID))
+		}
+	case keyCopyLink:
+		if p := v.selectedPipeline(); p != nil {
+			return copyLink(fmt.Sprintf("pipeline #%d", p.ID), p.WebURL)
+		}
 	case keyRun:
 		ref := v.runRef()
 		if ref == "" {
@@ -332,6 +341,7 @@ func (v *PipelinesView) KeyHints() []KeyHint {
 		{"R", "Retry"},
 		{"C", "Cancel"},
 		{"o", "Open"},
+		{"y/Y", "Copy #/link"},
 		v.search.hint(),
 	}
 }

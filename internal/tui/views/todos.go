@@ -139,6 +139,12 @@ func (v *TodosView) handleKey(msg tea.KeyMsg) tea.Cmd {
 	switch key {
 	case keyDone:
 		return confirmCmd(fmt.Sprintf("Mark done: %s?", todoLabel(*todo)), v.markDone(*todo))
+	case keyCopy:
+		// A to-do's identifier is its target's: what you would type is "!42", never
+		// the to-do's own row number, which means nothing outside your own list.
+		return copyRef(todo.Reference)
+	case keyCopyLink:
+		return copyLink(todoLabel(*todo), todo.WebURL)
 	case keyEnter, keyOpenBrowse:
 		// A to-do is a pointer at something on the web: an MR to review, an issue you
 		// were named in. There is no deeper screen for it inside lazyglab, so Enter
@@ -338,6 +344,7 @@ func (v *TodosView) KeyHints() []KeyHint {
 		{"Enter/o", "Open"},
 		{"d", "Done"},
 		{"D", "All done"},
+		{"y/Y", "Copy ref/link"},
 		v.search.hint(),
 	}
 }

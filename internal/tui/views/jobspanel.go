@@ -136,6 +136,18 @@ func (p *jobsPanel) handleKey(key string, height int) (tea.Cmd, bool) {
 			return nil, true
 		}
 		return p.loadTrace(), true
+	case keyCopy:
+		if job == nil {
+			return nil, true
+		}
+		// A job's name is what people quote when they say what broke; its number is
+		// only meaningful to the API.
+		return copyRef(job.Name), true
+	case keyCopyLink:
+		if job == nil {
+			return nil, true
+		}
+		return copyLink(job.Name, job.WebURL), true
 	case keyOpenBrowse:
 		if job == nil {
 			return nil, true
@@ -202,6 +214,7 @@ func (p *jobsPanel) keyHints() []KeyHint {
 			{"C", "Cancel"},
 			{"p", "Play"},
 			{"o", "Open"},
+			{"y/Y", "Copy name/link"},
 			{"Esc", "Back"},
 		}
 	}
@@ -211,6 +224,7 @@ func (p *jobsPanel) keyHints() []KeyHint {
 		{"C", "Cancel"},
 		{"p", "Play"},
 		{"o", "Open"},
+		{"y/Y", "Copy name/link"},
 		{"Esc", "Back"},
 	}
 }

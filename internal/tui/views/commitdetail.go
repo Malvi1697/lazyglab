@@ -244,10 +244,7 @@ func (d *commitDetail) handleKey(key string, height int) tea.Cmd {
 			d.diffScroll = scrollBy(act, d.diffScroll, listRows(height))
 			return nil
 		}
-		if key == keyCopy {
-			return d.copySHA()
-		}
-		return nil
+		return d.copyKeys(key)
 	}
 
 	// Tab moves the focus between the page's boxes in every state except while
@@ -271,14 +268,12 @@ func (d *commitDetail) handleKey(key string, height int) tea.Cmd {
 				d.diffScroll = 0
 			}
 			return nil
-		case keyCopy:
-			return d.copySHA()
 		}
 		if act := components.NavFor(key); act != components.NavNone {
 			d.fileCursor = components.ApplyNav(act, d.fileCursor, len(d.diffs), listRows(height))
 			return nil
 		}
-		return nil
+		return d.copyKeys(key)
 	}
 
 	// An open log is read full-screen; navigation scrolls it.
@@ -296,12 +291,9 @@ func (d *commitDetail) handleKey(key string, height int) tea.Cmd {
 	// Focus inside the jobs listed on the page: the rows in front of you are the
 	// ones the keys act on, and the page keeps its context above them.
 	if d.focus == focusJobs {
-		switch key {
-		case keyEscape:
+		if key == keyEscape {
 			d.focus = focusPage
 			return nil
-		case keyCopy:
-			return d.copySHA()
 		}
 		if cmd, consumed := d.jobs.handleKey(key, height); consumed {
 			return cmd
@@ -319,8 +311,8 @@ func (d *commitDetail) handleKey(key string, height int) tea.Cmd {
 	case keyEscape:
 		d.close()
 		return nil
-	case keyCopy:
-		return d.copySHA()
+	case keyCopy, keyCopyLink:
+		return d.copyKeys(key)
 	case keyOpenBrowse:
 		if d.commit == nil {
 			return nil
@@ -429,6 +421,22 @@ func (d *commitDetail) focusJobs() tea.Cmd {
 	return nil
 }
 
+// copyKeys serves y and Y wherever the commit itself has the focus: the SHA you
+// would type, the link you would send. In the jobs box they belong to the job, so
+// this is not reached from there.
+func (d *commitDetail) copyKeys(key string) tea.Cmd {
+	switch key {
+	case keyCopy:
+		return d.copySHA()
+	case keyCopyLink:
+		if d.commit == nil {
+			return nil
+		}
+		return copyLink(d.commit.ShortID, d.commit.WebURL)
+	}
+	return nil
+}
+
 // copySHA copies the commit's full hash.
 func (d *commitDetail) copySHA() tea.Cmd {
 	if d.commit == nil {
@@ -515,7 +523,7 @@ func (d *commitDetail) keyHints() []KeyHint {
 		return []KeyHint{
 			{"←/→ H/L", "Prev/next file"},
 			{"j/k", "Scroll"},
-			{"y", "Copy SHA"},
+			{"y/Y", "Copy SHA/link"},
 			{"Esc", "Back"},
 		}
 	}
@@ -525,7 +533,7 @@ func (d *commitDetail) keyHints() []KeyHint {
 			{"j/k", "File"},
 			{"←/→ H/L", "Commit"},
 			{"Tab", "Jobs"},
-			{"y", "Copy SHA"},
+			{"y/Y", "Copy SHA/link"},
 			{"Esc", "Back"},
 		}
 	}
@@ -537,7 +545,6 @@ func (d *commitDetail) keyHints() []KeyHint {
 		return append(d.jobs.keyHints(),
 			KeyHint{"←/→ H/L", "Commit"},
 			KeyHint{"Tab", "Changes"},
-			KeyHint{"y", "Copy SHA"},
 		)
 	}
 	return []KeyHint{
@@ -546,7 +553,7 @@ func (d *commitDetail) keyHints() []KeyHint {
 		{"Tab", "Changes/Jobs"},
 		{"R", "Retry pipeline"},
 		{"p", "Run on branch"},
-		{"y", "Copy SHA"},
+		{"y/Y", "Copy SHA/link"},
 		{"o", "Open"},
 		{"Esc", "Back"},
 	}

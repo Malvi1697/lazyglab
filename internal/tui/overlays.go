@@ -481,6 +481,8 @@ func helpEntries() []helpEntry {
 		{"Enter", "Select / drill in"},
 		{"Esc", "Back / cancel"},
 		{"o", "Open in browser"},
+		{"y", "Copy what you would type"},
+		{"Y", "Copy the link you would send"},
 
 		{"Searching a list", ""},
 		{"/", "Search the list you are in"},
@@ -502,6 +504,7 @@ func helpEntries() []helpEntry {
 		{"p", "Run a new pipeline"},
 		{"R", "Retry"},
 		{"C", "Cancel"},
+		{"y / Y", "Copy #1234 / the link"},
 
 		{"Jobs (pipeline or commit)", ""},
 		{"Enter", "Read the job's log"},
@@ -509,11 +512,12 @@ func helpEntries() []helpEntry {
 		{"C", "Cancel the job"},
 		{"p", "Play a manual job"},
 		{"o", "Open the job in a browser"},
+		{"y / Y", "Copy the job's name / link"},
 		{"Esc", "Back (log, then jobs)"},
 
 		{"Commit lists", ""},
 		{"Enter", "Open the commit page in place"},
-		{"y", "Copy the commit SHA"},
+		{"y / Y", "Copy the SHA / the commit link"},
 		{"o", "Open the commit in a browser"},
 
 		{"Commit page", ""},
@@ -523,7 +527,7 @@ func helpEntries() []helpEntry {
 		{"Enter", "Step into the changed files"},
 		{"R", "Retry the commit's pipeline"},
 		{"p", "Run a pipeline on the branch head"},
-		{"y", "Copy the SHA"},
+		{"y / Y", "Copy the SHA / the commit link"},
 		{"Esc", "Back to the list"},
 
 		{"Changed files", ""},
@@ -534,20 +538,23 @@ func helpEntries() []helpEntry {
 		{"Reading a diff", ""},
 		{"← / → or H / L", "Previous / next file of the commit"},
 		{"j / k", "Scroll the diff"},
-		{"y", "Copy the SHA"},
+		{"y / Y", "Copy the SHA / the commit link"},
 		{"Esc", "Back to the changed files"},
 
 		{"Merge Requests", ""},
 		{"a", "Approve"},
 		{"m", "Merge"},
+		{"y / Y", "Copy !42 / the link"},
 
 		{"Issues", ""},
 		{"c", "Close / reopen"},
+		{"y / Y", "Copy #7 / the link"},
 
 		{"Todos", ""},
 		{"Enter / o", "Open it on GitLab"},
 		{"d", "Mark the highlighted todo done"},
 		{"D", "Mark the whole list done"},
+		{"y / Y", "Copy the reference / the link"},
 	}
 }
 

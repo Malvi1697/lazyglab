@@ -37,6 +37,29 @@ func copyToClipboard(text string) tea.Cmd {
 	return tea.Batch(cmds...)
 }
 
+// copyRef and copyLink are the two halves of one rule, kept together so every
+// view spells it the same way: lowercase y copies the identifier — the thing you
+// would type into a commit message or a chat — and uppercase Y copies the link
+// you would send someone. What was copied is said in the status bar, because a
+// clipboard write is otherwise entirely invisible.
+func copyRef(ref string) tea.Cmd {
+	if ref == "" {
+		return statusCmd("Nothing to copy here", true)
+	}
+	return tea.Batch(copyToClipboard(ref), statusCmd("Copied "+ref, false))
+}
+
+func copyLink(what, url string) tea.Cmd {
+	if url == "" {
+		return statusCmd("No link to copy here", true)
+	}
+	label := "the link"
+	if what != "" {
+		label = "the link to " + what
+	}
+	return tea.Batch(copyToClipboard(url), statusCmd("Copied "+label, false))
+}
+
 // clipboardCommand returns the platform's clipboard binary and its arguments.
 func clipboardCommand() (string, []string) {
 	switch runtime.GOOS {

@@ -148,6 +148,11 @@ before you have picked a project. Set `default_view: todos` to land there.
 Every list takes `/` to **search** it: type to narrow, `Enter` to keep the list
 narrowed while the action keys work again, `Esc` to clear.
 
+Two keys copy, everywhere: **`y` copies what you would type** — a SHA, `!42`, `#7`,
+`#1234`, a job's name — and **`Y` copies the link you would send**. They act on the
+box that has focus, so in the commit page's jobs box they copy the job while
+everywhere else on that page they copy the commit.
+
 The far right of the context bar says when the data was last fetched — a spinner
 while a fetch is in flight, then how stale it is and how long until the automatic
 refresh. `r` refreshes now.

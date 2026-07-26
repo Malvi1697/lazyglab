@@ -115,6 +115,10 @@ func (v *IssuesView) handleKey(msg tea.KeyMsg) tea.Cmd {
 			action = "Reopen"
 		}
 		return confirmCmd(fmt.Sprintf("%s #%d %s?", action, issue.IID, issue.Title), v.toggleIssue())
+	case keyCopy:
+		return copyRef(fmt.Sprintf("#%d", issue.IID))
+	case keyCopyLink:
+		return copyLink(fmt.Sprintf("#%d", issue.IID), issue.WebURL)
 	case keyOpenBrowse:
 		if cmd := openBrowserCmd(issue.WebURL); cmd != nil {
 			return execBrowser(cmd)
@@ -212,6 +216,7 @@ func (v *IssuesView) KeyHints() []KeyHint {
 	return []KeyHint{
 		{"c", "Close/reopen"},
 		{"o", "Open"},
+		{"y/Y", "Copy #/link"},
 		v.search.hint(),
 	}
 }

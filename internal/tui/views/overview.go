@@ -133,6 +133,12 @@ func (v *OverviewView) handleKey(msg tea.KeyMsg) tea.Cmd {
 	if key == keyCopy {
 		return v.copyHash()
 	}
+	if key == keyCopyLink {
+		if c := v.selectedCommit(); c != nil {
+			return copyLink(c.ShortID, c.WebURL)
+		}
+		return nil
+	}
 	return nil
 }
 
@@ -398,7 +404,7 @@ func (v *OverviewView) KeyHints() []KeyHint {
 	}
 	return []KeyHint{
 		{Key: "Enter", Desc: "Commit page"},
-		{Key: "y", Desc: "Copy SHA"},
+		{Key: "y/Y", Desc: "Copy SHA/link"},
 		{Key: "o", Desc: "Open commit"},
 		v.search.hint(),
 	}

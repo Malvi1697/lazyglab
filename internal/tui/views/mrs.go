@@ -116,6 +116,10 @@ func (v *MRsView) handleKey(msg tea.KeyMsg) tea.Cmd {
 		return confirmCmd(fmt.Sprintf("Approve !%d %s?", mr.IID, mr.Title), v.approveMR())
 	case keyMerge:
 		return confirmCmd(fmt.Sprintf("Merge !%d %s?", mr.IID, mr.Title), v.mergeMR())
+	case keyCopy:
+		return copyRef(fmt.Sprintf("!%d", mr.IID))
+	case keyCopyLink:
+		return copyLink(fmt.Sprintf("!%d", mr.IID), mr.WebURL)
 	case keyOpenBrowse:
 		if cmd := openBrowserCmd(mr.WebURL); cmd != nil {
 			return execBrowser(cmd)
@@ -223,6 +227,7 @@ func (v *MRsView) KeyHints() []KeyHint {
 		{"a", "Approve"},
 		{"m", "Merge"},
 		{"o", "Open"},
+		{"y/Y", "Copy !/link"},
 		v.search.hint(),
 	}
 }
