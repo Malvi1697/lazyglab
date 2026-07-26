@@ -564,6 +564,7 @@ func helpEntries() []helpEntry {
 		{"Tab", "Reach the discussion box"},
 		{"Enter", "Read the whole thread"},
 		{"c", "Write a comment in $EDITOR"},
+		{"s", "Show / hide GitLab's own record"},
 		{"Esc", "Back (thread, then box)"},
 
 		{"Todos", ""},
