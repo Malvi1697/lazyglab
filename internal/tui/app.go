@@ -85,7 +85,8 @@ type App struct {
 	// focused is whether the terminal is looked at. Polling GitLab every thirty
 	// seconds for a window nobody is watching is pure waste, so the tick pauses
 	// while we are in the background and catches up on the way back.
-	focused bool
+	focused      bool
+	clockRunning bool // the one-second clock; also stopped while unfocused
 
 	// viewFetched is when each view's data last arrived, so stepping through the
 	// tabs shows what was just fetched instead of refetching all of it per tab.
@@ -193,17 +194,25 @@ func (a *App) activeView() views.View { return a.views[a.viewIDs[a.active]] }
 // ============================================================================
 
 func (a *App) Init() tea.Cmd {
-	cmds := []tea.Cmd{a.loadProjects(), a.refresh(), a.clockCmd()}
+	cmds := []tea.Cmd{a.refresh(), a.clockCmd()}
 	if a.refreshInterval > 0 {
 		a.nextRefresh = a.clock().Add(a.refreshInterval)
 		cmds = append(cmds, a.tickCmd())
 	}
-	// Resume the previous session's project, unless the git remote already told us
-	// which project this directory is about — being inside a repo is the stronger
-	// signal. Resolving by path rather than waiting for the project list means the
-	// view is populated immediately, even for a project outside that list.
-	if a.detectedPath == "" && a.lastProject != "" {
+
+	// Open the project this directory is about, or the one from the previous run —
+	// being inside a repo is the stronger signal, so it wins. Both resolve by path,
+	// which is one request; listing every project the user can see to find one of
+	// them was several, and on a big instance the slowest thing about starting up.
+	switch {
+	case a.detectedPath != "":
+		cmds = append(cmds, a.selectProjectByPath(a.detectedPath))
+	case a.lastProject != "":
 		cmds = append(cmds, a.selectProjectByPath(a.lastProject))
+	default:
+		// Nothing to open: the picker is the next thing that happens, so the list is
+		// worth fetching now.
+		cmds = append(cmds, a.loadProjects())
 	}
 	return tea.Batch(cmds...)
 }
@@ -225,7 +234,14 @@ func (a *App) tickCmd() tea.Cmd {
 	return tea.Tick(a.refreshInterval, func(time.Time) tea.Msg { return tickMsg{} })
 }
 
+// clockCmd starts the one-second clock that keeps the countdown and the "updated
+// Ns ago" note honest. Only one chain runs at a time, and it stops while the
+// terminal is in the background: nobody is reading a countdown they cannot see.
 func (a *App) clockCmd() tea.Cmd {
+	if a.clockRunning {
+		return nil
+	}
+	a.clockRunning = true
 	return tea.Tick(time.Second, func(time.Time) tea.Msg { return clockMsg{} })
 }
 
@@ -344,12 +360,13 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.FocusMsg:
 		a.focused = true
+		cmds := []tea.Cmd{a.clockCmd()}
 		// Back after a while, so what is on screen is stale by definition.
 		if a.refreshInterval > 0 && a.clock().Sub(a.lastRefresh) >= a.refreshInterval {
 			a.nextRefresh = a.clock().Add(a.refreshInterval)
-			return a, a.refresh()
+			cmds = append(cmds, a.refresh())
 		}
-		return a, nil
+		return a, tea.Batch(cmds...)
 
 	case views.ProjectsLoadedMsg:
 		if msg.Err != nil {
@@ -456,7 +473,12 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case clockMsg:
 		// Nothing to do but re-arm: the render reads the clock itself, so the
-		// countdown and the "updated Ns ago" note move on their own.
+		// countdown and the "updated Ns ago" note move on their own. Unfocused, there
+		// is nothing to keep moving, so the clock stops until we are looked at again.
+		a.clockRunning = false
+		if !a.focused {
+			return a, nil
+		}
 		return a, a.clockCmd()
 
 	case spinMsg:

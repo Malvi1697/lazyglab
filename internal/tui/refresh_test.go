@@ -202,8 +202,35 @@ func TestRefresh_FocusWithFreshDataDoesNotRefetch(t *testing.T) {
 	a.lastRefresh = now.Add(-2 * time.Second)
 
 	a.Update(tea.BlurMsg{})
-	if _, cmd := a.Update(tea.FocusMsg{}); cmd != nil {
+	// Focus restarts the clock — that is a command, but not a request.
+	a.Update(tea.FocusMsg{})
+	if a.refreshing {
 		t.Error("a glance away and back must not cost a request")
+	}
+}
+
+func TestRefresh_ClockStopsWhileUnfocusedAndRestartsAfter(t *testing.T) {
+	// The countdown is the only reason to redraw once a second, and nobody is
+	// reading a countdown they cannot see.
+	now := time.Date(2026, 7, 25, 12, 0, 0, 0, time.UTC)
+	a := refreshApp(t, now)
+	a.clockRunning = true
+	a.lastRefresh = now // fresh, so focus has no refresh to do either
+
+	a.Update(tea.BlurMsg{})
+	if _, cmd := a.Update(clockMsg{}); cmd != nil {
+		t.Error("the clock should stop while the terminal is in the background")
+	}
+
+	if _, cmd := a.Update(tea.FocusMsg{}); cmd == nil {
+		t.Error("regaining focus should start the clock again")
+	}
+	if !a.clockRunning {
+		t.Error("the clock should be running again")
+	}
+	// And only one chain: a second focus event must not start another.
+	if _, cmd := a.Update(tea.FocusMsg{}); cmd != nil {
+		t.Error("a second focus event started a second clock")
 	}
 }
 
