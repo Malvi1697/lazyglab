@@ -127,7 +127,7 @@ lazyglab --version  # Show version
 
 lazyglab is a cockpit: a context bar and a row of tabs stay on screen, and the
 space below shows one full-screen view at a time. Switch views with the number
-keys (`1`-`5`), `h`/`l` or `[`/`]`. `Tab` stays inside the active view, cycling its
+keys (`1`-`6`), `h`/`l` or `[`/`]`. `Tab` stays inside the active view, cycling its
 own boxes. The context bar shows the active project
 and branch, plus the latest status/error message.
 
@@ -139,8 +139,20 @@ The five views:
 | 2 | **Pipelines** | Pipeline list; `Enter` drills into jobs grouped by stage, and into a job's log. |
 | 3 | **Merge Requests** | Open MRs, with approve/merge actions. |
 | 4 | **Issues** | Open issues, with close/reopen. |
+| 5 | **Todos** | Your GitLab To-Do list, across every project: reviews asked of you, mentions, assignments, failed pipelines. `d` marks one done, `D` clears the list. |
 
-A fifth view, **Commits** (a full-height commit list), exists but is not a default
+**Todos** is the only view that ignores the selected project — it answers "what is
+waiting on me" rather than "what is happening here", which is the question you have
+before you have picked a project. Set `default_view: todos` to land there.
+
+Every list takes `/` to **search** it: type to narrow, `Enter` to keep the list
+narrowed while the action keys work again, `Esc` to clear.
+
+The far right of the context bar says when the data was last fetched — a spinner
+while a fetch is in flight, then how stale it is and how long until the automatic
+refresh. `r` refreshes now.
+
+A sixth view, **Commits** (a full-height commit list), exists but is not a default
 tab: Overview already lists recent commits and `Enter` opens the commit page in
 place. Add `commits` to `settings.views` to get the tab back.
 
@@ -242,8 +254,9 @@ hosts:
     # Reopened on the next launch. Written when you switch projects.
     last_project: my-group/my-project
 settings:
-  # Enabled tabs, in display order. Omit any to hide it. Empty/omitted = all five.
-  views: [overview, pipelines, mrs, issues, commits]
+  # Enabled tabs, in display order. Omit any to hide it.
+  # Empty/omitted = overview, pipelines, mrs, issues, todos.
+  views: [overview, pipelines, mrs, issues, todos, commits]
   # The view shown at launch. Empty/omitted = first enabled view.
   default_view: overview
   # Auto-refresh interval for the active view, in seconds. 0 disables it.
@@ -252,7 +265,7 @@ settings:
 
 - **views** — reorder or hide tabs. For example `[overview, pipelines]` shows
   only those two. Valid names: `overview`, `pipelines`, `mrs`, `issues`,
-  `commits`. Unknown or duplicate names are dropped with a warning.
+  `todos`, `commits`. Unknown or duplicate names are dropped with a warning.
 - **default_view** — which view is active on launch, by name. Falls back to
   the first enabled view if empty, unknown, or not in `views`.
 - **refresh_interval** — the active view reloads on this interval (paused while

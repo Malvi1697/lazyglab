@@ -43,6 +43,19 @@ type IssuesLoadedMsg struct {
 	Err    error
 }
 
+// TodosLoadedMsg is sent when the user's to-do list has been fetched.
+type TodosLoadedMsg struct {
+	Todos []gitlab.Todo
+	Err   error
+}
+
+// TodoActionDoneMsg is sent after a to-do was cleared, so the list can be
+// refetched: the row is gone on GitLab's side.
+type TodoActionDoneMsg struct {
+	Text  string
+	IsErr bool
+}
+
 // BranchesLoadedMsg is sent when branches have been fetched.
 type BranchesLoadedMsg struct {
 	Branches []gitlab.Branch
@@ -116,7 +129,7 @@ func IsLoadResult(msg tea.Msg) bool {
 	switch msg.(type) {
 	case ProjectsLoadedMsg, BranchesLoadedMsg, PipelinesLoadedMsg, JobsLoadedMsg,
 		JobTraceLoadedMsg, MRsLoadedMsg, IssuesLoadedMsg, CommitsLoadedMsg,
-		CommitDetailLoadedMsg, ErrorMsg:
+		CommitDetailLoadedMsg, TodosLoadedMsg, ErrorMsg:
 		return true
 	}
 	return false
@@ -146,6 +159,8 @@ func LoadErr(msg tea.Msg) error {
 	case CommitsLoadedMsg:
 		return m.Err
 	case CommitDetailLoadedMsg:
+		return m.Err
+	case TodosLoadedMsg:
 		return m.Err
 	case ErrorMsg:
 		return m.Err

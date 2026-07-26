@@ -133,3 +133,21 @@ type Commit struct {
 	WebURL     string
 	Status     string // CI status, resolved by callers from pipelines by SHA ("" if none)
 }
+
+// Todo is one item on the user's GitLab To-Do list: something waiting on them,
+// in any project. Action says why it is there ("review_requested",
+// "build_failed", "mentioned", …) and Target what kind of thing it points at.
+type Todo struct {
+	ID          int
+	Action      string
+	Target      string // "MergeRequest", "Issue", "Commit", …
+	Reference   string // "!42" / "#7", empty for targets GitLab does not number
+	Title       string
+	TargetState string // the target's own state, e.g. "opened"
+	ProjectPath string
+	Author      string
+	Body        string
+	State       string // always "pending" for what we fetch
+	WebURL      string
+	CreatedAt   time.Time
+}

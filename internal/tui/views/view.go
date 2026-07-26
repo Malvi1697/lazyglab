@@ -19,6 +19,7 @@ const (
 	ViewPipelines
 	ViewMRs
 	ViewIssues
+	ViewTodos
 	ViewCommits
 )
 
@@ -52,6 +53,8 @@ func viewIDFromName(name string) (ViewID, bool) {
 		return ViewMRs, true
 	case "issues":
 		return ViewIssues, true
+	case "todos":
+		return ViewTodos, true
 	case "commits":
 		return ViewCommits, true
 	}
@@ -60,12 +63,16 @@ func viewIDFromName(name string) (ViewID, bool) {
 
 // defaultViews are the tabs shown when settings.views is absent.
 //
+// Todos is last but is the only view that is not about the selected project: it
+// is GitLab's own answer to "what is waiting on me". Anyone who starts their day
+// there can make it the landing tab with settings.default_view.
+//
 // Commits is not among them: Overview already lists recent commits, and Enter
 // opens the full commit page in place, so a separate tab would only offer a
 // taller list of the same thing. It remains available via settings.views for
 // anyone who wants it.
 func defaultViews() []ViewID {
-	return []ViewID{ViewOverview, ViewPipelines, ViewMRs, ViewIssues}
+	return []ViewID{ViewOverview, ViewPipelines, ViewMRs, ViewIssues, ViewTodos}
 }
 
 // ParseViews converts config names into an ordered, deduplicated ViewID list.
@@ -133,6 +140,11 @@ func styleCommitTitle(title string) string {
 		return components.MutedStyle.Render(title[:i+1]) + components.BodyStyle.Render(title[i+1:])
 	}
 	return components.BodyStyle.Render(title)
+}
+
+// statusCmd puts a line in the shell's status bar.
+func statusCmd(text string, isErr bool) tea.Cmd {
+	return func() tea.Msg { return StatusMsg{Text: text, IsErr: isErr} }
 }
 
 // splitLines splits a rendered detail string into lines for RenderBox.

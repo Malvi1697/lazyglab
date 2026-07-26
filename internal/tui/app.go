@@ -144,6 +144,8 @@ func NewApp(o Options) *App {
 			built[id] = views.NewMRsView(ctx)
 		case views.ViewIssues:
 			built[id] = views.NewIssuesView(ctx)
+		case views.ViewTodos:
+			built[id] = views.NewTodosView(ctx)
 		case views.ViewCommits:
 			built[id] = views.NewCommitsView(ctx)
 		}
