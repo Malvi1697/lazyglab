@@ -480,13 +480,15 @@ func (a *App) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		a.overlay = overlayHelp
 		a.helpScroll = 0
 		return a, nil
-	// Views are switched with the numbers, h/l and [/]. Tab is deliberately not
-	// among them: it belongs to whatever has focus, cycling the panels inside the
-	// active view — a key that means "move within" should not also mean "move away".
-	case KeyVimRight, KeyNextTab:
+	// Views are switched with the numbers, H/L and [/]. The uppercase pair moves
+	// between the big tabs, which leaves lowercase h/l to move within whatever is
+	// open — between commits, or between a commit's files. Tab is deliberately not
+	// among them either: it belongs to whatever has focus, cycling the panels inside
+	// the active view — a key that means "move within" should not mean "move away".
+	case KeyNextView, KeyNextTab:
 		a.switchView((a.active + 1) % len(a.viewIDs))
 		return a, a.refresh()
-	case KeyVimLeft, KeyPrevTab:
+	case KeyPrevView, KeyPrevTab:
 		a.switchView((a.active - 1 + len(a.viewIDs)) % len(a.viewIDs))
 		return a, a.refresh()
 	case "P": // project switcher (uppercase so "p" stays free for view actions)

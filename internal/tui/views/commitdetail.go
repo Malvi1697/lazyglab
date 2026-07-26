@@ -37,6 +37,12 @@ type commitDetail struct {
 	diffScroll int
 	diffCache  diffRender
 
+	// What is long enough to scroll, learned while rendering. The footer offers
+	// j/k only where they would move something: a key hint that does nothing is
+	// how the page came to look broken.
+	messageScrollable bool
+	diffScrollable    bool
+
 	sha     string // request in flight, to ignore stale replies
 	loading bool
 	scroll  int
@@ -203,6 +209,11 @@ func (d *commitDetail) update(msg tea.Msg) (tea.Cmd, string) {
 	case JobTraceLoadedMsg:
 		if m.Err != nil {
 			return nil, fmt.Sprintf("Error loading log: %v", m.Err)
+		}
+		// A manual or pending job has nothing written yet. Swapping the screen for an
+		// empty panel — or doing nothing at all, as this used to — says neither.
+		if strings.TrimSpace(m.Trace) == "" {
+			return nil, "This job has not written a log yet"
 		}
 		d.jobs.setTrace(m.Trace)
 		return nil, ""
@@ -516,22 +527,21 @@ func (d *commitDetail) runOnRef() tea.Cmd {
 //
 // Each state says what the arrows do there, because it differs: on the page they
 // step commits, in a diff they step that commit's files, and while a log is open
-// they do nothing at all. A footer that only ever named "←/→" left the H/L pair
+// they do nothing at all. A footer that only ever named "←/→" left the h/l pair
 // undocumented and the difference unsaid.
 func (d *commitDetail) keyHints() []KeyHint {
 	if d.reading {
-		return []KeyHint{
-			{"←/→ H/L", "Prev/next file"},
-			{"j/k", "Scroll"},
-			{"y/Y", "Copy SHA/link"},
-			{"Esc", "Back"},
+		hints := []KeyHint{{"←/→ h/l", "Prev/next file"}}
+		if d.diffScrollable {
+			hints = append(hints, KeyHint{"j/k", "Scroll"})
 		}
+		return append(hints, KeyHint{"y/Y", "Copy SHA/link"}, KeyHint{"Esc", "Back"})
 	}
 	if d.focus == focusFiles {
 		return []KeyHint{
 			{"Enter", "Read diff"},
 			{"j/k", "File"},
-			{"←/→ H/L", "Commit"},
+			{"←/→ h/l", "Commit"},
 			{"Tab", "Jobs"},
 			{"y/Y", "Copy SHA/link"},
 			{"Esc", "Back"},
@@ -543,20 +553,27 @@ func (d *commitDetail) keyHints() []KeyHint {
 	}
 	if d.focus == focusJobs {
 		return append(d.jobs.keyHints(),
-			KeyHint{"←/→ H/L", "Commit"},
+			KeyHint{"←/→ h/l", "Commit"},
 			KeyHint{"Tab", "Changes"},
 		)
 	}
-	return []KeyHint{
-		{"←/→ H/L", "Prev/next commit"},
+	hints := []KeyHint{
+		{"←/→ h/l", "Prev/next commit"},
 		{"Enter", "Step in"},
 		{"Tab", "Changes/Jobs"},
-		{"R", "Retry pipeline"},
-		{"p", "Run on branch"},
-		{"y/Y", "Copy SHA/link"},
-		{"o", "Open"},
-		{"Esc", "Back"},
 	}
+	// Only worth saying when the message does not fit; otherwise j/k are inert here
+	// and the footer would be promising movement that cannot happen.
+	if d.messageScrollable {
+		hints = append(hints, KeyHint{"j/k", "Scroll"})
+	}
+	return append(hints,
+		KeyHint{"R", "Retry pipeline"},
+		KeyHint{"p", "Run on branch"},
+		KeyHint{"y/Y", "Copy SHA/link"},
+		KeyHint{"o", "Open"},
+		KeyHint{"Esc", "Back"},
+	)
 }
 
 // ============================================================================
@@ -633,13 +650,14 @@ func (d *commitDetail) withArrows(page string) string {
 	return strings.Join(out, "\n")
 }
 
-// commitStep maps a key to a move between commits: the arrows, plus H/L for
-// hands that stay on the home row.
+// commitStep maps a key to a move between commits: the arrows, plus h/l for hands
+// that stay on the home row. Lowercase, because this is movement within what is
+// open; the uppercase pair moves between the views, which is a bigger step.
 func commitStep(key string) (int, bool) {
 	switch key {
-	case "left", "H":
+	case "left", "h":
 		return -1, true
-	case "right", "L":
+	case "right", "l":
 		return 1, true
 	}
 	return 0, false
@@ -666,8 +684,11 @@ func (d *commitDetail) page(width, height int) string {
 	if bottomHeight < 4 {
 		// A short terminal: keep the message and drop the columns, which would be
 		// two headings and nothing else.
+		d.messageScrollable = len(top) > height-1
 		return components.RenderPanel(d.title(len(top), height-1), d.window(top, height-1), width, height, true)
 	}
+
+	d.messageScrollable = len(top) > topHeight-1
 
 	return lipgloss.JoinVertical(lipgloss.Left,
 		components.RenderPanel(d.title(len(top), topHeight-1), d.window(top, topHeight-1), width, topHeight, d.focus == focusPage),
@@ -931,6 +952,7 @@ func (d *commitDetail) diffView(width, height int) string {
 	if rows < 1 {
 		rows = 1
 	}
+	d.diffScrollable = len(lines) > rows
 	if maxScroll := len(lines) - rows; d.diffScroll > maxScroll {
 		d.diffScroll = max(0, maxScroll)
 	}

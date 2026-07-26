@@ -31,11 +31,11 @@ func legendPage(t *testing.T) *commitDetail {
 }
 
 func TestLegend_CommitPageNamesBothWaysToStepCommits(t *testing.T) {
-	// H/L work everywhere the arrows do, and were never mentioned anywhere.
+	// h/l work everywhere the arrows do, and were never mentioned anywhere.
 	d := legendPage(t)
 	got := hintsFor(d.keyHints())
-	if !strings.Contains(got, "H/L") {
-		t.Errorf("page hints = %q, want the H/L pair named", got)
+	if !strings.Contains(got, "h/l") {
+		t.Errorf("page hints = %q, want the h/l pair named", got)
 	}
 }
 
@@ -45,14 +45,14 @@ func TestLegend_DiffReaderNamesTheFileKeys(t *testing.T) {
 	d.reading = true
 
 	got := hintsFor(d.keyHints())
-	if !strings.Contains(got, "H/L") || !strings.Contains(strings.ToLower(got), "file") {
-		t.Errorf("diff hints = %q, want it to say the arrows and H/L step files", got)
+	if !strings.Contains(got, "h/l") || !strings.Contains(strings.ToLower(got), "file") {
+		t.Errorf("diff hints = %q, want it to say the arrows and h/l step files", got)
 	}
 
 	// And the keys it names really do that, rather than stepping commits.
-	d.handleKey("L", 20)
+	d.handleKey("l", 20)
 	if d.fileCursor != 1 {
-		t.Errorf("fileCursor = %d, want L to have stepped to the next file", d.fileCursor)
+		t.Errorf("fileCursor = %d, want l to have stepped to the next file", d.fileCursor)
 	}
 	d.handleKey("left", 20)
 	if d.fileCursor != 0 {
@@ -67,7 +67,7 @@ func TestLegend_FilesBoxSaysTheArrowsStillMoveCommits(t *testing.T) {
 	d.focus = focusFiles
 
 	got := hintsFor(d.keyHints())
-	if !strings.Contains(got, "H/L") || !strings.Contains(strings.ToLower(got), "commit") {
+	if !strings.Contains(got, "h/l") || !strings.Contains(strings.ToLower(got), "commit") {
 		t.Errorf("files hints = %q, want it to say the arrows step commits", got)
 	}
 	if d.readingBody() {
@@ -80,7 +80,7 @@ func TestLegend_JobsBoxKeepsThePageKeys(t *testing.T) {
 	d.focus = focusJobs
 
 	got := hintsFor(d.keyHints())
-	for _, want := range []string{"Enter", "Tab", "H/L", "y"} {
+	for _, want := range []string{"Enter", "Tab", "h/l"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("jobs hints = %q, want %q named", got, want)
 		}
@@ -97,7 +97,7 @@ func TestLegend_AnOpenLogOwnsTheArrows(t *testing.T) {
 	if !d.readingBody() {
 		t.Fatal("an open log should own the arrows")
 	}
-	if got := hintsFor(d.keyHints()); strings.Contains(got, "H/L") {
+	if got := hintsFor(d.keyHints()); strings.Contains(got, "h/l") {
 		t.Errorf("log hints = %q, want no commit stepping offered", got)
 	}
 }

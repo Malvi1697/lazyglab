@@ -299,28 +299,38 @@ func TestFavorites_NoSaveFuncKeepsStarsInSession(t *testing.T) {
 }
 
 func TestViewSwitching_VimKeys(t *testing.T) {
-	// h/l move between views the way they moved between panels in v1.
+	// H/L move between the views — the big tabs. Lowercase h/l is left to move
+	// within whatever is open, such as between a commit's files.
 	var saved savedFavorites
 	a := newFavApp(t, nil, &saved) // 3 views, starting at index 0
 
-	press(a, "l")
+	press(a, "L")
 	if a.active != 1 {
-		t.Errorf("after l, active = %d, want 1", a.active)
+		t.Errorf("after L, active = %d, want 1", a.active)
 	}
-	press(a, "l")
+	press(a, "L")
 	if a.active != 2 {
-		t.Errorf("after a second l, active = %d, want 2", a.active)
+		t.Errorf("after a second L, active = %d, want 2", a.active)
 	}
-	press(a, "l")
+	press(a, "L")
 	if a.active != 0 {
-		t.Errorf("l past the last view should wrap to 0, got %d", a.active)
+		t.Errorf("L past the last view should wrap to 0, got %d", a.active)
 	}
-	press(a, "h")
+	press(a, "H")
 	if a.active != 2 {
-		t.Errorf("h from the first view should wrap to the last, got %d", a.active)
+		t.Errorf("H from the first view should wrap to the last, got %d", a.active)
 	}
+	press(a, "H")
+	if a.active != 1 {
+		t.Errorf("after H, active = %d, want 1", a.active)
+	}
+
+	// Lowercase must not move the tabs any more, or the commit page could never
+	// use it to step between commits.
+	a.active = 1
+	press(a, "l")
 	press(a, "h")
 	if a.active != 1 {
-		t.Errorf("after h, active = %d, want 1", a.active)
+		t.Errorf("h/l moved the view to %d; they belong to the active view now", a.active)
 	}
 }

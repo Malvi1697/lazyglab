@@ -157,9 +157,9 @@ func TestShell_TabDoesNotSwitchViews(t *testing.T) {
 	}
 
 	// The keys that do switch views still do.
-	a.Update(tea.KeyPressMsg{Code: 'l', Text: "l"})
+	a.Update(tea.KeyPressMsg{Code: 'L', Text: "L"})
 	if a.active != 1 {
-		t.Errorf("l should move to the next view, got %d", a.active)
+		t.Errorf("L should move to the next view, got %d", a.active)
 	}
 	a.Update(tea.KeyPressMsg{Code: ']', Text: "]"})
 	if a.active != 2 {

@@ -127,7 +127,7 @@ lazyglab --version  # Show version
 
 lazyglab is a cockpit: a context bar and a row of tabs stay on screen, and the
 space below shows one full-screen view at a time. Switch views with the number
-keys (`1`-`6`), `h`/`l` or `[`/`]`. `Tab` stays inside the active view, cycling its
+keys (`1`-`6`), `H`/`L` or `[`/`]`. `Tab` stays inside the active view, cycling its
 own boxes. The context bar shows the active project
 and branch, plus the latest status/error message.
 
@@ -172,7 +172,7 @@ The page lists the commit's **changed files** with their `+`/`-` counts. `Enter`
 steps into them, `Enter` again reads that file's unified diff full-screen, and
 `Esc` comes back. The diff is **syntax highlighted** by the file's language, with
 the `+`/`-` gutter carrying whether a line was added or removed, so a diff reads
-like the file it came from. `←`/`→` (or `H`/`L`) step between the commit's files,
+like the file it came from. `←`/`→` (or `h`/`l`) step between the commit's files,
 and the title says which of how many you are on. A diff GitLab declines to send
 (too large) says so rather than looking like an empty change.
 
@@ -184,7 +184,7 @@ From there `Enter` reads that job's log — the one thing that does take the who
 body, because a log needs the room — `R` retries a job, `C` cancels one and `p`
 plays a manual one. `Esc` unwinds log → jobs → page → list.
 
-`←`/`→` (or `H`/`L`) step to the previous and next commit without leaving the page.
+`←`/`→` (or `h`/`l`) step to the previous and next commit without leaving the page.
 
 A commit that never triggered CI simply says so — the detail is still useful, and
 nothing jumps you elsewhere.
@@ -202,7 +202,7 @@ prompt names the branch it will build.
 
 Press `P` to switch projects and `b` to switch branches from any view — both
 open as overlays on top of the current view. `r` refreshes the active view.
-`h`/`l` and `[`/`]` step between views.
+`H`/`L` and `[`/`]` step between views.
 
 Both the project and branch pickers support incremental search: press `/` and
 type to narrow the list (matching the display name or the `group/project` path);

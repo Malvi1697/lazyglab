@@ -12,8 +12,8 @@ const (
 	KeyShiftTab = "shift+tab"
 	KeyUp       = "up"
 	KeyDown     = "down"
-	KeyVimLeft  = "h"
-	KeyVimRight = "l"
+	KeyPrevView = "H" // previous view: the big tabs, so lowercase h stays free
+	KeyNextView = "L" // next view
 	KeyHalfDown = "ctrl+d"
 	KeyHalfUp   = "ctrl+u"
 	KeyBranch   = "b"

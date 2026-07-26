@@ -375,11 +375,11 @@ func TestCommitPage_ArrowsStepBetweenCommits(t *testing.T) {
 	}
 
 	// H and L do the same, for hands that stay on the home row.
-	v.Update(tea.KeyPressMsg{Code: 'L', Text: "L"})
+	v.Update(tea.KeyPressMsg{Code: 'l', Text: "l"})
 	if v.detail.commit.ShortID != "bbb2222" {
 		t.Errorf("after L, page is on %s", v.detail.commit.ShortID)
 	}
-	v.Update(tea.KeyPressMsg{Code: 'H', Text: "H"})
+	v.Update(tea.KeyPressMsg{Code: 'h', Text: "h"})
 	if v.detail.commit.ShortID != "aaa1111" {
 		t.Errorf("after H, page is on %s", v.detail.commit.ShortID)
 	}
@@ -736,7 +736,7 @@ func TestCommitPage_ArrowsStepFilesWhileReadingADiff(t *testing.T) {
 
 	for _, key := range []tea.KeyPressMsg{
 		{Code: tea.KeyRight},
-		{Code: 'L', Text: "L"},
+		{Code: 'l', Text: "l"},
 	} {
 		before := v.detail.fileCursor
 		v.Update(key)
@@ -753,7 +753,7 @@ func TestCommitPage_ArrowsStepFilesWhileReadingADiff(t *testing.T) {
 
 	for _, key := range []tea.KeyPressMsg{
 		{Code: tea.KeyLeft},
-		{Code: 'H', Text: "H"},
+		{Code: 'h', Text: "h"},
 	} {
 		before := v.detail.fileCursor
 		v.Update(key)

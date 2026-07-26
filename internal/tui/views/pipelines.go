@@ -103,6 +103,11 @@ func (v *PipelinesView) Update(msg tea.Msg) tea.Cmd {
 			v.status = fmt.Sprintf("Error loading trace: %v", msg.Err)
 			return nil
 		}
+		// A manual or pending job has nothing written yet; Enter on one used to look
+		// like a key that did not work.
+		if strings.TrimSpace(msg.Trace) == "" {
+			return statusCmd("This job has not written a log yet", true)
+		}
 		v.jobs.setTrace(msg.Trace)
 		return nil
 
