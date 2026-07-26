@@ -164,8 +164,11 @@ pipelines it triggered together with their jobs grouped by stage. `j`/`k` scroll
 head and `y` copies the SHA.
 
 The page lists the commit's **changed files** with their `+`/`-` counts. `Enter`
-steps into them, `Enter` again reads that file's unified diff full-screen with
-added and removed lines coloured; `Esc` comes back. A diff GitLab declines to send
+steps into them, `Enter` again reads that file's unified diff full-screen, and
+`Esc` comes back. The diff is **syntax highlighted** by the file's language, with
+the `+`/`-` gutter carrying whether a line was added or removed, so a diff reads
+like the file it came from. `←`/`→` (or `H`/`L`) step between the commit's files,
+and the title says which of how many you are on. A diff GitLab declines to send
 (too large) says so rather than looking like an empty change.
 
 `Tab` cycles the page's boxes — message, changes, jobs — skipping any that are

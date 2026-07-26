@@ -35,6 +35,7 @@ type commitDetail struct {
 	fileScroll int
 	reading    bool
 	diffScroll int
+	diffCache  diffRender
 
 	sha     string // request in flight, to ignore stale replies
 	loading bool
@@ -54,6 +55,14 @@ type commitDetail struct {
 
 	// focus says whether the keys drive the page or the jobs listed on it.
 	focus commitFocus
+}
+
+// diffRender is a file's diff as display lines, kept so scrolling does not
+// re-tokenise it on every frame.
+type diffRender struct {
+	path  string
+	width int
+	lines []string
 }
 
 // commitFocus is which part of the commit page the keys drive.
@@ -84,6 +93,9 @@ func (d *commitDetail) openAt(c *gitlab.Commit, index, total int) tea.Cmd {
 	d.jobs.close()
 	d.focus = focusPage
 	d.fileCursor, d.reading, d.diffScroll = 0, false, 0
+	// Two commits can touch the same path, so the rendered diff has to go with the
+	// commit rather than only with the file name.
+	d.diffCache = diffRender{}
 	d.scroll = 0
 	return d.load(c)
 }
@@ -99,6 +111,7 @@ func (d *commitDetail) close() {
 	d.pipelines, d.refs, d.mrs, d.diffs = nil, nil, nil, nil
 	d.focus = focusPage
 	d.fileCursor, d.reading, d.diffScroll = 0, false, 0
+	d.diffCache = diffRender{}
 	d.sha = ""
 	d.scroll = 0
 }
@@ -885,12 +898,7 @@ func (d *commitDetail) diffView(width, height int) string {
 		contentWidth = 1
 	}
 
-	var lines []string
-	for _, line := range strings.Split(strings.TrimRight(f.Diff, "\n"), "\n") {
-		for _, wrapped := range components.WrapLine(line, contentWidth) {
-			lines = append(lines, styleDiffLine(wrapped))
-		}
-	}
+	lines := d.diffLines(f, contentWidth)
 
 	rows := height - 1
 	if rows < 1 {
@@ -906,19 +914,69 @@ func (d *commitDetail) diffView(width, height int) string {
 	return strings.Join(lines[d.diffScroll:end], "\n")
 }
 
-// styleDiffLine colours one line of a unified diff.
-func styleDiffLine(line string) string {
+// diffLines renders a file's unified diff into display lines, syntax highlighted
+// and wrapped to width. The result is cached per file and width: scrolling
+// re-renders the whole diff each frame, and a thousand-line file would be
+// tokenised again on every keypress.
+func (d *commitDetail) diffLines(f *gitlab.FileDiff, width int) []string {
+	path := f.Path()
+	if d.diffCache.path == path && d.diffCache.width == width {
+		return d.diffCache.lines
+	}
+
+	var lines []string
+	for _, raw := range strings.Split(strings.TrimRight(f.Diff, "\n"), "\n") {
+		lines = append(lines, styleDiffLine(path, raw, width)...)
+	}
+
+	d.diffCache = diffRender{path: path, width: width, lines: lines}
+	return lines
+}
+
+// styleDiffLine renders one line of a unified diff, wrapped to width.
+//
+// The marker column carries the meaning — added, removed, context — so the code
+// beside it is free to be syntax highlighted and read like the file it came from.
+// A wrapped line keeps its marker column empty on the continuation rows, which
+// keeps the code aligned and does not claim the marker twice.
+func styleDiffLine(path, line string, width int) []string {
 	switch {
 	case strings.HasPrefix(line, "@@"):
 		// The hunk header is the only structure in a diff, so it gets the accent.
-		return components.TitleStyle.Render(line)
-	case strings.HasPrefix(line, "+"):
-		return lipgloss.NewStyle().Foreground(components.ColorSuccess).Render(line)
-	case strings.HasPrefix(line, "-"):
-		return lipgloss.NewStyle().Foreground(components.ColorError).Render(line)
-	default:
-		return line
+		return []string{components.TitleStyle.Render(components.Truncate(line, width))}
+	case strings.HasPrefix(line, "\\"):
+		// "\ No newline at end of file" is a note about the diff, not part of it.
+		return []string{components.MutedStyle.Render(components.Truncate(line, width))}
 	}
+
+	marker, body := " ", line
+	var markerStyle lipgloss.Style
+	switch {
+	case strings.HasPrefix(line, "+"):
+		marker, body = "+", line[1:]
+		markerStyle = lipgloss.NewStyle().Foreground(components.ColorSuccess).Bold(true)
+	case strings.HasPrefix(line, "-"):
+		marker, body = "-", line[1:]
+		markerStyle = lipgloss.NewStyle().Foreground(components.ColorError).Bold(true)
+	case strings.HasPrefix(line, " "):
+		body = line[1:]
+	}
+
+	codeWidth := width - 1
+	if codeWidth < 1 {
+		codeWidth = 1
+	}
+
+	wrapped := components.WrapLine(body, codeWidth)
+	out := make([]string, 0, len(wrapped))
+	for i, frag := range wrapped {
+		gutter := " "
+		if i == 0 && marker != " " {
+			gutter = markerStyle.Render(marker)
+		}
+		out = append(out, gutter+components.Highlight(path, frag))
+	}
+	return out
 }
 
 // pipelineLines renders the commit's pipelines and the newest one's jobs grouped
