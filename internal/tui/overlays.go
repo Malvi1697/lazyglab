@@ -477,20 +477,26 @@ func helpEntries() []helpEntry {
 		{"Esc", "Back / cancel"},
 		{"o", "Open in browser"},
 
+		{"Searching a list", ""},
+		{"/", "Search the list you are in"},
+		{"Enter", "Keep it narrowed, keys work again"},
+		{"Esc", "Clear it; a second Esc means back"},
+		{"Backspace", "Edit the query"},
+
 		{"Pickers (P / b / f)", ""},
-		{"/", "Search; Enter applies it, Esc clears"},
-		{"f", "Star / unstar the highlighted project"},
-		{"Backspace", "Edit the search"},
+		{"/", "Search; Enter applies, Esc clears"},
+		{"f", "Star / unstar the highlighted one"},
+
+		{"Reconnect form (A)", ""},
+		{"Tab", "Next field"},
+		{"Ctrl+u", "Clear the field"},
+		{"Enter", "Save and validate"},
 
 		{"Pipelines", ""},
 		{"Enter", "Drill into the pipeline's jobs"},
 		{"p", "Run a new pipeline"},
 		{"R", "Retry"},
 		{"C", "Cancel"},
-
-		{"Changed files", ""},
-		{"Enter", "Read the file's diff"},
-		{"j / k", "Move between files"},
 
 		{"Jobs (pipeline or commit)", ""},
 		{"Enter", "Read the job's log"},
@@ -508,12 +514,23 @@ func helpEntries() []helpEntry {
 		{"Commit page", ""},
 		{"Tab / S-Tab", "Cycle the page's boxes"},
 		{"j / k", "Scroll the message"},
-		{"← / →", "Previous / next commit"},
+		{"← / → or H / L", "Previous / next commit"},
 		{"Enter", "Step into the changed files"},
 		{"R", "Retry the commit's pipeline"},
 		{"p", "Run a pipeline on the branch head"},
 		{"y", "Copy the SHA"},
 		{"Esc", "Back to the list"},
+
+		{"Changed files", ""},
+		{"Enter", "Read the file's diff"},
+		{"j / k", "Move between files"},
+		{"← / → or H / L", "Still step between commits"},
+
+		{"Reading a diff", ""},
+		{"← / → or H / L", "Previous / next file of the commit"},
+		{"j / k", "Scroll the diff"},
+		{"y", "Copy the SHA"},
+		{"Esc", "Back to the changed files"},
 
 		{"Merge Requests", ""},
 		{"a", "Approve"},
@@ -521,6 +538,11 @@ func helpEntries() []helpEntry {
 
 		{"Issues", ""},
 		{"c", "Close / reopen"},
+
+		{"Todos", ""},
+		{"Enter / o", "Open it on GitLab"},
+		{"d", "Mark the highlighted todo done"},
+		{"D", "Mark the whole list done"},
 	}
 }
 
@@ -534,68 +556,76 @@ func (a *App) handleHelpKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return a, nil
 	}
 
-	entries := helpEntries()
-	_, boxHeight := a.helpBoxSize(entries)
 	if act := components.NavFor(key); act != components.NavNone {
-		// The help is scrolled rather than "selected": drive the offset directly.
-		a.helpScroll = components.ApplyNav(act, a.helpScroll, len(entries), boxHeight-2)
+		// The help is scrolled rather than "selected": drive the offset directly, over
+		// rendered rows rather than entries. The blank line before each section is a
+		// row too, and counting entries instead left the last few unreachable.
+		rows, _, boxHeight := a.helpLayout()
+		a.helpScroll = components.ApplyNav(act, a.helpScroll, len(rows), boxHeight-3)
 		return a, nil
 	}
 	return a, nil
 }
 
-// helpBoxSize returns the help overlay's width and height, capped to the screen.
-func (a *App) helpBoxSize(entries []helpEntry) (int, int) {
-	width := 56
-	if width > a.width-2 {
-		width = a.width - 2
+// helpLayout renders the whole keymap as display rows and sizes the box around
+// it. Both the key handler and the renderer work from this, so what scrolls and
+// what is drawn can never disagree.
+func (a *App) helpLayout() (rows []string, boxWidth, boxHeight int) {
+	boxWidth = 60
+	if boxWidth > a.width-2 {
+		boxWidth = a.width - 2
 	}
-	// +2 for the borders, +1 for the footer hint.
-	height := len(entries) + 3
-	if max := a.height - 2; height > max {
-		height = max
-	}
-	if height < 6 {
-		height = 6
-	}
-	return width, height
-}
-
-func (a *App) renderHelp() string {
-	entries := helpEntries()
-	boxWidth, boxHeight := a.helpBoxSize(entries)
 	innerWidth := boxWidth - 4
-	rows := boxHeight - 3 // content rows, leaving the footer hint
 
-	// Clamp an offset left over from a taller terminal.
-	if maxOffset := len(entries) - rows; a.helpScroll > maxOffset {
-		a.helpScroll = maxOffset
-	}
-	if a.helpScroll < 0 {
-		a.helpScroll = 0
-	}
-
-	var lines []string
-	for i := a.helpScroll; i < len(entries) && len(lines) < rows; i++ {
-		e := entries[i]
+	entries := helpEntries()
+	for i, e := range entries {
 		if e.desc == "" {
-			// Section heading, blank line above it except at the very top.
-			if len(lines) > 0 && len(lines) < rows-1 {
-				lines = append(lines, "")
+			// Section heading, with a blank line above it except at the very top.
+			if i > 0 {
+				rows = append(rows, "")
 			}
-			lines = append(lines, components.TitleStyle.Render(e.key))
+			rows = append(rows, components.TitleStyle.Render(e.key))
 			continue
 		}
-		lines = append(lines, fmt.Sprintf("%s %s",
+		rows = append(rows, fmt.Sprintf("%s %s",
 			components.HelpKeyStyle.Render(components.PadRight(e.key, 16)),
 			components.HelpDescStyle.Render(components.Truncate(e.desc, innerWidth-17)),
 		))
 	}
 
+	// +2 for the borders, +1 for the footer hint.
+	boxHeight = len(rows) + 3
+	if maxHeight := a.height - 2; boxHeight > maxHeight {
+		boxHeight = maxHeight
+	}
+	if boxHeight < 6 {
+		boxHeight = 6
+	}
+	return rows, boxWidth, boxHeight
+}
+
+func (a *App) renderHelp() string {
+	all, boxWidth, boxHeight := a.helpLayout()
+	visible := boxHeight - 3 // content rows, leaving the footer hint
+	if visible < 1 {
+		visible = 1
+	}
+
+	// Clamp an offset left over from a taller terminal.
+	if maxOffset := len(all) - visible; a.helpScroll > maxOffset {
+		a.helpScroll = max(0, maxOffset)
+	}
+	if a.helpScroll < 0 {
+		a.helpScroll = 0
+	}
+
+	end := min(a.helpScroll+visible, len(all))
+	lines := append([]string{}, all[a.helpScroll:end]...)
+
 	hint := "Esc: close"
-	if len(entries) > rows {
+	if len(all) > visible {
 		hint = fmt.Sprintf("j/k: scroll (%d-%d of %d)  Esc: close",
-			a.helpScroll+1, min(a.helpScroll+rows, len(entries)), len(entries))
+			a.helpScroll+1, end, len(all))
 	}
 	lines = append(lines, components.HelpSepStyle.Render(hint))
 

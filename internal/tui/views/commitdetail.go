@@ -505,23 +505,43 @@ func (d *commitDetail) runOnRef() tea.Cmd {
 }
 
 // keyHints are the detail's footer hints.
+//
+// Each state says what the arrows do there, because it differs: on the page they
+// step commits, in a diff they step that commit's files, and while a log is open
+// they do nothing at all. A footer that only ever named "←/→" left the H/L pair
+// undocumented and the difference unsaid.
 func (d *commitDetail) keyHints() []KeyHint {
 	if d.reading {
-		return []KeyHint{{"Esc", "Back"}, {"j/k", "Scroll"}, {"y", "Copy SHA"}}
+		return []KeyHint{
+			{"←/→ H/L", "Prev/next file"},
+			{"j/k", "Scroll"},
+			{"y", "Copy SHA"},
+			{"Esc", "Back"},
+		}
 	}
 	if d.focus == focusFiles {
 		return []KeyHint{
 			{"Enter", "Read diff"},
 			{"j/k", "File"},
+			{"←/→ H/L", "Commit"},
 			{"Tab", "Jobs"},
+			{"y", "Copy SHA"},
 			{"Esc", "Back"},
 		}
 	}
-	if d.jobs.showingTrace() || d.focus == focusJobs {
+	if d.jobs.showingTrace() {
+		// A log has the screen; the commit's own keys are out of reach until Esc.
 		return d.jobs.keyHints()
 	}
+	if d.focus == focusJobs {
+		return append(d.jobs.keyHints(),
+			KeyHint{"←/→ H/L", "Commit"},
+			KeyHint{"Tab", "Changes"},
+			KeyHint{"y", "Copy SHA"},
+		)
+	}
 	return []KeyHint{
-		{"←/→", "Prev/next commit"},
+		{"←/→ H/L", "Prev/next commit"},
 		{"Enter", "Step in"},
 		{"Tab", "Changes/Jobs"},
 		{"R", "Retry pipeline"},

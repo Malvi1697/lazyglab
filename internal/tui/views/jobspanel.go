@@ -194,12 +194,15 @@ func (p *jobsPanel) scrollTrace(key string, height int) bool {
 // keyHints are the panel's footer hints.
 func (p *jobsPanel) keyHints() []KeyHint {
 	if p.trace != "" {
+		// The job's own actions still apply to the job whose log this is, so the
+		// footer names them here too rather than only in the list.
 		return []KeyHint{
-			{"Esc", "Back"},
 			{"j/k", "Scroll"},
 			{"R", "Retry"},
 			{"C", "Cancel"},
+			{"p", "Play"},
 			{"o", "Open"},
+			{"Esc", "Back"},
 		}
 	}
 	return []KeyHint{
