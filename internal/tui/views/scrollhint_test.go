@@ -55,9 +55,16 @@ func TestJobLog_EmptyLogSaysSoInsteadOfNothing(t *testing.T) {
 	d := &page
 	d.jobs.adopt(9, []gitlab.Job{{ID: 1, Name: "deploy", Status: "manual"}})
 
-	_, status := d.update(JobTraceLoadedMsg{Trace: "   \n"})
-	if !strings.Contains(status, "not written a log") {
-		t.Errorf("status = %q, want it to say the job has no log yet", status)
+	cmd := d.update(JobTraceLoadedMsg{Trace: "   \n"})
+	if cmd == nil {
+		t.Fatal("an empty log should report something")
+	}
+	msg, ok := cmd().(StatusMsg)
+	if !ok || !strings.Contains(msg.Text, "not written a log") {
+		t.Errorf("reported %v, want it to say the job has no log yet", cmd())
+	}
+	if !msg.IsErr {
+		t.Error("an empty log is a dead end, so it should read as a warning")
 	}
 	if d.jobs.showingTrace() {
 		t.Error("an empty log must not take the screen")

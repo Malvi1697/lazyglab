@@ -17,7 +17,7 @@ func TestCommitRows_ShowAuthorNotHash(t *testing.T) {
 		ShortID: "a665c90d", Title: "merge migrations", AuthorName: "Jan Všetíček",
 	}}
 
-	row := v.commitItems(v.visible())[0]
+	row := commitItemRow(v.visible()[0])
 	if !strings.Contains(row, "Jan Všetíček") {
 		t.Errorf("row = %q, want the author name", row)
 	}
@@ -30,7 +30,7 @@ func TestOverviewRows_ShowAuthorNotHash(t *testing.T) {
 	v := NewOverviewView(&Context{})
 	v.commits = []gitlab.Commit{{ShortID: "bbb2222", Title: "t", AuthorName: "Someone Else"}}
 
-	row := v.commitItems(v.visible())[0]
+	row := v.commitRow(v.visible()[0])
 	if !strings.Contains(row, "Someone Else") {
 		t.Errorf("row = %q, want the author name", row)
 	}
@@ -46,7 +46,8 @@ func TestCommitRows_LongAuthorIsTruncatedForAlignment(t *testing.T) {
 		{ShortID: "b", Title: "two", AuthorName: "A Very Long Contributor Name Indeed"},
 	}
 
-	rows := v.commitItems(v.visible())
+	visible := v.visible()
+	rows := []string{commitItemRow(visible[0]), commitItemRow(visible[1])}
 	// Titles must start at the same column in both rows.
 	first := strings.Index(rows[0], "one")
 	second := strings.Index(rows[1], "two")

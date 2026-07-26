@@ -165,6 +165,17 @@ func joinPanels(left, right string, height int) string {
 // would pin the cursor to an edge, and moving back would scroll the viewport
 // instead of walking the cursor through it.
 func renderListBox(width, height int, title string, items []string, cursor int, scroll *int) string {
+	return renderRowsBox(width, height, title, len(items),
+		func(i int) string { return items[i] }, cursor, scroll)
+}
+
+// renderRowsBox is renderListBox for a list whose rows are rendered on demand.
+//
+// A list of fifty commits shows about twenty-six of them, and styling a row is
+// the most expensive thing a frame does — so the rows outside the window are
+// never built at all. Every keypress redraws the body, so that is half the work
+// of a frame saved on each one.
+func renderRowsBox(width, height int, title string, total int, row func(int) string, cursor int, scroll *int) string {
 	innerWidth := width       // panels have no side borders to pay for
 	innerHeight := height - 1 // the heading takes one row
 	if innerWidth < 1 {
@@ -177,13 +188,13 @@ func renderListBox(width, height int, title string, items []string, cursor int, 
 	// Keep the cursor visible with a margin of context beyond it.
 	scrollOffset := 0
 	if scroll != nil {
-		*scroll = components.ScrollOffset(*scroll, cursor, len(items), innerHeight)
+		*scroll = components.ScrollOffset(*scroll, cursor, total, innerHeight)
 		scrollOffset = *scroll
 	}
 
-	var contentLines []string
-	for i := scrollOffset; i < len(items) && len(contentLines) < innerHeight; i++ {
-		item := items[i]
+	contentLines := make([]string, 0, innerHeight)
+	for i := scrollOffset; i < total && len(contentLines) < innerHeight; i++ {
+		item := row(i)
 		isHeader := len(item) > 0 && item[0] == '\x00'
 		if isHeader {
 			item = item[1:]

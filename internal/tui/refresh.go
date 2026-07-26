@@ -37,7 +37,11 @@ func (a *App) refreshNote(now time.Time) string {
 	}
 
 	note := "updated " + shortDuration(since) + " ago"
-	if a.refreshInterval > 0 && !a.nextRefresh.IsZero() {
+	switch {
+	case !a.focused:
+		// The countdown would be a promise we are deliberately not keeping.
+		note += " · paused"
+	case a.refreshInterval > 0 && !a.nextRefresh.IsZero():
 		if next := a.nextRefresh.Sub(now); next > 0 {
 			note += " · next " + shortDuration(next)
 		}

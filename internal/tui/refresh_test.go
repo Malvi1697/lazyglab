@@ -169,3 +169,76 @@ func TestRefresh_NoteSharesTheBarWithALongStatus(t *testing.T) {
 		t.Errorf("bar = %q, want the refresh note kept at the right", plain)
 	}
 }
+
+func TestRefresh_PausesWhileTheTerminalIsUnfocused(t *testing.T) {
+	// Polling GitLab every thirty seconds for a window nobody is looking at is
+	// pure waste, and the note must not promise a countdown it will not honour.
+	now := time.Date(2026, 7, 25, 12, 0, 0, 0, time.UTC)
+	a := refreshApp(t, now)
+	a.lastRefresh = now.Add(-time.Minute)
+
+	a.Update(tea.BlurMsg{})
+	if _, cmd := a.Update(tickMsg{}); cmd != nil {
+		// The tick still re-arms itself, so a command is expected — but it must not
+		// be a refresh.
+		if a.refreshing {
+			t.Error("the tick refreshed while the terminal was in the background")
+		}
+	}
+	if got := note(a, now); !strings.Contains(got, "paused") {
+		t.Errorf("note = %q, want it to say the refresh is paused", got)
+	}
+
+	// Coming back to stale data refreshes at once, rather than waiting out the tick.
+	_, cmd := a.Update(tea.FocusMsg{})
+	if cmd == nil || !a.refreshing {
+		t.Error("regaining focus with stale data should refresh")
+	}
+}
+
+func TestRefresh_FocusWithFreshDataDoesNotRefetch(t *testing.T) {
+	now := time.Date(2026, 7, 25, 12, 0, 0, 0, time.UTC)
+	a := refreshApp(t, now)
+	a.lastRefresh = now.Add(-2 * time.Second)
+
+	a.Update(tea.BlurMsg{})
+	if _, cmd := a.Update(tea.FocusMsg{}); cmd != nil {
+		t.Error("a glance away and back must not cost a request")
+	}
+}
+
+func TestRefresh_SwitchingViewsReusesWhatWasJustFetched(t *testing.T) {
+	// Flipping through the tabs used to refetch every one of them on the way past.
+	now := time.Date(2026, 7, 25, 12, 0, 0, 0, time.UTC)
+	a := NewApp(Options{
+		Clients:         map[string]*gitlab.Client{"h": nil},
+		HostNames:       []string{"h"},
+		DetectedHost:    "h",
+		ViewIDs:         []views.ViewID{views.ViewOverview, views.ViewIssues},
+		RefreshInterval: 30 * time.Second,
+	})
+	a.width, a.height = 120, 40
+	a.now = func() time.Time { return now }
+	a.ctx.Project = &gitlab.Project{ID: 1, PathWithNamespace: "g/p"}
+	a.ctx.Client = &gitlab.Client{}
+
+	// Both views have just been looked at.
+	a.Update(views.CommitsLoadedMsg{})
+	a.Update(tea.KeyPressMsg{Code: 'L', Text: "L"})
+	a.Update(views.IssuesLoadedMsg{})
+
+	if _, cmd := a.Update(tea.KeyPressMsg{Code: 'H', Text: "H"}); cmd != nil {
+		t.Error("going back to a view fetched a moment ago should reuse it")
+	}
+
+	// r is an explicit ask and always reaches GitLab.
+	if _, cmd := a.Update(tea.KeyPressMsg{Code: 'r', Text: "r"}); cmd == nil {
+		t.Error("r must always refresh, however fresh the data looks")
+	}
+
+	// And once the window has passed, the tab refetches on its own.
+	now = now.Add(viewFreshFor + time.Second)
+	if _, cmd := a.Update(tea.KeyPressMsg{Code: 'L', Text: "L"}); cmd == nil {
+		t.Error("a view whose data has aged past the window should refetch")
+	}
+}

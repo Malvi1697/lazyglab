@@ -35,8 +35,6 @@ type TodosView struct {
 	scroll int  // first visible row, kept across frames
 
 	search listSearch
-
-	status string
 }
 
 // NewTodosView creates a TodosView bound to the shared session context.
@@ -62,8 +60,7 @@ func (v *TodosView) Update(msg tea.Msg) tea.Cmd {
 
 	case TodosLoadedMsg:
 		if msg.Err != nil {
-			v.status = fmt.Sprintf("Error loading todos: %v", msg.Err)
-			return nil
+			return statusCmd(fmt.Sprintf("Error loading todos: %v", msg.Err), true)
 		}
 		v.loaded = true
 		v.todos = msg.Todos
@@ -77,10 +74,6 @@ func (v *TodosView) Update(msg tea.Msg) tea.Cmd {
 			return statusCmd(msg.Text, true)
 		}
 		return tea.Batch(v.load(), statusCmd(msg.Text, false))
-
-	case StatusMsg:
-		v.status = msg.Text
-		return nil
 
 	case tea.PasteMsg:
 		v.search.paste(msg.Content, &v.cursor)
@@ -175,9 +168,10 @@ func (v *TodosView) Body(width, height int) string {
 	rightWidth := width - leftWidth
 
 	visible := v.visible()
-	left := renderListBox(leftWidth, height,
+	left := renderRowsBox(leftWidth, height,
 		v.search.title("Todos", len(visible), len(v.todos)),
-		v.todoItems(visible), v.cursor, &v.scroll)
+		len(visible), func(i int) string { return todoRow(visible[i]) },
+		v.cursor, &v.scroll)
 
 	right := components.RenderPanel(v.detailTitle(), splitLines(v.todoDetail()),
 		rightWidth-4, height, false)
@@ -192,23 +186,19 @@ func (v *TodosView) detailTitle() string {
 	return "Todo"
 }
 
-// todoItems renders the list rows: when it arrived, why it is there, which
-// project, and what it is about.
-func (v *TodosView) todoItems(todos []gitlab.Todo) []string {
-	items := make([]string, len(todos))
-	for i, t := range todos {
-		project := t.ProjectPath
-		if i := strings.LastIndex(project, "/"); i >= 0 {
-			project = project[i+1:] // the group repeats on every row; the project does not
-		}
-		items[i] = fmt.Sprintf("%s %s %s  %s",
-			components.MutedStyle.Render(util.TimeAgoShort(t.CreatedAt)),
-			todoActionTag(t.Action),
-			components.MutedStyle.Render(components.PadRight(components.Truncate(project, 16), 16)),
-			todoLabel(t),
-		)
+// todoRow renders one list row: when it arrived, why it is there, which project,
+// and what it is about.
+func todoRow(t gitlab.Todo) string {
+	project := t.ProjectPath
+	if i := strings.LastIndex(project, "/"); i >= 0 {
+		project = project[i+1:] // the group repeats on every row; the project does not
 	}
-	return items
+	return fmt.Sprintf("%s %s %s  %s",
+		components.MutedStyle.Render(util.TimeAgoShort(t.CreatedAt)),
+		todoActionTag(t.Action),
+		components.MutedStyle.Render(components.PadRight(components.Truncate(project, 16), 16)),
+		todoLabel(t),
+	)
 }
 
 func (v *TodosView) todoDetail() string {

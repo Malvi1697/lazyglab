@@ -44,8 +44,6 @@ type PipelinesView struct {
 	// uses, so a pipeline is driven identically wherever it is shown.
 	viewingJobs bool
 	jobs        jobsPanel
-
-	status string
 }
 
 // NewPipelinesView creates a PipelinesView bound to the shared session context.
@@ -79,20 +77,17 @@ func (v *PipelinesView) Update(msg tea.Msg) tea.Cmd {
 
 	case PipelinesLoadedMsg:
 		if msg.Err != nil {
-			v.status = fmt.Sprintf("Error loading pipelines: %v", msg.Err)
-			return nil
+			return statusCmd(fmt.Sprintf("Error loading pipelines: %v", msg.Err), true)
 		}
 		v.pipelines = msg.Pipelines
 		v.viewingJobs = false
 		v.jobs.close()
 		v.clampCursor()
-		v.status = fmt.Sprintf("Loaded %d pipelines", len(msg.Pipelines))
 		return nil
 
 	case JobsLoadedMsg:
 		if msg.Err != nil {
-			v.status = fmt.Sprintf("Error loading jobs: %v", msg.Err)
-			return nil
+			return statusCmd(fmt.Sprintf("Error loading jobs: %v", msg.Err), true)
 		}
 		v.jobs.setJobs(msg.Jobs)
 		v.viewingJobs = true
@@ -100,8 +95,7 @@ func (v *PipelinesView) Update(msg tea.Msg) tea.Cmd {
 
 	case JobTraceLoadedMsg:
 		if msg.Err != nil {
-			v.status = fmt.Sprintf("Error loading trace: %v", msg.Err)
-			return nil
+			return statusCmd(fmt.Sprintf("Error loading log: %v", msg.Err), true)
 		}
 		// A manual or pending job has nothing written yet; Enter on one used to look
 		// like a key that did not work.
@@ -112,22 +106,16 @@ func (v *PipelinesView) Update(msg tea.Msg) tea.Cmd {
 		return nil
 
 	case JobActionDoneMsg:
-		v.status = msg.Text
-		if !msg.IsErr {
-			return v.jobs.load()
+		if msg.IsErr {
+			return statusCmd(msg.Text, true)
 		}
-		return nil
+		return tea.Batch(v.jobs.load(), statusCmd(msg.Text, false))
 
 	case PipelineActionDoneMsg:
-		v.status = msg.Text
-		if !msg.IsErr {
-			return v.load()
+		if msg.IsErr {
+			return statusCmd(msg.Text, true)
 		}
-		return nil
-
-	case StatusMsg:
-		v.status = msg.Text
-		return nil
+		return tea.Batch(v.load(), statusCmd(msg.Text, false))
 
 	case tea.PasteMsg:
 		if !v.viewingJobs {
@@ -263,9 +251,10 @@ func (v *PipelinesView) Body(width, height int) string {
 	}
 
 	visible := v.visible()
-	left := renderListBox(leftWidth, height,
+	left := renderRowsBox(leftWidth, height,
 		v.search.title("Pipelines", len(visible), len(v.pipelines)),
-		v.pipelineItems(visible), v.cursor, &v.scroll)
+		len(visible), func(i int) string { return pipelineRow(visible[i]) },
+		v.cursor, &v.scroll)
 
 	detail := v.pipelineDetail()
 	if detail == "" {
@@ -276,21 +265,17 @@ func (v *PipelinesView) Body(width, height int) string {
 	return joinPanels(left, right, height)
 }
 
-// pipelineItems renders the pipeline list rows (no ref column).
-func (v *PipelinesView) pipelineItems(pipelines []gitlab.Pipeline) []string {
-	items := make([]string, len(pipelines))
-	for i, p := range pipelines {
-		title := p.CommitTitle
-		if title == "" {
-			title = p.Ref
-		}
-		items[i] = fmt.Sprintf("%s %s %s",
-			util.TimeAgoShort(p.CreatedAt),
-			components.StatusIconPadded(p.Status),
-			title,
-		)
+// pipelineRow renders one pipeline list row (no ref column).
+func pipelineRow(p gitlab.Pipeline) string {
+	title := p.CommitTitle
+	if title == "" {
+		title = p.Ref
 	}
-	return items
+	return fmt.Sprintf("%s %s %s",
+		util.TimeAgoShort(p.CreatedAt),
+		components.StatusIconPadded(p.Status),
+		title,
+	)
 }
 
 // jobItems returns display lines for jobs grouped by stage, plus a mapping from

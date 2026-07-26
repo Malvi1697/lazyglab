@@ -29,6 +29,14 @@ type jobsPanel struct {
 
 	trace       string
 	traceScroll int
+
+	// The rendered forms of the two lists, kept because a keypress redraws the whole
+	// body: without them a four-thousand-line log was stripped of ANSI and re-wrapped
+	// on every single scroll, and the job rows were built twice per frame.
+	rows       []string // job rows, with stage headings
+	rowOf      []int    // job index -> row index
+	traceLines []string // the log, cleaned and wrapped
+	traceWidth int      // the width traceLines were wrapped to
 }
 
 // active reports whether the panel is showing a pipeline.
@@ -74,17 +82,20 @@ func (p *jobsPanel) close() {
 	p.scroll = 0
 	p.trace = ""
 	p.traceScroll = 0
+	p.rows, p.rowOf, p.traceLines = nil, nil, nil
 }
 
 // closeTrace closes an open log, staying on the job list.
 func (p *jobsPanel) closeTrace() {
 	p.trace = ""
 	p.traceScroll = 0
+	p.traceLines = nil
 }
 
 // setJobs absorbs a loaded job list, keeping the cursor in range.
 func (p *jobsPanel) setJobs(jobs []gitlab.Job) {
 	p.jobs = jobs
+	p.rows, p.rowOf = nil, nil // rebuilt on the next frame
 	if p.cursor >= len(p.jobs) {
 		p.cursor = len(p.jobs) - 1
 	}
@@ -97,6 +108,7 @@ func (p *jobsPanel) setJobs(jobs []gitlab.Job) {
 func (p *jobsPanel) setTrace(trace string) {
 	p.trace = trace
 	p.traceScroll = 0
+	p.traceLines = nil
 }
 
 // selected returns the highlighted job, or nil.
@@ -324,8 +336,16 @@ func (p *jobsPanel) playJob() tea.Cmd {
 
 // items renders the job rows grouped by stage, plus the mapping from job index
 // to display row (stage headers occupy rows of their own).
+//
+// The result depends only on the job list, so it is built once per list rather
+// than per frame: the page asks for it twice — for the rows and for the cursor's
+// row — and a frame happens on every keypress.
 func (p *jobsPanel) items() ([]string, []int) {
-	var items []string
+	if p.rows != nil || len(p.jobs) == 0 {
+		return p.rows, p.rowOf
+	}
+
+	items := make([]string, 0, len(p.jobs)+4)
 	jobToDisplay := make([]int, len(p.jobs))
 	stage := ""
 	for i, job := range p.jobs {
@@ -341,7 +361,8 @@ func (p *jobsPanel) items() ([]string, []int) {
 			components.StatusIcon(job.Status), job.Name,
 			components.MutedStyle.Render(durationSuffix(&job))))
 	}
-	return items, jobToDisplay
+	p.rows, p.rowOf = items, jobToDisplay
+	return p.rows, p.rowOf
 }
 
 // cursorRow is the display row of the selected job.
@@ -422,15 +443,7 @@ func (p *jobsPanel) traceView(width, height int) string {
 		viewHeight = 1
 	}
 
-	var cleaned []string
-	for _, line := range strings.Split(p.trace, "\n") {
-		line = ansi.Strip(line)
-		line = strings.ReplaceAll(line, "\r", "")
-		if strings.HasPrefix(line, "section_start:") || strings.HasPrefix(line, "section_end:") {
-			continue
-		}
-		cleaned = append(cleaned, components.WrapLine(line, contentWidth)...)
-	}
+	cleaned := p.cleanedTrace(contentWidth)
 
 	if maxScroll := len(cleaned) - viewHeight; p.traceScroll > maxScroll {
 		p.traceScroll = max(0, maxScroll)
@@ -440,6 +453,27 @@ func (p *jobsPanel) traceView(width, height int) string {
 	}
 	end := min(p.traceScroll+viewHeight, len(cleaned))
 	return strings.Join(cleaned[p.traceScroll:end], "\n")
+}
+
+// cleanedTrace is the log stripped of ANSI and GitLab's section markers and
+// wrapped to width, remembered until the log or the width changes. Deriving it
+// per frame meant a long log allocated close to a megabyte for every keypress.
+func (p *jobsPanel) cleanedTrace(width int) []string {
+	if p.traceLines != nil && p.traceWidth == width {
+		return p.traceLines
+	}
+
+	var cleaned []string
+	for _, line := range strings.Split(p.trace, "\n") {
+		line = ansi.Strip(line)
+		line = strings.ReplaceAll(line, "\r", "")
+		if strings.HasPrefix(line, "section_start:") || strings.HasPrefix(line, "section_end:") {
+			continue
+		}
+		cleaned = append(cleaned, components.WrapLine(line, width)...)
+	}
+	p.traceLines, p.traceWidth = cleaned, width
+	return cleaned
 }
 
 // body renders the panel on its own: the job list beside the selected job's

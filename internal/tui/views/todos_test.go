@@ -35,7 +35,7 @@ func todosView() *TodosView {
 
 func TestTodos_RowSaysWhyItIsThereAndWhere(t *testing.T) {
 	v := todosView()
-	row := plain(v.todoItems(v.visible())[0])
+	row := plain(todoRow(v.visible()[0]))
 
 	for _, want := range []string{"2h", "review", "api", "!42", "Fix the cart"} {
 		if !strings.Contains(row, want) {

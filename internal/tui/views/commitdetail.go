@@ -61,7 +61,27 @@ type commitDetail struct {
 
 	// focus says whether the keys drive the page or the jobs listed on it.
 	focus commitFocus
+
+	// pages remembers the last few commits fetched, keyed by SHA, so stepping back
+	// and forth with h/l is free after the first pass. Each page is six requests,
+	// and walking a list of commits is exactly the thing you do twice.
+	pages map[string]commitPage
+	order []string // insertion order, for evicting the oldest
 }
+
+// commitPage is everything a commit's page shows, as fetched.
+type commitPage struct {
+	commit    *gitlab.Commit
+	pipelines []gitlab.Pipeline
+	refs      []gitlab.CommitRef
+	mrs       []gitlab.MergeRequest
+	jobs      []gitlab.Job
+	diffs     []gitlab.FileDiff
+}
+
+// commitPagesKept bounds the cache. A page holds its diffs, which can be large,
+// so this is a handful rather than a history.
+const commitPagesKept = 6
 
 // diffRender is a file's diff as display lines, kept so scrolling does not
 // re-tokenise it on every frame.
@@ -83,7 +103,7 @@ const (
 // newCommitDetail builds the page, wiring the shared context into the nested
 // jobs panel too — forgetting that leaves a panel that silently cannot load.
 func newCommitDetail(ctx *Context) commitDetail {
-	return commitDetail{ctx: ctx, jobs: jobsPanel{ctx: ctx}}
+	return commitDetail{ctx: ctx, jobs: jobsPanel{ctx: ctx}, pages: map[string]commitPage{}}
 }
 
 // openAt drills into a commit, remembering its place in the list so the page can
@@ -103,7 +123,60 @@ func (d *commitDetail) openAt(c *gitlab.Commit, index, total int) tea.Cmd {
 	// commit rather than only with the file name.
 	d.diffCache = diffRender{}
 	d.scroll = 0
+
+	sha := c.ID
+	if sha == "" {
+		sha = c.ShortID
+	}
+	d.sha = sha
+
+	// Already fetched: step back through commits without asking GitLab again.
+	if page, ok := d.pages[sha]; ok {
+		d.restore(page)
+		return nil
+	}
 	return d.load(c)
+}
+
+// restore puts a cached page back on screen.
+func (d *commitDetail) restore(page commitPage) {
+	d.loading = false
+	if page.commit != nil {
+		d.commit = page.commit
+	}
+	d.pipelines, d.refs, d.mrs, d.diffs = page.pipelines, page.refs, page.mrs, page.diffs
+	if p := d.pipeline(); p != nil {
+		d.jobs.adopt(p.ID, page.jobs)
+	}
+}
+
+// remember caches a fetched page, evicting the oldest once the handful is full.
+func (d *commitDetail) remember(sha string, page commitPage) {
+	if sha == "" {
+		return
+	}
+	if d.pages == nil {
+		d.pages = map[string]commitPage{}
+	}
+	if _, seen := d.pages[sha]; !seen {
+		d.order = append(d.order, sha)
+		for len(d.order) > commitPagesKept {
+			delete(d.pages, d.order[0])
+			d.order = d.order[1:]
+		}
+	}
+	d.pages[sha] = page
+}
+
+// forget drops a cached page, for when an action has changed what it would show.
+func (d *commitDetail) forget(sha string) {
+	delete(d.pages, sha)
+	for i, s := range d.order {
+		if s == sha {
+			d.order = append(d.order[:i], d.order[i+1:]...)
+			break
+		}
+	}
 }
 
 // hasPrev and hasNext report whether the page can step to a neighbour.
@@ -169,21 +242,23 @@ func (d *commitDetail) load(c *gitlab.Commit) tea.Cmd {
 	}
 }
 
-// update absorbs every message the page and its jobs panel care about, and
-// returns any follow-up command plus a status line for the host view.
+// update absorbs every message the page and its jobs panel care about and returns
+// whatever follows from it, including anything the user needs told.
 //
 // Routing lives here rather than in each host: the panel needs its job list,
 // logs and action results forwarded, and duplicating that wiring per view is how
-// a host ends up silently showing "No jobs".
-func (d *commitDetail) update(msg tea.Msg) (tea.Cmd, string) {
+// a host ends up silently showing "No jobs". It reports through StatusMsg rather
+// than returning a string, because a returned string is exactly what one host
+// quietly threw away — every error and note on this page was invisible.
+func (d *commitDetail) update(msg tea.Msg) tea.Cmd {
 	switch m := msg.(type) {
 	case CommitDetailLoadedMsg:
 		if m.SHA != d.sha {
-			return nil, "" // a stale reply for a commit we have moved off
+			return nil // a stale reply for a commit we have moved off
 		}
 		d.loading = false
 		if m.Err != nil {
-			return nil, fmt.Sprintf("Error loading commit: %v", m.Err)
+			return statusCmd(fmt.Sprintf("Error loading commit: %v", m.Err), true)
 		}
 		if m.Commit != nil {
 			d.commit = m.Commit
@@ -192,47 +267,57 @@ func (d *commitDetail) update(msg tea.Msg) (tea.Cmd, string) {
 		if d.fileCursor >= len(d.diffs) {
 			d.fileCursor = 0
 		}
+		d.remember(m.SHA, commitPage{
+			commit: m.Commit, pipelines: m.Pipelines, refs: m.Refs,
+			mrs: m.MRs, jobs: m.Jobs, diffs: m.Diffs,
+		})
 		// The panel takes the jobs we already have, so the rows on the page and the
 		// rows you act on are the same list.
 		if p := d.pipeline(); p != nil {
 			d.jobs.adopt(p.ID, m.Jobs)
 		}
-		return nil, ""
+		return nil
 
 	case JobsLoadedMsg:
 		if m.Err != nil {
-			return nil, fmt.Sprintf("Error loading jobs: %v", m.Err)
+			return statusCmd(fmt.Sprintf("Error loading jobs: %v", m.Err), true)
 		}
 		d.jobs.setJobs(m.Jobs)
-		return nil, ""
+		if page, ok := d.pages[d.sha]; ok {
+			page.jobs = m.Jobs
+			d.pages[d.sha] = page
+		}
+		return nil
 
 	case JobTraceLoadedMsg:
 		if m.Err != nil {
-			return nil, fmt.Sprintf("Error loading log: %v", m.Err)
+			return statusCmd(fmt.Sprintf("Error loading log: %v", m.Err), true)
 		}
 		// A manual or pending job has nothing written yet. Swapping the screen for an
 		// empty panel — or doing nothing at all, as this used to — says neither.
 		if strings.TrimSpace(m.Trace) == "" {
-			return nil, "This job has not written a log yet"
+			return statusCmd("This job has not written a log yet", true)
 		}
 		d.jobs.setTrace(m.Trace)
-		return nil, ""
+		return nil
 
 	case JobActionDoneMsg:
 		// An action changes the job, so reload the list behind it.
 		if m.IsErr {
-			return nil, m.Text
+			return statusCmd(m.Text, true)
 		}
-		return d.jobs.load(), m.Text
+		return tea.Batch(d.jobs.load(), statusCmd(m.Text, false))
 
 	case PipelineActionDoneMsg:
 		if m.IsErr || d.commit == nil {
-			return nil, m.Text
+			return statusCmd(m.Text, m.IsErr)
 		}
-		// Retrying or starting a pipeline changes what this commit shows.
-		return d.load(d.commit), m.Text
+		// Retrying or starting a pipeline changes what this commit shows, so the
+		// cached copy of it is void.
+		d.forget(d.sha)
+		return tea.Batch(d.load(d.commit), statusCmd(m.Text, false))
 	}
-	return nil, ""
+	return nil
 }
 
 // handleKey drives the detail. Esc unwinds log -> jobs -> page -> list.

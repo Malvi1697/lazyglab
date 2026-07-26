@@ -27,8 +27,6 @@ type MRsView struct {
 	scroll int // first visible row, kept across frames
 
 	search listSearch
-
-	status string
 }
 
 // NewMRsView creates an MRsView bound to the shared session context.
@@ -54,16 +52,10 @@ func (v *MRsView) Update(msg tea.Msg) tea.Cmd {
 
 	case MRsLoadedMsg:
 		if msg.Err != nil {
-			v.status = fmt.Sprintf("Error loading merge requests: %v", msg.Err)
-			return nil
+			return statusCmd(fmt.Sprintf("Error loading merge requests: %v", msg.Err), true)
 		}
 		v.mrs = msg.MRs
 		v.clampCursor()
-		v.status = fmt.Sprintf("Loaded %d merge requests", len(msg.MRs))
-		return nil
-
-	case StatusMsg:
-		v.status = msg.Text
 		return nil
 
 	case tea.PasteMsg:
@@ -148,9 +140,10 @@ func (v *MRsView) Body(width, height int) string {
 	rightWidth := width - leftWidth
 
 	visible := v.visible()
-	left := renderListBox(leftWidth, height,
+	left := renderRowsBox(leftWidth, height,
 		v.search.title("Merge Requests", len(visible), len(v.mrs)),
-		v.mrItems(visible), v.cursor, &v.scroll)
+		len(visible), func(i int) string { return mrRow(visible[i]) },
+		v.cursor, &v.scroll)
 
 	detail := v.mrDetail()
 	if detail == "" {
@@ -168,21 +161,17 @@ func (v *MRsView) detailTitle() string {
 	return "Merge Request"
 }
 
-// mrItems renders the MR list rows.
-func (v *MRsView) mrItems(mrs []gitlab.MergeRequest) []string {
-	items := make([]string, len(mrs))
-	for i, mr := range mrs {
-		prefix := ""
-		if mr.Draft {
-			prefix = "[Draft] "
-		}
-		pipeIcon := ""
-		if mr.Pipeline != nil {
-			pipeIcon = " " + components.StatusIcon(mr.Pipeline.Status)
-		}
-		items[i] = fmt.Sprintf("!%d %s%s%s", mr.IID, prefix, mr.Title, pipeIcon)
+// mrRow renders one merge-request list row.
+func mrRow(mr gitlab.MergeRequest) string {
+	prefix := ""
+	if mr.Draft {
+		prefix = "[Draft] "
 	}
-	return items
+	pipeIcon := ""
+	if mr.Pipeline != nil {
+		pipeIcon = " " + components.StatusIcon(mr.Pipeline.Status)
+	}
+	return fmt.Sprintf("!%d %s%s%s", mr.IID, prefix, mr.Title, pipeIcon)
 }
 
 func (v *MRsView) mrDetail() string {

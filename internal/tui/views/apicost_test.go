@@ -256,10 +256,10 @@ func TestAPICost_OpeningAndSteppingCommits(t *testing.T) {
 	if step > open {
 		t.Errorf("stepping costs %d requests, more than opening (%d)", step, open)
 	}
-	// Stepping back lands on a commit whose page was just fetched.
-	if back >= open {
-		t.Logf("NOTE: stepping back to an already-fetched commit costs %d requests "+
-			"(a page cache would make it free)", back)
+	// Stepping back lands on a commit whose page was fetched a keypress ago;
+	// walking a list of commits is exactly the thing people do twice.
+	if back != 0 {
+		t.Errorf("stepping back to an already-fetched commit costs %d requests, want none", back)
 	}
 }
 

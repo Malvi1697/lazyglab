@@ -23,8 +23,6 @@ type CommitsView struct {
 
 	// detail is the in-place commit page, opened with Enter.
 	detail commitDetail
-
-	status string
 }
 
 // NewCommitsView creates a CommitsView bound to the shared session context.
@@ -52,16 +50,10 @@ func (v *CommitsView) Update(msg tea.Msg) tea.Cmd {
 
 	case CommitsLoadedMsg:
 		if msg.Err != nil {
-			v.status = fmt.Sprintf("Error loading commits: %v", msg.Err)
-			return nil
+			return statusCmd(fmt.Sprintf("Error loading commits: %v", msg.Err), true)
 		}
 		v.commits = msg.Commits
 		v.clampCursor()
-		v.status = fmt.Sprintf("Loaded %d commits", len(msg.Commits))
-		return nil
-
-	case StatusMsg:
-		v.status = msg.Text
 		return nil
 
 	case tea.PasteMsg:
@@ -75,11 +67,7 @@ func (v *CommitsView) Update(msg tea.Msg) tea.Cmd {
 	}
 
 	// Everything else may belong to the commit page or its jobs panel.
-	cmd, status := v.detail.update(msg)
-	if status != "" {
-		v.status = status
-	}
-	return cmd
+	return v.detail.update(msg)
 }
 
 func (v *CommitsView) handleKey(msg tea.KeyMsg) tea.Cmd {
@@ -211,9 +199,10 @@ func (v *CommitsView) Body(width, height int) string {
 	rightWidth := width - leftWidth
 
 	visible := v.visible()
-	left := renderListBox(leftWidth, height,
+	left := renderRowsBox(leftWidth, height,
 		v.search.title("Commits", len(visible), len(v.commits)),
-		v.commitItems(visible), v.cursor, &v.scroll)
+		len(visible), func(i int) string { return commitItemRow(visible[i]) },
+		v.cursor, &v.scroll)
 
 	detail := v.commitDetail()
 	if detail == "" {
@@ -224,14 +213,10 @@ func (v *CommitsView) Body(width, height int) string {
 	return joinPanels(left, right, height)
 }
 
-// commitItems renders the commit list rows.
-func (v *CommitsView) commitItems(commits []gitlab.Commit) []string {
-	items := make([]string, len(commits))
-	for i, c := range commits {
-		items[i] = commitRow(util.CommitTime(c.CreatedAt), commitStatusIcon(c.Status),
-			c.AuthorName, c.Title)
-	}
-	return items
+// commitItemRow renders one commit list row.
+func commitItemRow(c gitlab.Commit) string {
+	return commitRow(util.CommitTime(c.CreatedAt), commitStatusIcon(c.Status),
+		c.AuthorName, c.Title)
 }
 
 func (v *CommitsView) commitDetail() string {

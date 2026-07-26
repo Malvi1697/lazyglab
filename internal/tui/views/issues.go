@@ -24,8 +24,6 @@ type IssuesView struct {
 	scroll int // first visible row, kept across frames
 
 	search listSearch
-
-	status string
 }
 
 // NewIssuesView creates an IssuesView bound to the shared session context.
@@ -51,16 +49,10 @@ func (v *IssuesView) Update(msg tea.Msg) tea.Cmd {
 
 	case IssuesLoadedMsg:
 		if msg.Err != nil {
-			v.status = fmt.Sprintf("Error loading issues: %v", msg.Err)
-			return nil
+			return statusCmd(fmt.Sprintf("Error loading issues: %v", msg.Err), true)
 		}
 		v.issues = msg.Issues
 		v.clampCursor()
-		v.status = fmt.Sprintf("Loaded %d issues", len(msg.Issues))
-		return nil
-
-	case StatusMsg:
-		v.status = msg.Text
 		return nil
 
 	case tea.PasteMsg:
@@ -147,9 +139,10 @@ func (v *IssuesView) Body(width, height int) string {
 	rightWidth := width - leftWidth
 
 	visible := v.visible()
-	left := renderListBox(leftWidth, height,
+	left := renderRowsBox(leftWidth, height,
 		v.search.title("Issues", len(visible), len(v.issues)),
-		v.issueItems(visible), v.cursor, &v.scroll)
+		len(visible), func(i int) string { return issueRow(visible[i]) },
+		v.cursor, &v.scroll)
 
 	detail := v.issueDetail()
 	if detail == "" {
@@ -167,13 +160,9 @@ func (v *IssuesView) detailTitle() string {
 	return "Issue"
 }
 
-// issueItems renders the issue list rows.
-func (v *IssuesView) issueItems(issues []gitlab.Issue) []string {
-	items := make([]string, len(issues))
-	for i, issue := range issues {
-		items[i] = fmt.Sprintf("#%d %s", issue.IID, issue.Title)
-	}
-	return items
+// issueRow renders one issue list row.
+func issueRow(issue gitlab.Issue) string {
+	return fmt.Sprintf("#%d %s", issue.IID, issue.Title)
 }
 
 func (v *IssuesView) issueDetail() string {

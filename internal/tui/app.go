@@ -82,6 +82,15 @@ type App struct {
 	lastRefresh time.Time // when data last arrived
 	nextRefresh time.Time // when the auto-refresh will fire
 
+	// focused is whether the terminal is looked at. Polling GitLab every thirty
+	// seconds for a window nobody is watching is pure waste, so the tick pauses
+	// while we are in the background and catches up on the way back.
+	focused bool
+
+	// viewFetched is when each view's data last arrived, so stepping through the
+	// tabs shows what was just fetched instead of refetching all of it per tab.
+	viewFetched map[views.ViewID]time.Time
+
 	// now returns the current time. A field so tests can pin it.
 	now func() time.Time
 
@@ -157,6 +166,8 @@ func NewApp(o Options) *App {
 
 	return &App{
 		now:             time.Now,
+		focused:         true, // assumed until the terminal says otherwise
+		viewFetched:     make(map[views.ViewID]time.Time, len(viewIDs)),
 		clients:         clients,
 		hostNames:       hostNames,
 		activeHost:      activeHost,
@@ -236,6 +247,22 @@ func (a *App) clock() time.Time {
 	return a.now()
 }
 
+// viewFreshFor is how long a view's data is reused when you come back to it.
+// Flipping through the tabs to check something used to refetch every one of them
+// on the way past; within this window the data on screen is the data you just
+// looked at, and the note at the top right says how old it is.
+const viewFreshFor = 10 * time.Second
+
+// refreshIfStale reloads the active view unless its data is younger than
+// viewFreshFor. Pressing r never goes through here: an explicit refresh must
+// always reach GitLab.
+func (a *App) refreshIfStale() tea.Cmd {
+	if at, ok := a.viewFetched[a.viewIDs[a.active]]; ok && a.clock().Sub(at) < viewFreshFor {
+		return nil
+	}
+	return a.refresh()
+}
+
 // refresh reloads the active view and says so on screen. Every path that reloads
 // data goes through here, so the note at the top right is never a lie about
 // whether something is in flight.
@@ -268,6 +295,8 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if views.IsLoadResult(msg) {
 		a.refreshing = false
 		a.lastRefresh = a.clock()
+		// Attributed to the active view, which is the one that asked.
+		a.viewFetched[a.viewIDs[a.active]] = a.lastRefresh
 	}
 
 	switch msg := msg.(type) {
@@ -306,6 +335,20 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.PasteStartMsg, tea.PasteEndMsg:
 		// Paste delimiters carry no content; no view needs them.
+		return a, nil
+
+	case tea.BlurMsg:
+		// Nobody is looking: stop asking GitLab anything until they are.
+		a.focused = false
+		return a, nil
+
+	case tea.FocusMsg:
+		a.focused = true
+		// Back after a while, so what is on screen is stale by definition.
+		if a.refreshInterval > 0 && a.clock().Sub(a.lastRefresh) >= a.refreshInterval {
+			a.nextRefresh = a.clock().Add(a.refreshInterval)
+			return a, a.refresh()
+		}
 		return a, nil
 
 	case views.ProjectsLoadedMsg:
@@ -401,11 +444,13 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tickMsg:
 		var cmd tea.Cmd
-		if a.overlay == overlayNone {
+		// A modal overlay means the user is mid-decision, and an unfocused terminal
+		// means nobody would see the result: neither is worth a request.
+		if a.overlay == overlayNone && a.focused {
 			cmd = a.refresh()
-		}
-		if a.refreshInterval > 0 {
-			a.nextRefresh = a.clock().Add(a.refreshInterval)
+			if a.refreshInterval > 0 {
+				a.nextRefresh = a.clock().Add(a.refreshInterval)
+			}
 		}
 		return a, tea.Batch(cmd, a.tickCmd())
 
@@ -487,10 +532,10 @@ func (a *App) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	// the active view — a key that means "move within" should not mean "move away".
 	case KeyNextView, KeyNextTab:
 		a.switchView((a.active + 1) % len(a.viewIDs))
-		return a, a.refresh()
+		return a, a.refreshIfStale()
 	case KeyPrevView, KeyPrevTab:
 		a.switchView((a.active - 1 + len(a.viewIDs)) % len(a.viewIDs))
-		return a, a.refresh()
+		return a, a.refreshIfStale()
 	case "P": // project switcher (uppercase so "p" stays free for view actions)
 		// Each visit starts unfiltered; a stale query would hide most projects.
 		a.projectFilter.Reset()
@@ -521,7 +566,7 @@ func (a *App) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if n := int(key[0] - '1'); n < len(a.viewIDs) {
 			if n != a.active {
 				a.switchView(n)
-				return a, a.refresh()
+				return a, a.refreshIfStale()
 			}
 			return a, nil
 		}
@@ -622,6 +667,9 @@ func (a *App) View() tea.View {
 
 	v := tea.NewView(frame)
 	v.AltScreen = true
+	// So the terminal tells us when it is in the background and the refresh can
+	// pause instead of polling for nobody.
+	v.ReportFocus = true
 	return v
 }
 

@@ -97,8 +97,7 @@ func (v *OverviewView) Update(msg tea.Msg) tea.Cmd {
 	}
 
 	// Everything else may belong to the commit page or its jobs panel.
-	cmd, _ := v.detail.update(msg)
-	return cmd
+	return v.detail.update(msg)
 }
 
 // handleKey navigates the recent-commits list. The same keys work here as in
@@ -259,9 +258,10 @@ func (v *OverviewView) Body(width, height int) string {
 	}
 
 	visible := v.visible()
-	top := renderListBox(width, topHeight,
+	top := renderRowsBox(width, topHeight,
 		v.search.title("Recent Commits", len(visible), len(v.commits)),
-		v.commitItems(visible), v.cursor, &v.scroll)
+		len(visible), func(i int) string { return v.commitRow(visible[i]) },
+		v.cursor, &v.scroll)
 
 	colWidth := width / 3
 	lastColWidth := width - colWidth*2
@@ -299,16 +299,12 @@ func (v *OverviewView) issuesTitle() string {
 	return fmt.Sprintf("Issues (%d)", len(v.issues))
 }
 
-// commitItems renders the recent-commits rows, mapping each commit's CI
-// status from the loaded pipelines by SHA.
-func (v *OverviewView) commitItems(commits []gitlab.Commit) []string {
-	items := make([]string, len(commits))
-	for i, c := range commits {
-		items[i] = commitRow(util.CommitTime(c.CreatedAt),
-			commitStatusIcon(commitStatus(c.ShortID, v.pipelines)),
-			c.AuthorName, c.Title)
-	}
-	return items
+// commitRow renders one recent-commits row, mapping the commit's CI status from
+// the loaded pipelines by SHA.
+func (v *OverviewView) commitRow(c gitlab.Commit) string {
+	return commitRow(util.CommitTime(c.CreatedAt),
+		commitStatusIcon(commitStatus(c.ShortID, v.pipelines)),
+		c.AuthorName, c.Title)
 }
 
 // pipelineLines renders a short list of the most recent pipelines.
