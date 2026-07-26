@@ -281,3 +281,61 @@ func TestAPICost_TodosAndOtherListsAreOneRequest(t *testing.T) {
 		}
 	}
 }
+
+func TestAPICost_HoldingTheStepKeyFetchesOnlyWhereYouStop(t *testing.T) {
+	// A page is six requests and a held key steps faster than any of them can
+	// answer. Walking through three commits must cost one page, not three.
+	rec, ctx, done := costHarness(t)
+	defer done()
+
+	v := NewOverviewView(ctx)
+	v.width, v.height = 120, 40
+	drain(v, v.Focus())
+	drain(v, v.Update(tea.KeyPressMsg{Code: tea.KeyEnter})) // open the first commit
+
+	rec.reset()
+	step := tea.KeyPressMsg{Code: 'l', Text: "l"}
+	var pending []tea.Cmd
+	for i := 0; i < 2; i++ {
+		pending = append(pending, v.Update(step))
+	}
+
+	// Nothing has been asked yet: the steps are still settling.
+	if total, table := rec.report(); total != 0 {
+		t.Errorf("stepping asked for %d requests before settling%s", total, table)
+	}
+	// The commit on screen is the one we walked to, even though its detail is not in.
+	if v.detail.commit == nil || v.detail.commit.ShortID != costSHAs[2][:8] {
+		t.Errorf("page shows %v, want the commit stepped to", v.detail.commit)
+	}
+
+	// Every step's timer fires; only the last one still points at what is on screen.
+	for _, cmd := range pending {
+		drain(v, cmd)
+	}
+	total, table := rec.report()
+	t.Logf("%-34s %3d requests%s", "Two steps, then settle", total, table)
+	if total > 6 {
+		t.Errorf("two steps cost %d requests, want one page's worth%s", total, table)
+	}
+	if total == 0 {
+		t.Error("the commit we settled on was never fetched")
+	}
+}
+
+func TestAPICost_OpeningIsNotDelayed(t *testing.T) {
+	// Enter means "show me this one"; only stepping waits.
+	rec, ctx, done := costHarness(t)
+	defer done()
+
+	v := NewOverviewView(ctx)
+	v.width, v.height = 120, 40
+	drain(v, v.Focus())
+
+	rec.reset()
+	cmd := v.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	drain(v, cmd)
+	if total, _ := rec.report(); total == 0 {
+		t.Error("Enter should fetch the commit page at once")
+	}
+}

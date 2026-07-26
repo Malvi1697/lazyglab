@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"image/color"
 	"strings"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
@@ -43,9 +44,10 @@ type commitDetail struct {
 	messageScrollable bool
 	diffScrollable    bool
 
-	sha     string // request in flight, to ignore stale replies
-	loading bool
-	scroll  int
+	sha       string // the commit on screen; replies for anything else are stale
+	requested string // the commit we have actually asked GitLab about
+	loading   bool
+	scroll    int
 
 	// index and total place the commit within the list it was opened from, so the
 	// page can offer the neighbours and say where you are.
@@ -107,8 +109,31 @@ func newCommitDetail(ctx *Context) commitDetail {
 }
 
 // openAt drills into a commit, remembering its place in the list so the page can
-// step to the neighbouring commits.
+// step to the neighbouring commits. Enter means "show me this one", so it fetches
+// at once.
 func (d *commitDetail) openAt(c *gitlab.Commit, index, total int) tea.Cmd {
+	return d.showAt(c, index, total, 0)
+}
+
+// stepAt is openAt for a step to a neighbour, which waits a moment before asking
+// GitLab anything.
+//
+// A page is six requests, and holding h or l walks through commits faster than
+// any of them could answer — sixty requests to look at the tenth one. The title
+// and author are already in hand from the list, so they appear immediately; the
+// rest is fetched once you stop moving.
+func (d *commitDetail) stepAt(c *gitlab.Commit, index, total int) tea.Cmd {
+	return d.showAt(c, index, total, stepSettleDelay)
+}
+
+// stepSettleDelay is how long a step waits for the next one before fetching. Long
+// enough to swallow a key repeat, short enough that a single press feels immediate.
+const stepSettleDelay = 120 * time.Millisecond
+
+// commitFetchMsg asks the page to fetch a commit, if it is still the one shown.
+type commitFetchMsg struct{ sha string }
+
+func (d *commitDetail) showAt(c *gitlab.Commit, index, total int, delay time.Duration) tea.Cmd {
 	if c == nil {
 		return nil
 	}
@@ -128,14 +153,21 @@ func (d *commitDetail) openAt(c *gitlab.Commit, index, total int) tea.Cmd {
 	if sha == "" {
 		sha = c.ShortID
 	}
-	d.sha = sha
+	d.sha, d.requested = sha, ""
 
 	// Already fetched: step back through commits without asking GitLab again.
 	if page, ok := d.pages[sha]; ok {
 		d.restore(page)
 		return nil
 	}
-	return d.load(c)
+
+	d.loading = true
+	if delay <= 0 {
+		return d.load(c)
+	}
+	// Ask again once the dust settles; if another step has happened by then, the
+	// commit on screen will have changed and this fetch is dropped.
+	return tea.Tick(delay, func(time.Time) tea.Msg { return commitFetchMsg{sha: sha} })
 }
 
 // restore puts a cached page back on screen.
@@ -191,7 +223,7 @@ func (d *commitDetail) close() {
 	d.focus = focusPage
 	d.fileCursor, d.reading, d.diffScroll = 0, false, 0
 	d.diffCache = diffRender{}
-	d.sha = ""
+	d.sha, d.requested = "", ""
 	d.scroll = 0
 }
 
@@ -207,7 +239,7 @@ func (d *commitDetail) load(c *gitlab.Commit) tea.Cmd {
 	if sha == "" {
 		sha = c.ShortID
 	}
-	d.sha = sha
+	d.sha, d.requested = sha, sha
 	d.loading = true
 
 	return func() tea.Msg {
@@ -252,6 +284,17 @@ func (d *commitDetail) load(c *gitlab.Commit) tea.Cmd {
 // quietly threw away — every error and note on this page was invisible.
 func (d *commitDetail) update(msg tea.Msg) tea.Cmd {
 	switch m := msg.(type) {
+	case commitFetchMsg:
+		// The step that asked for this may have been followed by others; only the
+		// commit still on screen, still unfetched, is worth a request.
+		if !d.active || m.sha != d.sha || d.requested == d.sha || d.commit == nil {
+			return nil
+		}
+		if _, cached := d.pages[d.sha]; cached {
+			return nil
+		}
+		return d.load(d.commit)
+
 	case CommitDetailLoadedMsg:
 		if m.SHA != d.sha {
 			return nil // a stale reply for a commit we have moved off

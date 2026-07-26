@@ -180,7 +180,7 @@ func (v *OverviewView) stepCommit(step int) tea.Cmd {
 		return nil // already at an end; the arrow is drawn faint there
 	}
 	v.cursor = next
-	return v.detail.openAt(v.selectedCommit(), v.cursor, len(visible))
+	return v.detail.stepAt(v.selectedCommit(), v.cursor, len(visible))
 }
 
 // selectedCommit returns the highlighted commit, or nil.
