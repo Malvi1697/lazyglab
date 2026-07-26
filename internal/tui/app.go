@@ -72,6 +72,19 @@ type App struct {
 	// Auto-refresh period; 0 disables ticking.
 	refreshInterval time.Duration
 
+	// Refresh feedback. Pressing r used to look like it did nothing: the request
+	// went out, the numbers came back the same, and nothing on screen said so.
+	// These drive the note at the top right — in flight, just updated, and how
+	// long until the next automatic fetch.
+	refreshing  bool
+	spinning    bool      // a spinner tick chain is running
+	spinFrame   int       // which frame of it
+	lastRefresh time.Time // when data last arrived
+	nextRefresh time.Time // when the auto-refresh will fire
+
+	// now returns the current time. A field so tests can pin it.
+	now func() time.Time
+
 	// Dimensions and status line.
 	width, height int
 	statusText    string
@@ -141,6 +154,7 @@ func NewApp(o Options) *App {
 	}
 
 	return &App{
+		now:             time.Now,
 		clients:         clients,
 		hostNames:       hostNames,
 		activeHost:      activeHost,
@@ -166,8 +180,9 @@ func (a *App) activeView() views.View { return a.views[a.viewIDs[a.active]] }
 // ============================================================================
 
 func (a *App) Init() tea.Cmd {
-	cmds := []tea.Cmd{a.loadProjects(), a.activeView().Focus()}
+	cmds := []tea.Cmd{a.loadProjects(), a.refresh(), a.clockCmd()}
 	if a.refreshInterval > 0 {
+		a.nextRefresh = a.clock().Add(a.refreshInterval)
 		cmds = append(cmds, a.tickCmd())
 	}
 	// Resume the previous session's project, unless the git remote already told us
@@ -183,11 +198,55 @@ func (a *App) Init() tea.Cmd {
 // tickMsg fires on each auto-refresh interval.
 type tickMsg struct{}
 
+// clockMsg fires once a second, so the countdown to the next refresh and the
+// "updated Ns ago" note stay true without anything else happening.
+type clockMsg struct{}
+
+// spinMsg advances the spinner while a refresh is in flight.
+type spinMsg struct{}
+
 func (a *App) tickCmd() tea.Cmd {
 	if a.refreshInterval <= 0 {
 		return nil
 	}
 	return tea.Tick(a.refreshInterval, func(time.Time) tea.Msg { return tickMsg{} })
+}
+
+func (a *App) clockCmd() tea.Cmd {
+	return tea.Tick(time.Second, func(time.Time) tea.Msg { return clockMsg{} })
+}
+
+// spinCmd starts the spinner's tick chain, unless one is already running — two
+// chains would make it spin at double speed and never stop.
+func (a *App) spinCmd() tea.Cmd {
+	if a.spinning {
+		return nil
+	}
+	a.spinning = true
+	return tea.Tick(120*time.Millisecond, func(time.Time) tea.Msg { return spinMsg{} })
+}
+
+// clock is the current time, through the pinnable field.
+func (a *App) clock() time.Time {
+	if a.now == nil {
+		return time.Now()
+	}
+	return a.now()
+}
+
+// refresh reloads the active view and says so on screen. Every path that reloads
+// data goes through here, so the note at the top right is never a lie about
+// whether something is in flight.
+func (a *App) refresh() tea.Cmd {
+	cmd := a.activeView().Focus()
+	if cmd == nil {
+		// Nothing to fetch (no project or no client yet); claiming a refresh would
+		// leave a spinner turning forever.
+		return nil
+	}
+	a.refreshing = true
+	a.spinFrame = 0
+	return tea.Batch(cmd, a.spinCmd())
 }
 
 // ============================================================================
@@ -200,6 +259,14 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// every view just shows a red 401 with no way to fix it from inside the app.
 	// The message still flows on, so status text and view state stay correct.
 	a.maybePromptReauth(views.LoadErr(msg))
+
+	// Data coming back ends the refresh, error or not. A view may fan out several
+	// requests, and the first one home is what makes the screen change — that is
+	// the moment worth reporting.
+	if views.IsLoadResult(msg) {
+		a.refreshing = false
+		a.lastRefresh = a.clock()
+	}
 
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
@@ -274,7 +341,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.ctx.Branch = nil
 		a.overlay = overlayNone
 		a.setStatus(fmt.Sprintf("Selected: %s", proj.NameWithNamespace), false)
-		return a, tea.Batch(a.activeView().Focus(), a.rememberProject(proj.PathWithNamespace))
+		return a, tea.Batch(a.refresh(), a.rememberProject(proj.PathWithNamespace))
 
 	case views.BranchesLoadedMsg:
 		if msg.Err != nil {
@@ -292,7 +359,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.ctx.Branch = &branch
 		a.overlay = overlayNone
 		a.setStatus(fmt.Sprintf("Branch: %s", branch.Name), false)
-		return a, a.activeView().Focus()
+		return a, a.refresh()
 
 	case views.ConfirmMsg:
 		a.confirm(msg.Prompt, msg.Action)
@@ -313,7 +380,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		a.applyReconfig(msg.host, msg.client)
 		a.setStatus(fmt.Sprintf("Authenticated as %s on %s", msg.username, msg.host), false)
-		return a, tea.Batch(a.loadProjects(), a.activeView().Focus())
+		return a, tea.Batch(a.loadProjects(), a.refresh())
 
 	case favoritesSavedMsg:
 		// The star is already applied in memory; only a failed write needs saying.
@@ -333,9 +400,26 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tickMsg:
 		var cmd tea.Cmd
 		if a.overlay == overlayNone {
-			cmd = a.activeView().Focus()
+			cmd = a.refresh()
+		}
+		if a.refreshInterval > 0 {
+			a.nextRefresh = a.clock().Add(a.refreshInterval)
 		}
 		return a, tea.Batch(cmd, a.tickCmd())
+
+	case clockMsg:
+		// Nothing to do but re-arm: the render reads the clock itself, so the
+		// countdown and the "updated Ns ago" note move on their own.
+		return a, a.clockCmd()
+
+	case spinMsg:
+		if !a.refreshing {
+			a.spinning = false
+			return a, nil
+		}
+		a.spinFrame++
+		a.spinning = false // released so spinCmd starts the next tick
+		return a, a.spinCmd()
 	}
 
 	// Anything else (per-view *LoadedMsg/*DoneMsg, etc.) belongs to the view.
@@ -399,10 +483,10 @@ func (a *App) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	// active view — a key that means "move within" should not also mean "move away".
 	case KeyVimRight, KeyNextTab:
 		a.switchView((a.active + 1) % len(a.viewIDs))
-		return a, a.activeView().Focus()
+		return a, a.refresh()
 	case KeyVimLeft, KeyPrevTab:
 		a.switchView((a.active - 1 + len(a.viewIDs)) % len(a.viewIDs))
-		return a, a.activeView().Focus()
+		return a, a.refresh()
 	case "P": // project switcher (uppercase so "p" stays free for view actions)
 		// Each visit starts unfiltered; a stale query would hide most projects.
 		a.projectFilter.Reset()
@@ -417,7 +501,7 @@ func (a *App) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case KeyBranch:
 		return a, a.loadBranches()
 	case KeyRefresh:
-		return a, a.activeView().Focus()
+		return a, a.refresh()
 	case KeyReauth:
 		if a.reconfigure != nil {
 			a.openReconfig("")
@@ -433,7 +517,7 @@ func (a *App) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if n := int(key[0] - '1'); n < len(a.viewIDs) {
 			if n != a.active {
 				a.switchView(n)
-				return a, a.activeView().Focus()
+				return a, a.refresh()
 			}
 			return a, nil
 		}
@@ -510,7 +594,8 @@ func (a *App) View() tea.View {
 		titles[i] = a.views[id].Title()
 	}
 
-	contextBar := renderContextBar(a.width, a.ctx, a.statusText, a.statusIsErr)
+	contextBar := renderContextBar(a.width, a.ctx, a.statusText, a.statusIsErr,
+		a.refreshNote(a.clock()))
 	tabs := renderTabs(a.width, a.viewIDs, a.active, titles)
 
 	// A blank row between the tabs and the body: without it the context line, the

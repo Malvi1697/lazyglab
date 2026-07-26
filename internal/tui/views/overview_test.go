@@ -162,8 +162,12 @@ func TestOverviewLayout_SummariesNeverTakeMoreThanHalf(t *testing.T) {
 func TestOverviewRows_ShowClockOrDateNotAnAge(t *testing.T) {
 	// Every row reading "1d" told you nothing; a clock time or a date does.
 	v := NewOverviewView(&Context{})
+	// Noon today, not "two hours ago": run this a little after midnight and two
+	// hours ago is yesterday, which is a date rather than a clock.
+	now := time.Now()
+	noon := time.Date(now.Year(), now.Month(), now.Day(), 12, 0, 0, 0, now.Location())
 	v.commits = []gitlab.Commit{{
-		ShortID: "a", Title: "today", AuthorName: "A", CreatedAt: time.Now().Add(-2 * time.Hour),
+		ShortID: "a", Title: "today", AuthorName: "A", CreatedAt: noon,
 	}}
 
 	row := ansi.Strip(v.commitItems(v.visible())[0])

@@ -109,6 +109,19 @@ type CommitDetailLoadedMsg struct {
 	Err       error
 }
 
+// IsLoadResult reports whether a message is a data load reporting back, whether
+// it succeeded or not. The shell watches for these to know that a refresh it
+// started has actually produced something.
+func IsLoadResult(msg tea.Msg) bool {
+	switch msg.(type) {
+	case ProjectsLoadedMsg, BranchesLoadedMsg, PipelinesLoadedMsg, JobsLoadedMsg,
+		JobTraceLoadedMsg, MRsLoadedMsg, IssuesLoadedMsg, CommitsLoadedMsg,
+		CommitDetailLoadedMsg, ErrorMsg:
+		return true
+	}
+	return false
+}
+
 // LoadErr returns the error carried by any message that reports the outcome of
 // a data load, or nil for messages that carry none. Every such message passes
 // through the shell before being delegated to a view, so this gives the shell a

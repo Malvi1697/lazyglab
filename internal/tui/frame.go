@@ -10,8 +10,9 @@ import (
 )
 
 // renderContextBar renders the top bar: the active branch and project on the
-// left, the latest status message on the right. Full width.
-func renderContextBar(width int, ctx *views.Context, status string, statusIsErr bool) string {
+// left, then the latest status message, and the refresh note at the far right.
+// Full width.
+func renderContextBar(width int, ctx *views.Context, status string, statusIsErr bool, refresh string) string {
 	branch := ""
 	project := "no project"
 	if ctx != nil {
@@ -33,18 +34,26 @@ func renderContextBar(width int, ctx *views.Context, status string, statusIsErr 
 	}
 	left += components.MutedStyle.Render(project)
 
-	// A long status (an API error, typically) must not wrap onto the tabs row,
-	// so it is truncated to whatever space is left beside the project name.
-	right := components.Truncate(status, width-lipgloss.Width(left)-2)
-	gap := width - lipgloss.Width(left) - lipgloss.Width(right) - 1
-	if gap < 1 {
-		gap = 1
-	}
-
+	// The refresh note keeps the far right; the status takes whatever is left
+	// between it and the project name. A long status (an API error, typically) must
+	// not wrap onto the tabs row, so it is truncated rather than allowed to grow.
+	room := width - lipgloss.Width(left) - lipgloss.Width(refresh) - 4
+	right := components.Truncate(status, room)
 	if statusIsErr {
 		right = components.ErrorStyle.Render(right)
 	} else {
 		right = components.MutedStyle.Render(right)
+	}
+	if refresh != "" {
+		if right != "" {
+			right += "  "
+		}
+		right += refresh
+	}
+
+	gap := width - lipgloss.Width(left) - lipgloss.Width(right) - 1
+	if gap < 1 {
+		gap = 1
 	}
 
 	bar := left + strings.Repeat(" ", gap) + right + " "
