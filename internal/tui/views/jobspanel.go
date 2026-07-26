@@ -39,9 +39,6 @@ type jobsPanel struct {
 	traceWidth int      // the width traceLines were wrapped to
 }
 
-// active reports whether the panel is showing a pipeline.
-func (p *jobsPanel) active() bool { return p.pipelineID != 0 }
-
 // showingTrace reports whether a job log is open.
 func (p *jobsPanel) showingTrace() bool { return p.trace != "" }
 

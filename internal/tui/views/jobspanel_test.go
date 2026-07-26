@@ -220,9 +220,8 @@ func TestPipelinesView_EnterOpensThePanel(t *testing.T) {
 	v.pipelines = []gitlab.Pipeline{{ID: 722175, Status: "failed", Ref: "main"}}
 
 	v.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
-	if !v.jobs.active() || v.jobs.pipelineID != 722175 {
-		t.Errorf("expected the panel on pipeline 722175, got %d (active=%v)",
-			v.jobs.pipelineID, v.jobs.active())
+	if v.jobs.pipelineID != 722175 {
+		t.Errorf("expected the panel on pipeline 722175, got %d", v.jobs.pipelineID)
 	}
 }
 
@@ -243,7 +242,7 @@ func TestPipelinesView_EscUnwindsLogThenJobsThenList(t *testing.T) {
 		t.Fatal("the job list should still be open")
 	}
 	v.Update(esc)
-	if v.viewingJobs || v.jobs.active() {
+	if v.viewingJobs || v.jobs.pipelineID != 0 {
 		t.Error("the second Esc should return to the pipeline list")
 	}
 }

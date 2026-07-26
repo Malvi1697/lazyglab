@@ -245,8 +245,12 @@ and lazyglab follows it — nothing here overrides your palette.
 
 ## Configuration
 
-lazyglab stores its config at `~/.config/lazyglab/config.yml` (override with the
-`LAZYGLAB_CONFIG` environment variable). Besides the host/token entries written
+lazyglab stores its config where the OS keeps user config — on Linux
+`~/.config/lazyglab/config.yml`, on macOS
+`~/Library/Application Support/lazyglab/config.yml` — and the setup wizard prints
+the path it used. Override it with the `LAZYGLAB_CONFIG` environment variable.
+The file holds a token, so it must be mode 0600; lazyglab refuses to read it
+otherwise. Besides the host/token entries written
 by the setup wizard, an optional `settings:` block tunes the UI:
 
 ```yaml

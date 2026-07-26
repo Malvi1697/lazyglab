@@ -140,9 +140,6 @@ func (v *PipelinesView) visible() []gitlab.Pipeline {
 	})
 }
 
-// selectPendingPipeline moves the cursor onto the pipeline built for pendingSHA
-// and reports whether it was found. Pipeline SHAs are full, commit SHAs short,
-// so the match is by prefix.
 // selectedPipeline returns the highlighted pipeline, or nil.
 func (v *PipelinesView) selectedPipeline() *gitlab.Pipeline {
 	visible := v.visible()

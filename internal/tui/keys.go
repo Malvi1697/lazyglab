@@ -14,8 +14,6 @@ const (
 	KeyDown     = "down"
 	KeyPrevView = "H" // previous view: the big tabs, so lowercase h stays free
 	KeyNextView = "L" // next view
-	KeyHalfDown = "ctrl+d"
-	KeyHalfUp   = "ctrl+u"
 	KeyBranch   = "b"
 	KeyReauth   = "A" // reconnect: change host / replace token
 	KeyFavorite = "f" // favorites picker; inside a picker: star/unstar

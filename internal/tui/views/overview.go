@@ -237,7 +237,7 @@ func (v *OverviewView) Body(width, height int) string {
 	// summaryRows entries — and the commit list gets everything left over. Split
 	// evenly, three short lists were stretched down half a tall terminal while
 	// the list you actually read was cut off.
-	bottomHeight := 1 + maxInt(
+	bottomHeight := 1 + max(
 		len(v.pipelineLines()),
 		len(v.mrLines()),
 		len(v.issueLines()),
@@ -274,17 +274,6 @@ func (v *OverviewView) Body(width, height int) string {
 	bottom := lipgloss.JoinHorizontal(lipgloss.Top, pipelines, " ", rule, " ", mrs, " ", rule, " ", issues)
 
 	return lipgloss.JoinVertical(lipgloss.Left, top, "", bottom)
-}
-
-// maxInt returns the largest of its arguments.
-func maxInt(ns ...int) int {
-	out := 0
-	for _, n := range ns {
-		if n > out {
-			out = n
-		}
-	}
-	return out
 }
 
 func (v *OverviewView) pipelinesTitle() string {

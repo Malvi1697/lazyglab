@@ -237,7 +237,7 @@ func (v *TodosView) todoDetail() string {
 	}
 	if t.Body != "" && t.Body != t.Title {
 		lines = append(lines, "")
-		lines = append(lines, components.WrapLine(t.Body, maxInt(v.width/2-8, 20))...)
+		lines = append(lines, components.WrapLine(t.Body, max(v.width/2-8, 20))...)
 	}
 	lines = append(lines, "", components.HelpDescStyle.Render(t.WebURL))
 	return strings.Join(lines, "\n")

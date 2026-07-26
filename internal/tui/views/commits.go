@@ -121,19 +121,6 @@ func (v *CommitsView) visible() []gitlab.Commit {
 	})
 }
 
-// openDetail drills into the selected commit: its full message plus the pipelines
-// GitLab ran for it. Unlike jumping straight to the Pipelines view, this stays
-// put and is meaningful even when no pipeline ever ran for the commit.
-// handleDetailKey drives the commit detail. Esc goes back to the list.
-// loadDetail fetches the commit's full message and its pipelines.
-// commitPipeline returns the most recent pipeline for the shown commit, or nil.
-// retryCommitPipeline retries the commit's pipeline, if it has one.
-// runPipelineOnRef runs a new pipeline on the active ref.
-//
-// GitLab creates pipelines for a ref, never for an arbitrary commit, so this
-// builds the ref's current head — which is only this commit if it happens to be
-// the tip. The confirmation says so instead of implying otherwise.
-// focusPending moves the cursor to pendingSHA and reports whether it was found.
 // stepCommit moves to the neighbouring commit, keeping the page open.
 func (v *CommitsView) stepCommit(step int) tea.Cmd {
 	visible := v.visible()
@@ -172,7 +159,6 @@ func (v *CommitsView) copyHash() tea.Cmd {
 	)
 }
 
-// showPipeline asks the shell to open the selected commit's pipeline.
 // ============================================================================
 // Body / rendering
 // ============================================================================

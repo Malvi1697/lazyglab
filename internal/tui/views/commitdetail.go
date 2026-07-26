@@ -1155,7 +1155,3 @@ func styleDiffLine(path, line string, width int) []string {
 	}
 	return out
 }
-
-// pipelineLines renders the commit's pipelines and the newest one's jobs grouped
-// by stage — GitLab's row of status circles, spelled out.
-// jobDuration renders a job's runtime, or its status when it has not run.

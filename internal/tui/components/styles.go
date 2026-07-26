@@ -54,12 +54,6 @@ var (
 	// bold text, rather than a saturated band.
 	SelectedItemStyle = lipgloss.NewStyle().Bold(true).Background(ColorSecondary)
 
-	NormalItemStyle = lipgloss.NewStyle()
-
-	// StatusBarStyle is the context line at the top. No background: a full-width
-	// band competes with the content under it.
-	StatusBarStyle = lipgloss.NewStyle()
-
 	HelpKeyStyle = lipgloss.NewStyle().Bold(true).Foreground(ColorPrimary)
 
 	HelpDescStyle = lipgloss.NewStyle().Foreground(ColorSecondary)
@@ -67,16 +61,4 @@ var (
 	HelpSepStyle = lipgloss.NewStyle().Foreground(ColorFaint).Faint(true)
 
 	ErrorStyle = lipgloss.NewStyle().Foreground(ColorError).Bold(true)
-)
-
-// Border styles, used by the floating overlays. Panels inside the body use
-// headings and rules instead — see RenderPanel.
-var (
-	ActiveBorderStyle = lipgloss.NewStyle().
-				Border(lipgloss.RoundedBorder()).
-				BorderForeground(ColorPrimary)
-
-	InactiveBorderStyle = lipgloss.NewStyle().
-				Border(lipgloss.RoundedBorder()).
-				BorderForeground(ColorFaint)
 )

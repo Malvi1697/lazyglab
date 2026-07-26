@@ -122,48 +122,44 @@ type CommitDetailLoadedMsg struct {
 	Err       error
 }
 
+// loadResult is implemented by every message that reports the outcome of a data
+// load, whether it succeeded or not.
+//
+// One method per message rather than an arm in two switch statements: the shell
+// needs both "did this fail" (to offer re-authentication) and "did data arrive"
+// (to stop the spinner and time the refresh note), and a message registered in
+// one list but not the other is a silent lie on screen — a refresh that never
+// appears to finish, or an error nobody is told about.
+type loadResult interface{ loadErr() error }
+
+func (m ProjectsLoadedMsg) loadErr() error     { return m.Err }
+func (m BranchesLoadedMsg) loadErr() error     { return m.Err }
+func (m PipelinesLoadedMsg) loadErr() error    { return m.Err }
+func (m JobsLoadedMsg) loadErr() error         { return m.Err }
+func (m JobTraceLoadedMsg) loadErr() error     { return m.Err }
+func (m MRsLoadedMsg) loadErr() error          { return m.Err }
+func (m IssuesLoadedMsg) loadErr() error       { return m.Err }
+func (m TodosLoadedMsg) loadErr() error        { return m.Err }
+func (m CommitsLoadedMsg) loadErr() error      { return m.Err }
+func (m CommitDetailLoadedMsg) loadErr() error { return m.Err }
+func (m ErrorMsg) loadErr() error              { return m.Err }
+
 // IsLoadResult reports whether a message is a data load reporting back, whether
 // it succeeded or not. The shell watches for these to know that a refresh it
 // started has actually produced something.
 func IsLoadResult(msg tea.Msg) bool {
-	switch msg.(type) {
-	case ProjectsLoadedMsg, BranchesLoadedMsg, PipelinesLoadedMsg, JobsLoadedMsg,
-		JobTraceLoadedMsg, MRsLoadedMsg, IssuesLoadedMsg, CommitsLoadedMsg,
-		CommitDetailLoadedMsg, TodosLoadedMsg, ErrorMsg:
-		return true
-	}
-	return false
+	_, ok := msg.(loadResult)
+	return ok
 }
 
-// LoadErr returns the error carried by any message that reports the outcome of
-// a data load, or nil for messages that carry none. Every such message passes
+// LoadErr returns the error carried by any message that reports the outcome of a
+// data load, or nil for messages that carry none. Every such message passes
 // through the shell before being delegated to a view, so this gives the shell a
 // single place to notice failures (e.g. an unusable token) regardless of which
 // view triggered the request.
 func LoadErr(msg tea.Msg) error {
-	switch m := msg.(type) {
-	case ProjectsLoadedMsg:
-		return m.Err
-	case BranchesLoadedMsg:
-		return m.Err
-	case PipelinesLoadedMsg:
-		return m.Err
-	case JobsLoadedMsg:
-		return m.Err
-	case JobTraceLoadedMsg:
-		return m.Err
-	case MRsLoadedMsg:
-		return m.Err
-	case IssuesLoadedMsg:
-		return m.Err
-	case CommitsLoadedMsg:
-		return m.Err
-	case CommitDetailLoadedMsg:
-		return m.Err
-	case TodosLoadedMsg:
-		return m.Err
-	case ErrorMsg:
-		return m.Err
+	if r, ok := msg.(loadResult); ok {
+		return r.loadErr()
 	}
 	return nil
 }
