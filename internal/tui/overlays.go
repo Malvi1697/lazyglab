@@ -542,9 +542,18 @@ func helpEntries() []helpEntry {
 		{"Esc", "Back to the changed files"},
 
 		{"Merge Requests", ""},
+		{"Enter", "Open the merge-request page in place"},
 		{"a", "Approve"},
 		{"m", "Merge"},
 		{"y / Y", "Copy !42 / the link"},
+
+		{"Merge-request page", ""},
+		{"Tab / S-Tab", "Cycle the page's boxes"},
+		{"← / → or h / l", "Previous / next merge request"},
+		{"Enter", "Step into the changed files"},
+		{"a / m", "Approve / merge"},
+		{"R", "Retry its pipeline"},
+		{"Esc", "Back to the list"},
 
 		{"Issues", ""},
 		{"c", "Close / reopen"},

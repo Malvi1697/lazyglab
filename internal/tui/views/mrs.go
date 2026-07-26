@@ -27,16 +27,28 @@ type MRsView struct {
 	scroll int // first visible row, kept across frames
 
 	search listSearch
+
+	// detail is the in-place merge-request page, opened with Enter — the same shape
+	// as the commit page, so drilling in never moves you to another tab.
+	detail mrDetail
 }
 
 // NewMRsView creates an MRsView bound to the shared session context.
-func NewMRsView(ctx *Context) *MRsView { return &MRsView{ctx: ctx} }
+func NewMRsView(ctx *Context) *MRsView {
+	return &MRsView{ctx: ctx, detail: newMRDetail(ctx)}
+}
 
 // Title implements View.
 func (v *MRsView) Title() string { return "Merge Requests" }
 
-// Focus implements View: loads merge requests for the active project.
-func (v *MRsView) Focus() tea.Cmd { return v.load() }
+// Focus implements View: loads merge requests for the active project. An open job
+// log is left alone, as in the Pipelines view.
+func (v *MRsView) Focus() tea.Cmd {
+	if v.detail.active && v.detail.jobs.showingTrace() {
+		return nil
+	}
+	return v.load()
+}
 
 // ============================================================================
 // Update
@@ -59,18 +71,35 @@ func (v *MRsView) Update(msg tea.Msg) tea.Cmd {
 		return nil
 
 	case tea.PasteMsg:
-		v.search.paste(msg.Content, &v.cursor)
+		if !v.detail.active {
+			v.search.paste(msg.Content, &v.cursor)
+		}
 		return nil
 
 	case tea.KeyMsg:
 		return v.handleKey(msg)
 	}
-	return nil
+
+	// Everything else may belong to the merge-request page or its jobs panel.
+	return v.detail.update(msg)
 }
 
 // CapturingText implements TextCapturer: while the search is being typed, the
 // shell must not read the letters as its own commands.
-func (v *MRsView) CapturingText() bool { return v.search.capturing() }
+func (v *MRsView) CapturingText() bool { return !v.detail.active && v.search.capturing() }
+
+// stepMR moves to the neighbouring merge request, keeping the page open. It steps
+// within the search results when one is applied: the page was opened from that
+// list, so those are the ones you are working through.
+func (v *MRsView) stepMR(step int) tea.Cmd {
+	visible := v.visible()
+	next := v.cursor + step
+	if next < 0 || next >= len(visible) {
+		return nil // already at an end; the arrow is drawn faint there
+	}
+	v.cursor = next
+	return v.detail.stepAt(v.selected(), v.cursor, len(visible))
+}
 
 // visible is the merge requests matching the search; the cursor indexes it.
 func (v *MRsView) visible() []gitlab.MergeRequest {
@@ -89,11 +118,22 @@ func (v *MRsView) selected() *gitlab.MergeRequest {
 }
 
 func (v *MRsView) handleKey(msg tea.KeyMsg) tea.Cmd {
+	key := msg.String()
+
+	if v.detail.active {
+		// Stepping to the neighbouring merge request belongs to the list's owner,
+		// since the page does not know what comes next — but not while a diff or a
+		// job log is open, where the arrows belong to what you are reading.
+		if step, ok := stepKey(key); ok && !v.detail.readingBody() {
+			return v.stepMR(step)
+		}
+		return v.detail.handleKey(key, v.height)
+	}
+
 	if v.search.handleKey(msg, &v.cursor) {
 		return nil
 	}
 
-	key := msg.String()
 	if act := components.NavFor(key); act != components.NavNone {
 		v.cursor = components.ApplyNav(act, v.cursor, len(v.visible()), listRows(v.height))
 		return nil
@@ -104,6 +144,8 @@ func (v *MRsView) handleKey(msg tea.KeyMsg) tea.Cmd {
 		return nil
 	}
 	switch key {
+	case keyEnter:
+		return v.detail.openAt(mr, v.cursor, len(v.visible()))
 	case keyApprove:
 		return confirmCmd(fmt.Sprintf("Approve !%d %s?", mr.IID, mr.Title), v.approveMR())
 	case keyMerge:
@@ -129,6 +171,11 @@ func (v *MRsView) handleKey(msg tea.KeyMsg) tea.Cmd {
 func (v *MRsView) Body(width, height int) string {
 	v.width = width
 	v.height = height
+
+	// Drilled into a merge request: the page takes the whole body.
+	if v.detail.active {
+		return v.detail.body(width, height)
+	}
 
 	leftWidth := width * 45 / 100
 	if leftWidth < 20 {
@@ -195,7 +242,7 @@ func (v *MRsView) mrDetail() string {
 		draft = " [Draft]"
 	}
 
-	return fmt.Sprintf("%s%s\n\n%s -> %s\nAuthor: %s\nPipeline: %s\n\n%s\n\n%s",
+	return fmt.Sprintf("%s%s\n\n%s -> %s\nAuthor: %s\nPipeline: %s\n\n%s\n\n%s\n\n%s",
 		components.TitleStyle.Render(fmt.Sprintf("!%d %s", mr.IID, mr.Title)),
 		draft,
 		mr.SourceBranch, mr.TargetBranch,
@@ -203,6 +250,7 @@ func (v *MRsView) mrDetail() string {
 		pipeStatus,
 		mr.Description,
 		components.HelpDescStyle.Render(mr.WebURL),
+		components.HelpDescStyle.Render("Enter: the full merge-request page"),
 	)
 }
 
@@ -212,7 +260,11 @@ func (v *MRsView) mrDetail() string {
 
 // KeyHints implements View.
 func (v *MRsView) KeyHints() []KeyHint {
+	if v.detail.active {
+		return v.detail.keyHints()
+	}
 	return []KeyHint{
+		{"Enter", "MR page"},
 		{"a", "Approve"},
 		{"m", "Merge"},
 		{"o", "Open"},

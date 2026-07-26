@@ -56,6 +56,26 @@ type TodoActionDoneMsg struct {
 	IsErr bool
 }
 
+// MRDetailLoadedMsg carries everything the merge-request page shows: the merge
+// request itself, its approvals, its pipeline with that pipeline's jobs, and its
+// changed files.
+type MRDetailLoadedMsg struct {
+	IID       int
+	MR        *gitlab.MergeRequest
+	Approvals *gitlab.MRApprovals
+	Pipeline  *gitlab.Pipeline
+	Jobs      []gitlab.Job
+	Diffs     []gitlab.FileDiff
+	Err       error
+}
+
+// MRActionDoneMsg is sent after approving or merging, so the page can refetch:
+// both change what it says about itself.
+type MRActionDoneMsg struct {
+	Text  string
+	IsErr bool
+}
+
 // BranchesLoadedMsg is sent when branches have been fetched.
 type BranchesLoadedMsg struct {
 	Branches []gitlab.Branch
@@ -142,6 +162,7 @@ func (m IssuesLoadedMsg) loadErr() error       { return m.Err }
 func (m TodosLoadedMsg) loadErr() error        { return m.Err }
 func (m CommitsLoadedMsg) loadErr() error      { return m.Err }
 func (m CommitDetailLoadedMsg) loadErr() error { return m.Err }
+func (m MRDetailLoadedMsg) loadErr() error     { return m.Err }
 func (m ErrorMsg) loadErr() error              { return m.Err }
 
 // IsLoadResult reports whether a message is a data load reporting back, whether

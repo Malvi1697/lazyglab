@@ -137,7 +137,7 @@ The five views:
 |---|------|----------------|
 | 1 | **Overview** | Dashboard: a navigable recent-commits list (with CI status) plus summaries of pipelines, merge requests, and issues. Default view. |
 | 2 | **Pipelines** | Pipeline list; `Enter` drills into jobs grouped by stage, and into a job's log. |
-| 3 | **Merge Requests** | Open MRs, with approve/merge actions. |
+| 3 | **Merge Requests** | Open MRs; `Enter` opens the full merge-request page in place, with approve/merge. |
 | 4 | **Issues** | Open issues, with close/reopen. |
 | 5 | **Todos** | Your GitLab To-Do list, across every project: reviews asked of you, mentions, assignments, failed pipelines. `d` marks one done, `D` clears the list. |
 
@@ -175,6 +175,15 @@ the `+`/`-` gutter carrying whether a line was added or removed, so a diff reads
 like the file it came from. `←`/`→` (or `h`/`l`) step between the commit's files,
 and the title says which of how many you are on. A diff GitLab declines to send
 (too large) says so rather than looking like an empty change.
+
+`Enter` on a merge request opens the **merge-request page in place**, built from
+the same boxes as the commit page: where it is going (`source → develop`), who is
+reviewing it, its pipeline, **whether it can be merged** in GitLab's own words,
+how many approvals it still needs and who has given theirs — then its description,
+its changed files with diffs, and its pipeline's jobs. `a` approves, `m` merges
+(both say what stands in the way rather than sending a request that cannot
+succeed), `R` retries the pipeline, and `←`/`→` (or `h`/`l`) step between merge
+requests without leaving the page.
 
 `Tab` cycles the page's boxes — message, changes, jobs — skipping any that are
 empty. The jobs are already listed on the page, so `Enter` **steps the focus into them**

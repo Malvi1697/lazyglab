@@ -109,7 +109,7 @@ func (v *OverviewView) handleKey(msg tea.KeyMsg) tea.Cmd {
 		// Stepping to the neighbouring commit belongs to the list's owner, since
 		// the page itself does not know what comes next — but not while a diff or a
 		// job log is open, where the arrows belong to what you are reading.
-		if step, ok := commitStep(key); ok && !v.detail.readingBody() {
+		if step, ok := stepKey(key); ok && !v.detail.readingBody() {
 			return v.stepCommit(step)
 		}
 		return v.detail.handleKey(key, v.height)

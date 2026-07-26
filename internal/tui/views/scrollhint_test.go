@@ -73,17 +73,17 @@ func TestJobLog_EmptyLogSaysSoInsteadOfNothing(t *testing.T) {
 
 func TestViewKeys_LowercaseHLStepsCommitsNotViews(t *testing.T) {
 	// The swap the shell relies on: h/l move within what is open.
-	if step, ok := commitStep("l"); !ok || step != 1 {
-		t.Errorf(`commitStep("l") = %d, %v; want a step forward`, step, ok)
+	if step, ok := stepKey("l"); !ok || step != 1 {
+		t.Errorf(`stepKey("l") = %d, %v; want a step forward`, step, ok)
 	}
-	if step, ok := commitStep("h"); !ok || step != -1 {
-		t.Errorf(`commitStep("h") = %d, %v; want a step back`, step, ok)
+	if step, ok := stepKey("h"); !ok || step != -1 {
+		t.Errorf(`stepKey("h") = %d, %v; want a step back`, step, ok)
 	}
 	// Uppercase belongs to the shell's tabs, so the page must leave it alone.
-	if _, ok := commitStep("L"); ok {
-		t.Error(`commitStep("L") should not step: L switches views`)
+	if _, ok := stepKey("L"); ok {
+		t.Error(`stepKey("L") should not step: L switches views`)
 	}
-	if _, ok := commitStep("H"); ok {
-		t.Error(`commitStep("H") should not step: H switches views`)
+	if _, ok := stepKey("H"); ok {
+		t.Error(`stepKey("H") should not step: H switches views`)
 	}
 }

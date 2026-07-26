@@ -2,7 +2,6 @@ package views
 
 import (
 	"fmt"
-	"image/color"
 	"strings"
 	"time"
 
@@ -29,40 +28,31 @@ type commitDetail struct {
 	refs      []gitlab.CommitRef
 	mrs       []gitlab.MergeRequest
 
-	// diffs are the commit's changed files. fileCursor picks one; reading is the
-	// full-body diff, the same shape as reading a job log.
-	diffs      []gitlab.FileDiff
-	fileCursor int
-	fileScroll int
-	reading    bool
-	diffScroll int
-	diffCache  diffRender
+	// changesBox is the commit's changed files and the reader for one of them; the
+	// merge-request page embeds the same thing. Its fields read as ours: d.diffs,
+	// d.reading, d.fileCursor.
+	changesBox
 
-	// What is long enough to scroll, learned while rendering. The footer offers
-	// j/k only where they would move something: a key hint that does nothing is
-	// how the page came to look broken.
+	// pageFrame is our place in the list we were opened from: the counter in the
+	// heading and the ‹ › arrows in the margins.
+	pageFrame
+
+	// messageScrollable is learned while rendering, so the footer offers j/k for
+	// the message only where it would move something.
 	messageScrollable bool
-	diffScrollable    bool
 
 	sha       string // the commit on screen; replies for anything else are stale
 	requested string // the commit we have actually asked GitLab about
 	loading   bool
 	scroll    int
 
-	// index and total place the commit within the list it was opened from, so the
-	// page can offer the neighbours and say where you are.
-	index, total int
-	// pageWidth is the last width the page was rendered at, so a selected job row
-	// can span it.
-	pageWidth int
-
 	// jobs is the same interactive panel the Pipelines view uses. Its rows are
 	// rendered inline in the page, and Enter moves the focus into them rather than
 	// swapping the screen for a panel — the jobs are already in front of you.
 	jobs jobsPanel
 
-	// focus says whether the keys drive the page or the jobs listed on it.
-	focus commitFocus
+	// focus says whether the keys drive the page, its files or its jobs.
+	focus pageFocus
 
 	// pages remembers the last few commits fetched, keyed by SHA, so stepping back
 	// and forth with h/l is free after the first pass. Each page is six requests,
@@ -84,23 +74,6 @@ type commitPage struct {
 // commitPagesKept bounds the cache. A page holds its diffs, which can be large,
 // so this is a handful rather than a history.
 const commitPagesKept = 6
-
-// diffRender is a file's diff as display lines, kept so scrolling does not
-// re-tokenise it on every frame.
-type diffRender struct {
-	path  string
-	width int
-	lines []string
-}
-
-// commitFocus is which part of the commit page the keys drive.
-type commitFocus int
-
-const (
-	focusPage commitFocus = iota
-	focusFiles
-	focusJobs
-)
 
 // newCommitDetail builds the page, wiring the shared context into the nested
 // jobs panel too — forgetting that leaves a panel that silently cannot load.
@@ -139,14 +112,11 @@ func (d *commitDetail) showAt(c *gitlab.Commit, index, total int, delay time.Dur
 	}
 	d.active = true
 	d.commit = c
-	d.index, d.total = index, total
-	d.pipelines, d.refs, d.mrs, d.diffs = nil, nil, nil, nil
+	d.placeIn(index, total)
+	d.pipelines, d.refs, d.mrs = nil, nil, nil
 	d.jobs.close()
 	d.focus = focusPage
-	d.fileCursor, d.reading, d.diffScroll = 0, false, 0
-	// Two commits can touch the same path, so the rendered diff has to go with the
-	// commit rather than only with the file name.
-	d.diffCache = diffRender{}
+	d.resetFiles()
 	d.scroll = 0
 
 	sha := c.ID
@@ -176,7 +146,8 @@ func (d *commitDetail) restore(page commitPage) {
 	if page.commit != nil {
 		d.commit = page.commit
 	}
-	d.pipelines, d.refs, d.mrs, d.diffs = page.pipelines, page.refs, page.mrs, page.diffs
+	d.pipelines, d.refs, d.mrs = page.pipelines, page.refs, page.mrs
+	d.setDiffs(page.diffs)
 	if p := d.pipeline(); p != nil {
 		d.jobs.adopt(p.ID, page.jobs)
 	}
@@ -211,18 +182,13 @@ func (d *commitDetail) forget(sha string) {
 	}
 }
 
-// hasPrev and hasNext report whether the page can step to a neighbour.
-func (d *commitDetail) hasPrev() bool { return d.total > 0 && d.index > 0 }
-func (d *commitDetail) hasNext() bool { return d.total > 0 && d.index < d.total-1 }
-
 // close returns to the list.
 func (d *commitDetail) close() {
 	d.active = false
 	d.jobs.close()
-	d.pipelines, d.refs, d.mrs, d.diffs = nil, nil, nil, nil
+	d.pipelines, d.refs, d.mrs = nil, nil, nil
 	d.focus = focusPage
-	d.fileCursor, d.reading, d.diffScroll = 0, false, 0
-	d.diffCache = diffRender{}
+	d.resetFiles()
 	d.sha, d.requested = "", ""
 	d.scroll = 0
 }
@@ -306,10 +272,8 @@ func (d *commitDetail) update(msg tea.Msg) tea.Cmd {
 		if m.Commit != nil {
 			d.commit = m.Commit
 		}
-		d.pipelines, d.refs, d.mrs, d.diffs = m.Pipelines, m.Refs, m.MRs, m.Diffs
-		if d.fileCursor >= len(d.diffs) {
-			d.fileCursor = 0
-		}
+		d.pipelines, d.refs, d.mrs = m.Pipelines, m.Refs, m.MRs
+		d.setDiffs(m.Diffs)
 		d.remember(m.SHA, commitPage{
 			commit: m.Commit, pipelines: m.Pipelines, refs: m.Refs,
 			mrs: m.MRs, jobs: m.Jobs, diffs: m.Diffs,
@@ -368,19 +332,10 @@ func (d *commitDetail) handleKey(key string, height int) tea.Cmd {
 	// A diff being read owns the body; navigation scrolls it.
 	if d.reading {
 		if key == keyEscape {
-			d.reading = false
-			d.diffScroll = 0
+			d.closeReader()
 			return nil
 		}
-		// The arrows step within what you are looking at: files here, commits on
-		// the page. Stepping commits from inside a diff would swap the file under
-		// you for one from another commit.
-		if step, ok := commitStep(key); ok {
-			d.stepFile(step)
-			return nil
-		}
-		if act := components.NavFor(key); act != components.NavNone {
-			d.diffScroll = scrollBy(act, d.diffScroll, listRows(height))
+		if d.readerKey(key, height) {
 			return nil
 		}
 		return d.copyKeys(key)
@@ -397,19 +352,11 @@ func (d *commitDetail) handleKey(key string, height int) tea.Cmd {
 
 	// Focus inside the changed files: Enter reads the highlighted one.
 	if d.focus == focusFiles {
-		switch key {
-		case keyEscape:
+		if key == keyEscape {
 			d.focus = focusPage
 			return nil
-		case keyEnter:
-			if d.selectedFile() != nil {
-				d.reading = true
-				d.diffScroll = 0
-			}
-			return nil
 		}
-		if act := components.NavFor(key); act != components.NavNone {
-			d.fileCursor = components.ApplyNav(act, d.fileCursor, len(d.diffs), listRows(height))
+		if d.filesKey(key, height) {
 			return nil
 		}
 		return d.copyKeys(key)
@@ -476,43 +423,13 @@ func (d *commitDetail) handleKey(key string, height int) tea.Cmd {
 	return nil
 }
 
-// cycleFocus moves the focus between the page's boxes: the message, the changed
-// files and the jobs, in that order, wrapping in the given direction. Boxes with
-// nothing in them are skipped, so Tab never lands somewhere empty.
+// cycleFocus hands the keys to the next of the page's boxes.
 func (d *commitDetail) cycleFocus(step int) tea.Cmd {
-	order := []commitFocus{focusPage}
-	if len(d.diffs) > 0 {
-		order = append(order, focusFiles)
-	}
-	if len(d.jobs.jobs) > 0 {
-		order = append(order, focusJobs)
-	}
-	if len(order) == 1 {
-		return nil // only the message; nothing to cycle to
-	}
-
-	at := 0
-	for i, f := range order {
-		if f == d.focus {
-			at = i
-			break
-		}
-	}
-	d.focus = order[(at+step+len(order))%len(order)]
+	d.focus = cycleFocus(d.focus, step, len(d.diffs) > 0, len(d.jobs.jobs) > 0)
 	if d.focus == focusJobs {
 		return d.focusJobs()
 	}
 	return nil
-}
-
-// stepFile moves to the neighbouring changed file, keeping its diff open.
-func (d *commitDetail) stepFile(step int) {
-	next := d.fileCursor + step
-	if next < 0 || next >= len(d.diffs) {
-		return // already at an end
-	}
-	d.fileCursor = next
-	d.diffScroll = 0
 }
 
 // readingBody reports whether something long-form has the screen — a file's diff
@@ -520,30 +437,6 @@ func (d *commitDetail) stepFile(step int) {
 // act on. Stepping to another commit from inside either would swap what you are
 // reading for something from a different commit.
 func (d *commitDetail) readingBody() bool { return d.reading || d.jobs.showingTrace() }
-
-// scrollBy moves a scroll offset by a navigation action, for content that is read
-// rather than selected from.
-func scrollBy(act components.NavAction, offset, rows int) int {
-	switch act {
-	case components.NavDown:
-		return offset + 1
-	case components.NavUp:
-		return max(0, offset-1)
-	case components.NavHalfDown:
-		return offset + rows/2
-	case components.NavHalfUp:
-		return max(0, offset-rows/2)
-	case components.NavPageDown:
-		return offset + rows
-	case components.NavPageUp:
-		return max(0, offset-rows)
-	case components.NavTop:
-		return 0
-	case components.NavBottom:
-		return offset + 1<<20 // clamped while rendering, which knows the length
-	}
-	return offset
-}
 
 // focusJobs hands the keys to the jobs listed on the page.
 func (d *commitDetail) focusJobs() tea.Cmd {
@@ -659,11 +552,7 @@ func (d *commitDetail) runOnRef() tea.Cmd {
 // undocumented and the difference unsaid.
 func (d *commitDetail) keyHints() []KeyHint {
 	if d.reading {
-		hints := []KeyHint{{"←/→ h/l", "Prev/next file"}}
-		if d.diffScrollable {
-			hints = append(hints, KeyHint{"j/k", "Scroll"})
-		}
-		return append(hints, KeyHint{"y/Y", "Copy SHA/link"}, KeyHint{"Esc", "Back"})
+		return d.readerHints("Copy SHA/link")
 	}
 	if d.focus == focusFiles {
 		return []KeyHint{
@@ -708,23 +597,18 @@ func (d *commitDetail) keyHints() []KeyHint {
 // Rendering
 // ============================================================================
 
-// arrowGutter is the width of the margins that carry the ‹ › step arrows.
-const arrowGutter = 3
-
 // body renders the detail as the view's whole body, between two margins that
 // carry the arrows for stepping to the neighbouring commits.
 func (d *commitDetail) body(width, height int) string {
 	// A diff needs the room, like a log does.
 	if d.reading {
-		if f := d.selectedFile(); f != nil {
-			// Which file of how many, the same way the page says which commit.
-			title := fmt.Sprintf("%s  %d/%d", f.Path(), d.fileCursor+1, len(d.diffs))
-
+		if d.selectedFile() != nil {
 			// withArrows pads to pageWidth, which the page normally sets; a diff has
 			// to set it too or the right arrow lands against the text.
 			d.pageWidth = width - 2*arrowGutter
-			return d.withArrows(components.RenderPanel(title,
-				splitLines(d.diffView(d.pageWidth, height)), d.pageWidth, height, true))
+			return d.withArrows(components.RenderPanel(d.readerTitle(),
+				splitLines(d.diffView(d.pageWidth, height)), d.pageWidth, height, true),
+				d.fileCursor > 0, d.fileCursor < len(d.diffs)-1)
 		}
 	}
 
@@ -739,56 +623,7 @@ func (d *commitDetail) body(width, height int) string {
 		// Too narrow for margins; drop them rather than squeezing the text.
 		return d.page(width, height)
 	}
-	return d.withArrows(d.page(pageWidth, height))
-}
-
-// withArrows frames the page with ‹ and › in the left and right margins, level
-// with the middle of the page. They are the shape of the keys that move between
-// commits, put where the movement happens rather than only named in the footer;
-// an arrow with nowhere to go is faint.
-func (d *commitDetail) withArrows(page string) string {
-	lines := strings.Split(page, "\n")
-	middle := len(lines) / 2
-
-	style := func(available bool) lipgloss.Style {
-		if available {
-			return components.TitleStyle
-		}
-		return components.FaintStyle
-	}
-
-	// In a diff the arrows step files, on the page they step commits.
-	prev, next := d.hasPrev(), d.hasNext()
-	if d.reading {
-		prev, next = d.fileCursor > 0, d.fileCursor < len(d.diffs)-1
-	}
-
-	pad := strings.Repeat(" ", arrowGutter)
-	out := make([]string, len(lines))
-	for i, line := range lines {
-		left, right := pad, pad
-		if i == middle {
-			left = " " + style(prev).Render("‹") + " "
-			right = " " + style(next).Render("›") + " "
-		}
-		// Pad to the page width, or the right arrow trails the text instead of
-		// sitting in the margin.
-		out[i] = left + components.PadRight(line, d.pageWidth) + right
-	}
-	return strings.Join(out, "\n")
-}
-
-// commitStep maps a key to a move between commits: the arrows, plus h/l for hands
-// that stay on the home row. Lowercase, because this is movement within what is
-// open; the uppercase pair moves between the views, which is a bigger step.
-func commitStep(key string) (int, bool) {
-	switch key {
-	case "left", "h":
-		return -1, true
-	case "right", "l":
-		return 1, true
-	}
-	return 0, false
+	return d.withArrows(d.page(pageWidth, height), d.hasPrev(), d.hasNext())
 }
 
 // page renders the commit itself.
@@ -832,9 +667,7 @@ func (d *commitDetail) title(lines, rows int) string {
 	if d.commit != nil {
 		out = "Commit " + d.commit.ShortID
 	}
-	if d.total > 0 {
-		out = fmt.Sprintf("%s  %d/%d", out, d.index+1, d.total)
-	}
+	out += d.counter()
 	if lines > rows {
 		end := min(d.scroll+rows, lines)
 		out = fmt.Sprintf("%s  ·  %d-%d of %d", out, d.scroll+1, end, lines)
@@ -865,9 +698,7 @@ func (d *commitDetail) columns(width, height int) string {
 	}
 	rightWidth := width - leftWidth - 3 // the rule and its spaces
 
-	files := renderListBox(leftWidth, height,
-		fmt.Sprintf("Changes (%d)", len(d.diffs)), d.fileRows(),
-		cursorWhen(d.focus == focusFiles, d.fileCursor), &d.fileScroll)
+	files := d.filesBox(leftWidth, height, d.focus == focusFiles, d.loading)
 
 	jobRows, jobToRow := d.jobs.items()
 	jobCursor := -1
@@ -878,30 +709,6 @@ func (d *commitDetail) columns(width, height int) string {
 		fmt.Sprintf("Jobs (%d)", len(d.jobs.jobs)), jobRows, jobCursor, &d.jobs.scroll)
 
 	return lipgloss.JoinHorizontal(lipgloss.Top, files, " ", components.VRule(height), " ", jobs)
-}
-
-// cursorWhen returns the cursor only for a focused list, so an unfocused one has
-// no highlighted row.
-func cursorWhen(focused bool, cursor int) int {
-	if focused {
-		return cursor
-	}
-	return -1
-}
-
-// fileRows renders the changed files as list rows.
-func (d *commitDetail) fileRows() []string {
-	if d.loading && len(d.diffs) == 0 {
-		return []string{components.HelpDescStyle.Render("Loading…")}
-	}
-	if len(d.diffs) == 0 {
-		return []string{components.HelpDescStyle.Render("No changes reported")}
-	}
-	rows := make([]string, len(d.diffs))
-	for i, f := range d.diffs {
-		rows[i] = fmt.Sprintf("%s %s%s", fileMark(f), f.Path(), diffStat(f))
-	}
-	return rows
 }
 
 // topLines is the message and what the commit belongs to, including its pipeline.
@@ -1015,143 +822,6 @@ func (d *commitDetail) mrLines() []string {
 	for _, mr := range d.mrs {
 		out = append(out, components.HelpDescStyle.Render("mr      ")+
 			fmt.Sprintf("!%d %s", mr.IID, mr.Title))
-	}
-	return out
-}
-
-// fileMark is the one-letter state of a changed file, coloured like a diff.
-func fileMark(f gitlab.FileDiff) string {
-	style := func(c color.Color, s string) string {
-		return lipgloss.NewStyle().Foreground(c).Bold(true).Render(s)
-	}
-	switch {
-	case f.New:
-		return style(components.ColorSuccess, "A")
-	case f.Deleted:
-		return style(components.ColorError, "D")
-	case f.Renamed:
-		return style(components.ColorRunning, "R")
-	default:
-		return style(components.ColorWarning, "M")
-	}
-}
-
-// diffStat renders "+12 -3" for a file, or says the diff was withheld.
-func diffStat(f gitlab.FileDiff) string {
-	if f.Withheld {
-		return components.MutedStyle.Render("  (too large to show)")
-	}
-	out := ""
-	if f.Added > 0 {
-		out += lipgloss.NewStyle().Foreground(components.ColorSuccess).Render(fmt.Sprintf("  +%d", f.Added))
-	}
-	if f.Removed > 0 {
-		out += lipgloss.NewStyle().Foreground(components.ColorError).Render(fmt.Sprintf("  -%d", f.Removed))
-	}
-	return out
-}
-
-// selectedFile returns the highlighted file, or nil.
-func (d *commitDetail) selectedFile() *gitlab.FileDiff {
-	if d.fileCursor < 0 || d.fileCursor >= len(d.diffs) {
-		return nil
-	}
-	return &d.diffs[d.fileCursor]
-}
-
-// diffView renders the selected file's unified diff, coloured by line kind.
-func (d *commitDetail) diffView(width, height int) string {
-	f := d.selectedFile()
-	if f == nil {
-		return ""
-	}
-	if f.Withheld {
-		return components.MutedStyle.Render("GitLab did not send this diff: the change is too large.")
-	}
-
-	contentWidth := width - 2
-	if contentWidth < 1 {
-		contentWidth = 1
-	}
-
-	lines := d.diffLines(f, contentWidth)
-
-	rows := height - 1
-	if rows < 1 {
-		rows = 1
-	}
-	d.diffScrollable = len(lines) > rows
-	if maxScroll := len(lines) - rows; d.diffScroll > maxScroll {
-		d.diffScroll = max(0, maxScroll)
-	}
-	if d.diffScroll < 0 {
-		d.diffScroll = 0
-	}
-	end := min(d.diffScroll+rows, len(lines))
-	return strings.Join(lines[d.diffScroll:end], "\n")
-}
-
-// diffLines renders a file's unified diff into display lines, syntax highlighted
-// and wrapped to width. The result is cached per file and width: scrolling
-// re-renders the whole diff each frame, and a thousand-line file would be
-// tokenised again on every keypress.
-func (d *commitDetail) diffLines(f *gitlab.FileDiff, width int) []string {
-	path := f.Path()
-	if d.diffCache.path == path && d.diffCache.width == width {
-		return d.diffCache.lines
-	}
-
-	var lines []string
-	for _, raw := range strings.Split(strings.TrimRight(f.Diff, "\n"), "\n") {
-		lines = append(lines, styleDiffLine(path, raw, width)...)
-	}
-
-	d.diffCache = diffRender{path: path, width: width, lines: lines}
-	return lines
-}
-
-// styleDiffLine renders one line of a unified diff, wrapped to width.
-//
-// The marker column carries the meaning — added, removed, context — so the code
-// beside it is free to be syntax highlighted and read like the file it came from.
-// A wrapped line keeps its marker column empty on the continuation rows, which
-// keeps the code aligned and does not claim the marker twice.
-func styleDiffLine(path, line string, width int) []string {
-	switch {
-	case strings.HasPrefix(line, "@@"):
-		// The hunk header is the only structure in a diff, so it gets the accent.
-		return []string{components.TitleStyle.Render(components.Truncate(line, width))}
-	case strings.HasPrefix(line, "\\"):
-		// "\ No newline at end of file" is a note about the diff, not part of it.
-		return []string{components.MutedStyle.Render(components.Truncate(line, width))}
-	}
-
-	marker, body := " ", line
-	var markerStyle lipgloss.Style
-	switch {
-	case strings.HasPrefix(line, "+"):
-		marker, body = "+", line[1:]
-		markerStyle = lipgloss.NewStyle().Foreground(components.ColorSuccess).Bold(true)
-	case strings.HasPrefix(line, "-"):
-		marker, body = "-", line[1:]
-		markerStyle = lipgloss.NewStyle().Foreground(components.ColorError).Bold(true)
-	case strings.HasPrefix(line, " "):
-		body = line[1:]
-	}
-
-	codeWidth := width - 1
-	if codeWidth < 1 {
-		codeWidth = 1
-	}
-
-	wrapped := components.WrapLine(body, codeWidth)
-	out := make([]string, 0, len(wrapped))
-	for i, frag := range wrapped {
-		gutter := " "
-		if i == 0 && marker != " " {
-			gutter = markerStyle.Render(marker)
-		}
-		out = append(out, gutter+components.Highlight(path, frag))
 	}
 	return out
 }

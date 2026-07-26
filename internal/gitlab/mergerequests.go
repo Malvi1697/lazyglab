@@ -85,7 +85,78 @@ func (c *Client) GetMergeRequest(projectID, mrIID int) (*MergeRequest, error) {
 			WebURL: util.StripANSI(mr.Pipeline.WebURL),
 		}
 	}
+
+	// The page's own detail: what state it is in, who is on it, what it is tagged.
+	result.SHA = util.StripANSI(mr.SHA)
+	result.MergeStatus = util.StripANSI(mr.DetailedMergeStatus)
+	result.HasConflicts = mr.HasConflicts
+	for _, l := range mr.Labels {
+		result.Labels = append(result.Labels, util.StripANSI(l))
+	}
+	for _, r := range mr.Reviewers {
+		if r != nil {
+			result.Reviewers = append(result.Reviewers, util.StripANSI(r.Username))
+		}
+	}
+	for _, a := range mr.Assignees {
+		if a != nil {
+			result.Assignees = append(result.Assignees, util.StripANSI(a.Username))
+		}
+	}
 	return result, nil
+}
+
+// GetMergeRequestDiff returns a merge request's changes, one unified diff per
+// file — the same shape as a commit's, so the same reader displays both.
+func (c *Client) GetMergeRequestDiff(projectID, mrIID int) ([]FileDiff, error) {
+	opts := &gogitlab.ListMergeRequestDiffsOptions{
+		ListOptions: gogitlab.ListOptions{PerPage: maxDiffFiles},
+	}
+
+	apiDiffs, _, err := c.api.MergeRequests.ListMergeRequestDiffs(projectID, int64(mrIID), opts)
+	if err != nil {
+		return nil, err
+	}
+
+	diffs := make([]FileDiff, len(apiDiffs))
+	for i, d := range apiDiffs {
+		diffs[i] = FileDiff{
+			OldPath: util.StripANSI(d.OldPath),
+			NewPath: util.StripANSI(d.NewPath),
+			Diff:    d.Diff,
+			New:     d.NewFile,
+			Deleted: d.DeletedFile,
+			Renamed: d.RenamedFile,
+			// GitLab omits the text for changes it will not send in full.
+			Withheld: d.Diff == "" && !d.RenamedFile,
+		}
+		diffs[i].Added, diffs[i].Removed = countDiffLines(d.Diff)
+	}
+	return diffs, nil
+}
+
+// GetMergeRequestApprovals returns who has approved a merge request and what it
+// still needs. Approvals are a paid feature on gitlab.com, so a failure here is
+// not a failure of the page — callers treat it as "nothing to say".
+func (c *Client) GetMergeRequestApprovals(projectID, mrIID int) (*MRApprovals, error) {
+	a, _, err := c.api.MergeRequestApprovals.GetConfiguration(projectID, int64(mrIID))
+	if err != nil {
+		return nil, err
+	}
+
+	out := &MRApprovals{
+		Approved:    a.Approved,
+		Required:    int(a.ApprovalsRequired),
+		Left:        int(a.ApprovalsLeft),
+		CanApprove:  a.UserCanApprove,
+		HasApproved: a.UserHasApproved,
+	}
+	for _, u := range a.ApprovedBy {
+		if u != nil && u.User != nil {
+			out.ApprovedBy = append(out.ApprovedBy, util.StripANSI(u.User.Username))
+		}
+	}
+	return out, nil
 }
 
 // ApproveMergeRequest approves a merge request.

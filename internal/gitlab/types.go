@@ -13,6 +13,9 @@ type Project struct {
 }
 
 // MergeRequest represents a GitLab merge request.
+//
+// The fields below Pipeline are only filled by GetMergeRequest: a list row does
+// not need them, and the list endpoint does not carry them.
 type MergeRequest struct {
 	IID          int
 	Title        string
@@ -22,11 +25,27 @@ type MergeRequest struct {
 	State        string
 	Draft        bool
 	Pipeline     *PipelineInfo
-	Approvals    int
 	WebURL       string
 	Description  string
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
+
+	SHA          string // head of the source branch, as GitLab last saw it
+	MergeStatus  string // "can_be_merged", "cannot_be_merged", …
+	HasConflicts bool
+	Labels       []string
+	Reviewers    []string
+	Assignees    []string
+}
+
+// MRApprovals is who has approved a merge request and what it still needs.
+type MRApprovals struct {
+	Approved    bool
+	Required    int
+	Left        int
+	ApprovedBy  []string
+	CanApprove  bool
+	HasApproved bool
 }
 
 // PipelineInfo is a summary of a pipeline (embedded in MR, etc.).

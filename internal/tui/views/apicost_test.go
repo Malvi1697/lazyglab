@@ -135,12 +135,27 @@ func bodyFor(path string) string {
 			{"id":2,"name":"test","stage":"test","status":"success","duration":30}]`
 
 	case "/projects/:id/merge_requests":
-		return `[{"id":1042,"iid":42,"title":"MR","author":{"username":"a"},"source_branch":"f","target_branch":"main","state":"opened","web_url":"https://gl/mr/42"}]`
+		// Two of them, so a test can step from one to the other.
+		return `[{"id":1042,"iid":42,"title":"MR","author":{"username":"a"},"source_branch":"f","target_branch":"main","state":"opened","web_url":"https://gl/mr/42"},
+			{"id":1012,"iid":12,"title":"Another MR","author":{"username":"b"},"source_branch":"g","target_branch":"main","state":"opened","web_url":"https://gl/mr/12"}]`
 
 	case "/projects/:id/issues":
 		// The id matters: client-go's Issue unmarshaller reflects on it and panics
 		// when it is missing.
 		return `[{"id":1007,"iid":7,"title":"Issue","author":{"username":"a"},"state":"opened","web_url":"https://gl/i/7"}]`
+
+	case "/projects/:id/merge_requests/:id":
+		return `{"id":1042,"iid":42,"title":"MR","author":{"username":"a"},
+			"source_branch":"f","target_branch":"main","state":"opened","sha":"` + costSHAs[0] + `",
+			"detailed_merge_status":"mergeable","web_url":"https://gl/mr/42",
+			"pipeline":{"id":70,"status":"success","web_url":"https://gl/p/70"}}`
+
+	case "/projects/:id/merge_requests/:id/diffs":
+		return `[{"old_path":"a.py","new_path":"a.py","diff":"@@ -1 +1 @@\n-x\n+y\n"}]`
+
+	case "/projects/:id/merge_requests/:id/approvals":
+		return `{"id":1042,"iid":42,"approved":false,"approvals_required":2,"approvals_left":1,
+			"approved_by":[{"user":{"username":"dave"}}],"user_can_approve":true}`
 
 	case "/todos":
 		return `[{"id":1,"action_name":"review_requested","target_type":"MergeRequest",
@@ -337,5 +352,38 @@ func TestAPICost_OpeningIsNotDelayed(t *testing.T) {
 	drain(v, cmd)
 	if total, _ := rec.report(); total == 0 {
 		t.Error("Enter should fetch the commit page at once")
+	}
+}
+
+func TestAPICost_MergeRequestPage(t *testing.T) {
+	// The page is four calls: the merge request, its approvals, its diffs and its
+	// pipeline (which brings a fifth for that pipeline's jobs). Stepping back to one
+	// already read costs nothing, as on the commit page.
+	rec, ctx, done := costHarness(t)
+	defer done()
+
+	v := NewMRsView(ctx)
+	v.width, v.height = 160, 45
+	drain(v, v.Focus())
+
+	open := cost(t, rec, "MR page: open", func() {
+		drain(v, v.Update(tea.KeyPressMsg{Code: tea.KeyEnter}))
+	})
+	if open > 6 {
+		t.Errorf("opening a merge request costs %d requests, want at most 6", open)
+	}
+
+	step := cost(t, rec, "MR page: step to the next", func() {
+		drain(v, v.Update(tea.KeyPressMsg{Code: 'l', Text: "l"}))
+	})
+	if step > open {
+		t.Errorf("stepping costs %d requests, more than opening (%d)", step, open)
+	}
+
+	back := cost(t, rec, "MR page: step back", func() {
+		drain(v, v.Update(tea.KeyPressMsg{Code: 'h', Text: "h"}))
+	})
+	if back != 0 {
+		t.Errorf("stepping back to an already-fetched merge request costs %d requests, want none", back)
 	}
 }
