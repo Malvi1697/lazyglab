@@ -21,6 +21,13 @@ type Client struct {
 	// but a finished pipeline's verdict never changes, so it is asked once and
 	// auto-refreshes stay free.
 	warningCache sync.Map // pipeline ID (int) -> pipelineVerdict
+
+	// titleCache remembers a commit's title by SHA. The pipeline list endpoint
+	// does not carry it, so each row needs a lookup — and a commit's title cannot
+	// change, so the lookup is worth exactly one request for the lifetime of the
+	// process. Without this a list of thirty pipelines cost thirty extra requests
+	// on every single auto-refresh.
+	titleCache sync.Map // SHA (string) -> title (string)
 }
 
 // pipelineVerdict is the cached detailed status of a finished pipeline.

@@ -56,41 +56,64 @@ func (c *Client) ListPipelines(projectID int) ([]Pipeline, error) {
 	return pipelines, nil
 }
 
-// fillCommitTitles fetches commit titles for pipelines concurrently,
-// deduplicating by SHA.
+// fillCommitTitles gives each pipeline the title of the commit it built.
+//
+// The list endpoint carries only the SHA, so this is a lookup per distinct SHA —
+// but only the first time that SHA is seen. A commit's title is immutable, so the
+// cache means an auto-refresh of an unchanged list costs nothing at all, and a
+// new pipeline costs one request.
 func (c *Client) fillCommitTitles(projectID int, pipelines []Pipeline) {
-	// Collect unique SHAs
-	unique := make(map[string]struct{})
-	for _, p := range pipelines {
-		if p.SHA != "" {
-			unique[p.SHA] = struct{}{}
+	// The SHAs we have never resolved. Anything cached is filled in as we go.
+	missing := make(map[string]struct{})
+	for i, p := range pipelines {
+		if p.SHA == "" {
+			continue
+		}
+		if title, ok := c.titleCache.Load(p.SHA); ok {
+			pipelines[i].CommitTitle = title.(string)
+			continue
+		}
+		missing[p.SHA] = struct{}{}
+	}
+	if len(missing) == 0 {
+		return
+	}
+
+	// One page of commits answers up to fifty SHAs for a single request, so it beats
+	// asking per SHA the moment more than a couple are missing — which is exactly the
+	// cold start this list used to pay thirty requests for. It only covers the
+	// default branch, so whatever is left is still asked for individually below.
+	if len(missing) > 2 {
+		if _, err := c.ListCommits(projectID, ""); err == nil {
+			for sha := range missing {
+				if _, ok := c.titleCache.Load(sha); ok {
+					delete(missing, sha)
+				}
+			}
 		}
 	}
 
-	// Fetch titles concurrently, but bound concurrency so a page of pipelines
-	// doesn't fan out into dozens of simultaneous requests and trip GitLab's
-	// rate limiting.
-	titles := make(map[string]string, len(unique))
-	var mu sync.Mutex
+	// Fetch concurrently, but bounded, so a page of new pipelines doesn't fan out
+	// into dozens of simultaneous requests and trip GitLab's rate limiting.
 	var wg sync.WaitGroup
 	sem := make(chan struct{}, 6)
-	for sha := range unique {
+	for sha := range missing {
 		wg.Add(1)
 		go func(sha string) {
 			defer wg.Done()
 			sem <- struct{}{}
 			defer func() { <-sem }()
-			title := c.GetCommitTitle(projectID, sha)
-			mu.Lock()
-			titles[sha] = title
-			mu.Unlock()
+			if title := c.GetCommitTitle(projectID, sha); title != "" {
+				c.titleCache.Store(sha, title)
+			}
 		}(sha)
 	}
 	wg.Wait()
 
-	// Fill in
 	for i := range pipelines {
-		pipelines[i].CommitTitle = titles[pipelines[i].SHA]
+		if title, ok := c.titleCache.Load(pipelines[i].SHA); ok {
+			pipelines[i].CommitTitle = title.(string)
+		}
 	}
 }
 

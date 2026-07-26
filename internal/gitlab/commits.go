@@ -58,6 +58,11 @@ func (c *Client) ListCommits(projectID int, ref string) ([]Commit, error) {
 		if cm.CreatedAt != nil {
 			commits[i].CreatedAt = *cm.CreatedAt
 		}
+		// The pipeline list will want these same titles by SHA, and this is the
+		// cheapest place they will ever be: already fetched, already parsed.
+		if commits[i].ID != "" && commits[i].Title != "" {
+			c.titleCache.Store(commits[i].ID, commits[i].Title)
+		}
 	}
 	return commits, nil
 }
