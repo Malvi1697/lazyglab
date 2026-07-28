@@ -3,11 +3,13 @@ package views
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/Malvi1697/lazyglab/internal/gitlab"
 	"github.com/Malvi1697/lazyglab/internal/tui/components"
+	"github.com/Malvi1697/lazyglab/internal/util"
 )
 
 // Local key constants specific to the MRs view (see pipelines.go for the
@@ -184,7 +186,9 @@ func (v *MRsView) Body(width, height int) string {
 		return v.detail.body(width, height)
 	}
 
-	leftWidth := width * 45 / 100
+	// The list carries five columns now, so it gets the larger share: the detail
+	// beside it is a preview of what Enter opens properly.
+	leftWidth := width * 62 / 100
 	if leftWidth < 20 {
 		leftWidth = 20
 	}
@@ -194,9 +198,10 @@ func (v *MRsView) Body(width, height int) string {
 	rightWidth := width - leftWidth
 
 	visible := v.visible()
+	rowWidth := leftWidth - components.SelectionGutter
 	left := renderRowsBox(leftWidth, height,
 		v.search.title("Merge Requests", len(visible), len(v.mrs)),
-		len(visible), func(i int) string { return mrRow(visible[i]) },
+		len(visible), func(i int) string { return mrRow(visible[i], rowWidth) },
 		v.cursor, &v.scroll)
 
 	detail := v.mrDetail()
@@ -215,17 +220,65 @@ func (v *MRsView) detailTitle() string {
 	return "Merge Request"
 }
 
-// mrRow renders one merge-request list row.
-func mrRow(mr gitlab.MergeRequest) string {
+// The merge-request row's columns: its number, its CI, what it is, and then who,
+// from where, and when — the same shape GitLab's own list has.
+//
+// The last three are dropped as the terminal narrows, widest first: what it is
+// matters more than who wrote it, and a truncated branch name says nothing.
+const (
+	mrRefWidth     = 6
+	mrAuthorWidth  = 14
+	mrBranchWidth  = 20
+	mrUpdatedWidth = 12
+	mrTitleMin     = 24
+)
+
+// mrRow renders one merge-request list row within width.
+func mrRow(mr gitlab.MergeRequest, width int) string {
 	title := mr.Title
 	if mr.Draft {
 		title = "[Draft] " + title
 	}
-	pipeIcon := ""
+
+	icon := components.StatusIconPadded("") // two cells of nothing, so the column holds
 	if mr.Pipeline != nil {
-		pipeIcon = " " + components.StatusIcon(mr.Pipeline.Status)
+		icon = components.StatusIconPadded(mr.Pipeline.Status)
 	}
-	return refAndTitle(fmt.Sprintf("!%d", mr.IID), title) + pipeIcon
+	head := components.MutedStyle.Render(
+		components.PadRight(fmt.Sprintf("!%d", mr.IID), mrRefWidth)) + " " + icon
+
+	// Every column that fits, in order of what you would give up last.
+	tail := ""
+	room := width - mrRefWidth - 1 - 2 - 1
+	for _, col := range []struct {
+		width int
+		text  string
+	}{
+		{mrAuthorWidth, mr.Author},
+		{mrBranchWidth, mr.SourceBranch},
+		{mrUpdatedWidth, updatedStamp(mr.UpdatedAt)},
+	} {
+		if room-len([]rune(tail))-col.width-1 < mrTitleMin {
+			break
+		}
+		tail += " " + components.PadRight(components.Truncate(col.text, col.width), col.width)
+	}
+
+	titleWidth := room - len([]rune(tail))
+	if titleWidth < 1 {
+		titleWidth = 1
+	}
+	return head + " " +
+		components.BodyStyle.Render(components.PadRight(components.Truncate(title, titleWidth), titleWidth)) +
+		components.MutedStyle.Render(tail)
+}
+
+// updatedStamp is when something last moved, in the same words a commit row uses.
+func updatedStamp(t time.Time) string {
+	if t.IsZero() {
+		return ""
+	}
+	return strings.TrimSpace(util.CommitTime(t))
 }
 
 func (v *MRsView) mrDetail() string {

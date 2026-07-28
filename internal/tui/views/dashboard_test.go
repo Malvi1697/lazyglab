@@ -6,6 +6,7 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/Malvi1697/lazyglab/internal/gitlab"
@@ -106,7 +107,7 @@ func TestDashboard_ShowClockOrDateNotAnAge(t *testing.T) {
 		ShortID: "a", Title: "today", AuthorName: "A", CreatedAt: noon,
 	}}
 
-	row := ansi.Strip(v.commitRow(v.visible()[0]))
+	row := ansi.Strip(v.commitRow(v.visible()[0], 6, 120))
 	if strings.Contains(row, "1d") || strings.Contains(row, "2h") {
 		t.Errorf("row = %q, should not show a relative age", row)
 	}
@@ -240,5 +241,63 @@ func TestDashboard_AnotherProjectDoesNotKeepTheLastReadme(t *testing.T) {
 	ctx.Project = &gitlab.Project{ID: 3, ReadmeFile: "docs/README.md"}
 	if cmd := v.syncReadme(); cmd == nil {
 		t.Error("a new project with a README should be fetched")
+	}
+}
+
+func TestDashboard_CommitColumnsLineUp(t *testing.T) {
+	// The kind was inline, so every subject started somewhere else and the eye had
+	// nothing to follow down the list.
+	v := NewDashboardView(&Context{})
+	now := time.Now()
+	v.commits = []gitlab.Commit{
+		{ShortID: "a", Title: "fix: short prefix", AuthorName: "Jan Všetíček", CreatedAt: now},
+		{ShortID: "b", Title: "refactor(api): long prefix", AuthorName: "Someone Else", CreatedAt: now},
+		{ShortID: "c", Title: "no conventional prefix at all", AuthorName: "Third Person", CreatedAt: now},
+	}
+
+	rows := strings.Split(ansi.Strip(v.commitsBox(120, 6)), "\n")[1:4]
+
+	// Every subject starts at the same column — measured in display columns, not
+	// bytes: the selection gutter and the author names are multibyte.
+	at := func(row, text string) int {
+		i := strings.Index(row, text)
+		if i < 0 {
+			return -1
+		}
+		return lipgloss.Width(row[:i])
+	}
+	first := at(rows[0], "short prefix")
+	second := at(rows[1], "long prefix")
+	third := at(rows[2], "no conventional prefix")
+	if first < 0 || second < 0 || third < 0 {
+		t.Fatalf("subjects not found in %q", rows)
+	}
+	if first != second || second != third {
+		t.Errorf("subjects start at %d, %d and %d:\n%s", first, second, third, strings.Join(rows, "\n"))
+	}
+
+	// And the order is when, kind, subject, author.
+	row := rows[0]
+	if at(row, "fix:") >= first || first >= at(row, "Jan Všetíček") {
+		t.Errorf("row = %q, want when, kind, subject, then the author", row)
+	}
+	if when := at(row, now.Format("15:04")); when < 0 || when > at(row, "fix:") {
+		t.Errorf("row = %q, want the date and time first", row)
+	}
+}
+
+func TestDashboard_CommitRowsCarryTheClock(t *testing.T) {
+	// A day with six commits read as six rows of "27 Jul".
+	v := NewDashboardView(&Context{})
+	morning := time.Date(time.Now().Year(), 7, 27, 9, 12, 0, 0, time.Local)
+	evening := morning.Add(9 * time.Hour)
+	v.commits = []gitlab.Commit{
+		{ShortID: "a", Title: "chore: one", AuthorName: "A", CreatedAt: evening},
+		{ShortID: "b", Title: "chore: two", AuthorName: "A", CreatedAt: morning},
+	}
+
+	rows := strings.Split(ansi.Strip(v.commitsBox(120, 5)), "\n")[1:3]
+	if !strings.Contains(rows[0], "18:12") || !strings.Contains(rows[1], "09:12") {
+		t.Errorf("rows should differ by their clock time:\n%s", strings.Join(rows, "\n"))
 	}
 }

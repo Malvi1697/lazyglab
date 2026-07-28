@@ -101,7 +101,7 @@ func TestRefAndTitle_EveryListUsesIt(t *testing.T) {
 	// Each of these renders a row that names something by number and then says what
 	// it is; they must all read the same way.
 	rows := map[string]string{
-		"merge request": mrRow(gitlab.MergeRequest{IID: 42, Title: "feat(cart): promote"}),
+		"merge request": mrRow(gitlab.MergeRequest{IID: 42, Title: "feat(cart): promote"}, 120),
 		"issue":         issueRow(gitlab.Issue{IID: 7, Title: "fix(api): crash"}),
 		"pipeline":      pipelineRow(gitlab.Pipeline{ID: 1, Status: "success", CommitTitle: "feat(cart): promote"}),
 	}

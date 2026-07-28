@@ -4,8 +4,10 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"github.com/Malvi1697/lazyglab/internal/gitlab"
 )
@@ -238,5 +240,49 @@ func TestMRPage_NoPipelineSaysSoRatherThanNothing(t *testing.T) {
 	}
 	if msg, ok := cmd().(StatusMsg); !ok || !strings.Contains(msg.Text, "No pipeline") {
 		t.Errorf("reported %v, want the missing pipeline explained", cmd())
+	}
+}
+
+func TestMRList_ColumnsSayWhoFromWhereAndWhen(t *testing.T) {
+	// The reference is GitLab's own list: the number, what it is, and then who,
+	// from which branch, and when it last moved.
+	mr := gitlab.MergeRequest{
+		IID: 42, Title: "feat(cart): capacity-aware promotion", Author: "jiri.kucera",
+		SourceBranch: "registered_waiting_list", TargetBranch: "develop",
+		UpdatedAt: time.Date(time.Now().Year(), 7, 27, 9, 12, 0, 0, time.Local),
+	}
+
+	row := plain(mrRow(mr, 140))
+	for _, want := range []string{"!42", "capacity-aware promotion", "jiri.kucera", "registered_wait", "27 Jul 09:12"} {
+		if !strings.Contains(row, want) {
+			t.Errorf("row = %q, want it to carry %q", row, want)
+		}
+	}
+	// In that order.
+	inOrder := []string{"!42", "capacity", "jiri", "registered", "27 Jul"}
+	for i := 1; i < len(inOrder); i++ {
+		if strings.Index(row, inOrder[i-1]) >= strings.Index(row, inOrder[i]) {
+			t.Errorf("row = %q, want %q before %q", row, inOrder[i-1], inOrder[i])
+		}
+	}
+}
+
+func TestMRList_NarrowTerminalKeepsTheTitle(t *testing.T) {
+	// What it is matters more than who wrote it, and a branch cut to eight
+	// characters says nothing — so the extra columns go, widest first.
+	mr := gitlab.MergeRequest{
+		IID: 42, Title: "feat(cart): capacity-aware promotion", Author: "jiri.kucera",
+		SourceBranch: "registered_waiting_list", UpdatedAt: time.Now(),
+	}
+
+	narrow := plain(mrRow(mr, 60))
+	if !strings.Contains(narrow, "capacity-aware") {
+		t.Errorf("narrow row = %q, want the title kept", narrow)
+	}
+	if strings.Contains(narrow, "registered_wait") {
+		t.Errorf("narrow row = %q, want the branch dropped before the title", narrow)
+	}
+	if lipgloss.Width(narrow) > 60 {
+		t.Errorf("narrow row is %d wide, want at most 60: %q", lipgloss.Width(narrow), narrow)
 	}
 }

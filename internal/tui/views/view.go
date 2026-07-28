@@ -120,19 +120,66 @@ func DefaultViewIndex(views []ViewID, name string) int {
 	return 0
 }
 
-// authorWidth is the fixed width of the author column in commit lists, so the
-// titles beside it line up.
-const authorWidth = 16
+// A commit row is four columns: when it happened, its CI status, what kind of
+// change it is, what it says, and who wrote it.
+//
+// The kind gets a column of its own because "fix:" and "refactor(api):" are
+// different lengths: left inline, every subject started somewhere else and the eye
+// had nothing to follow down the list. Three weights of text as everywhere else —
+// the time, the kind and the author are metadata to scan past, the subject is what
+// you read.
+const (
+	authorWidth = 14 // the author column, at the right
+	kindMax     = 14 // a conventional prefix longer than this is truncated
+	subjectMin  = 20 // below this the row is too narrow to bother aligning
+)
 
-// commitRow renders one commit list row with three weights of text: dim time and
-// author to scan past, the conventional-commit prefix dimmed too, and the part
-// that says what the commit actually does left bright.
-func commitRow(when, icon, author, title string) string {
-	return fmt.Sprintf("%s %s %s  %s",
+// commitKindWidth is the widest conventional prefix among these commits, so their
+// subjects line up in one column without cutting anyone's scope. Measured over the
+// whole list rather than the visible window, so scrolling does not shift the text
+// sideways.
+func commitKindWidth(titles []string) int {
+	widest := 0
+	for _, title := range titles {
+		kind, _ := splitConventional(title)
+		if n := len([]rune(kind)); n > widest {
+			widest = n
+		}
+	}
+	return min(widest, kindMax)
+}
+
+// splitConventional splits "feat(scope): subject" into its prefix (with the colon)
+// and the subject. A title that is not conventional is all subject.
+func splitConventional(title string) (kind, subject string) {
+	if i := strings.Index(title, ": "); i > 0 && i < 24 && !strings.Contains(title[:i], " ") {
+		return title[:i+1], title[i+2:]
+	}
+	return "", title
+}
+
+// commitRow renders one row. width is the room the row has; kindWidth comes from
+// commitKindWidth over the list it belongs to.
+func commitRow(when, icon, author, title string, kindWidth, width int) string {
+	kind, subject := splitConventional(title)
+
+	// when + space + icon(2) + space + kind + space + subject + space + author
+	fixed := len([]rune(when)) + 1 + 2 + 1 + kindWidth + 1 + 1 + authorWidth
+	subjectWidth := width - fixed
+	if subjectWidth < subjectMin {
+		// Too narrow for the author column: the subject is what matters.
+		return fmt.Sprintf("%s %s %s %s",
+			components.MutedStyle.Render(when), icon,
+			components.MutedStyle.Render(components.PadRight(kind, kindWidth)),
+			components.BodyStyle.Render(subject))
+	}
+
+	return fmt.Sprintf("%s %s %s %s %s",
 		components.MutedStyle.Render(when),
 		icon,
-		components.MutedStyle.Render(components.PadRight(components.Truncate(author, authorWidth), authorWidth)),
-		styleCommitTitle(title),
+		components.MutedStyle.Render(components.PadRight(components.Truncate(kind, kindWidth), kindWidth)),
+		components.BodyStyle.Render(components.PadRight(components.Truncate(subject, subjectWidth), subjectWidth)),
+		components.MutedStyle.Render(components.Truncate(author, authorWidth)),
 	)
 }
 
