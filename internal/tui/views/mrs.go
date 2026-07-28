@@ -231,7 +231,7 @@ const (
 	mrRefWidth     = 6
 	mrAuthorWidth  = 14
 	mrBranchWidth  = 20
-	mrUpdatedWidth = 12
+	mrUpdatedWidth = 8 // util.CommitTime's column
 	mrTitleMin     = 24
 )
 

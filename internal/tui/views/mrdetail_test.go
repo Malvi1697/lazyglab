@@ -253,7 +253,7 @@ func TestMRList_ColumnsSayWhoFromWhereAndWhen(t *testing.T) {
 	}
 
 	row := plain(mrRow(mr, 40, 140))
-	for _, want := range []string{"!42", "capacity-aware promotion", "jiri.kucera", "registered_wait", "27.7. 09:12"} {
+	for _, want := range []string{"!42", "capacity-aware promotion", "jiri.kucera", "registered_wait", "27.7."} {
 		if !strings.Contains(row, want) {
 			t.Errorf("row = %q, want it to carry %q", row, want)
 		}

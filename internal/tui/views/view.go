@@ -3,12 +3,14 @@ package views
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
 	"github.com/Malvi1697/lazyglab/internal/gitlab"
 	"github.com/Malvi1697/lazyglab/internal/tui/components"
+	"github.com/Malvi1697/lazyglab/internal/util"
 )
 
 // ViewID identifies a cockpit view.
@@ -135,6 +137,10 @@ const (
 	commitStampWidth = 12 // "24.12. 12:13", from util.CommitTime
 )
 
+// commitStamp is util.CommitTime without its padding, so the column can be
+// measured like every other one.
+func commitStamp(t time.Time) string { return strings.TrimSpace(util.CommitTime(t)) }
+
 // columnWidth is the width a column needs for these values: the widest of them,
 // clamped.
 //
@@ -155,22 +161,27 @@ func columnWidth(values []string, minWidth, maxWidth int) int {
 	return min(max(widest, minWidth), maxWidth)
 }
 
-// commitColumns measures a commit list's two elastic columns: the conventional
-// prefix and the subject beside it.
-func commitColumns(titles []string, width int) (kindWidth, subjectWidth int) {
+// commitColumns measures a commit list's three elastic columns: when it happened,
+// the kind of change, and the subject beside them.
+//
+// The stamp is measured like the rest: a list nobody committed to across a year
+// boundary never shows "30.12.25", so it should not pay eight columns for the
+// possibility.
+func commitColumns(stamps, titles []string, width int) (stampWidth, kindWidth, subjectWidth int) {
 	kinds := make([]string, len(titles))
 	subjects := make([]string, len(titles))
 	for i, title := range titles {
 		kinds[i], subjects[i] = splitConventional(title)
 	}
 
+	stampWidth = columnWidth(stamps, 0, commitStampWidth)
 	kindWidth = columnWidth(kinds, 0, kindMax)
 	// when + space + icon(2, with its space) + kind + space + subject + space + author
-	room := width - commitStampWidth - 1 - 2 - kindWidth - 1 - 1 - authorWidth
+	room := width - stampWidth - 1 - 2 - kindWidth - 1 - 1 - authorWidth
 
 	// The subject takes what is left, so the author lands against the right edge
 	// rather than trailing whatever the longest subject happened to be.
-	return kindWidth, max(room, subjectMin)
+	return stampWidth, kindWidth, max(room, subjectMin)
 }
 
 // splitConventional splits "feat(scope): subject" into the kind of change and what
@@ -208,11 +219,11 @@ func padLeft(s string, w int) string {
 // The metadata is kept to the left edge — the date, the CI mark and the kind take
 // twenty-odd columns between them, not thirty — and the author sits against the
 // right, where a column of names is something the eye finds rather than reads.
-func commitRow(when, icon, author, title string, kindWidth, subjectWidth, width int) string {
+func commitRow(when, icon, author, title string, stampWidth, kindWidth, subjectWidth, width int) string {
 	kind, subject := splitConventional(title)
 
 	row := fmt.Sprintf("%s %s%s %s",
-		components.MutedStyle.Render(when),
+		components.MutedStyle.Render(padLeft(when, stampWidth)),
 		icon, // already carries its own trailing space
 		components.MutedStyle.Render(padLeft(components.Truncate(kind, kindWidth), kindWidth)),
 		components.BodyStyle.Render(components.PadRight(components.Truncate(subject, subjectWidth), subjectWidth)),

@@ -171,13 +171,13 @@ func TestCommitTime(t *testing.T) {
 		when time.Time
 		want string
 	}{
-		// The date alone was not enough: a day with six commits read as six rows of
-		// "27 Jul", which is what sent us looking for the clock.
-		{"this morning", now.Add(-2 * time.Hour), "25.7. 07:30"},
-		{"later today", time.Date(2026, time.July, 25, 17, 21, 0, 0, time.UTC), "25.7. 17:21"},
-		{"yesterday, not an age", now.Add(-24 * time.Hour), "24.7. 09:30"},
-		{"earlier this year", time.Date(2026, time.February, 3, 8, 0, 0, 0, time.UTC), "3.2. 08:00"},
-		{"another year takes the year over the minute", time.Date(2025, time.December, 30, 8, 0, 0, 0, time.UTC), "30.12.2025"},
+		// Today the clock tells the rows apart; on any other day the date does, and
+		// neither needs both — that is what keeps the column narrow.
+		{"this morning", now.Add(-2 * time.Hour), "07:30"},
+		{"later today", time.Date(2026, time.July, 25, 17, 21, 0, 0, time.UTC), "17:21"},
+		{"yesterday, not an age", now.Add(-24 * time.Hour), "24.7."},
+		{"earlier this year", time.Date(2026, time.February, 3, 8, 0, 0, 0, time.UTC), "3.2."},
+		{"another year takes the year, not the minute", time.Date(2025, time.December, 30, 8, 0, 0, 0, time.UTC), "30.12.25"},
 		{"zero time is blank, not epoch", time.Time{}, ""},
 	}
 	for _, tc := range cases {
@@ -193,7 +193,8 @@ func TestCommitTime_FixedWidth(t *testing.T) {
 	now := time.Date(2026, time.July, 25, 9, 30, 0, 0, time.UTC)
 	for _, when := range []time.Time{
 		now, now.Add(-30 * time.Hour), now.AddDate(-1, 0, 0), {},
-		time.Date(2026, time.July, 9, 4, 5, 0, 0, time.UTC), // single-digit day and hour
+		time.Date(2026, time.July, 9, 4, 5, 0, 0, time.UTC),      // single-digit day and hour
+		time.Date(2025, time.December, 30, 8, 0, 0, 0, time.UTC), // the longest form
 	} {
 		if got := commitTimeAt(when, now); len([]rune(got)) != commitStampWidth {
 			t.Errorf("commitTimeAt(%v) = %q, width %d, want %d",

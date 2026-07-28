@@ -1,6 +1,7 @@
 package views
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -107,7 +108,7 @@ func TestDashboard_ShowClockOrDateNotAnAge(t *testing.T) {
 		ShortID: "a", Title: "today", AuthorName: "A", CreatedAt: noon,
 	}}
 
-	row := ansi.Strip(v.commitRow(v.visible()[0], 6, 60, 120))
+	row := ansi.Strip(v.commitRow(v.visible()[0], 6, 6, 60, 120))
 	if strings.Contains(row, "1d") || strings.Contains(row, "2h") {
 		t.Errorf("row = %q, should not show a relative age", row)
 	}
@@ -286,18 +287,29 @@ func TestDashboard_CommitColumnsLineUp(t *testing.T) {
 	}
 }
 
-func TestDashboard_CommitRowsCarryTheClock(t *testing.T) {
-	// A day with six commits read as six rows of "27 Jul".
+func TestDashboard_TodayIsToldByTheClock(t *testing.T) {
+	// A day with six commits read as six identical dates; today's rows carry the
+	// time instead, which is what tells them apart. Older days need only the date —
+	// paying for both on every row is what made the column wide.
 	v := NewDashboardView(&Context{})
-	morning := time.Date(time.Now().Year(), 7, 27, 9, 12, 0, 0, time.Local)
-	evening := morning.Add(9 * time.Hour)
+	now := time.Now()
+	earlier := now.Add(-3 * time.Hour)
+	lastWeek := now.AddDate(0, 0, -7)
 	v.commits = []gitlab.Commit{
-		{ShortID: "a", Title: "chore: one", AuthorName: "A", CreatedAt: evening},
-		{ShortID: "b", Title: "chore: two", AuthorName: "A", CreatedAt: morning},
+		{ShortID: "a", Title: "chore: one", AuthorName: "A", CreatedAt: now},
+		{ShortID: "b", Title: "chore: two", AuthorName: "A", CreatedAt: earlier},
+		{ShortID: "c", Title: "chore: three", AuthorName: "A", CreatedAt: lastWeek},
 	}
 
-	rows := strings.Split(ansi.Strip(v.commitsBox(120, 5)), "\n")[1:3]
-	if !strings.Contains(rows[0], "18:12") || !strings.Contains(rows[1], "09:12") {
-		t.Errorf("rows should differ by their clock time:\n%s", strings.Join(rows, "\n"))
+	rows := strings.Split(ansi.Strip(v.commitsBox(120, 6)), "\n")[1:4]
+	if !strings.Contains(rows[0], now.Format("15:04")) ||
+		!strings.Contains(rows[1], earlier.Format("15:04")) {
+		t.Errorf("today's rows should differ by their clock time:\n%s", strings.Join(rows, "\n"))
+	}
+	if want := fmt.Sprintf("%d.%d.", lastWeek.Day(), int(lastWeek.Month())); !strings.Contains(rows[2], want) {
+		t.Errorf("row = %q, want last week's row to carry %q", rows[2], want)
+	}
+	if strings.Contains(rows[2], lastWeek.Format("15:04")) {
+		t.Errorf("row = %q, want no clock on a row from another day", rows[2])
 	}
 }

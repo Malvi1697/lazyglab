@@ -66,31 +66,38 @@ func TimeAgo(t time.Time) string {
 // width so the column stays a column.
 //
 // A relative age is the wrong unit here: a day's work shows as "1d" on every row,
-// which says nothing about order or when anything happened. And a date alone is
-// not enough either — a day with six commits reads as six rows of "27 Jul" — so
-// the clock time comes with it. Only the year is dropped when it is this one.
+// which says nothing about order or when anything happened. So today's commits get
+// the clock — that is what tells them apart — and older ones the date, which is
+// what tells those apart. Neither ever needs both, so the column is eight columns
+// wide rather than twelve.
 func CommitTime(t time.Time) string { return commitTimeAt(t, time.Now()) }
 
-// commitStampWidth is the width of the column: "24.12. 12:13" at its longest.
-const commitStampWidth = 12
+// commitStampWidth is the width of the column: "30.12.25" at its longest.
+const commitStampWidth = 8
 
 // commitTimeAt is CommitTime with an explicit "now", for tests.
-//
-// Numeric and day-first, because a month spelled out spread the column across the
-// row for no more information: "24.7. 12:13" says the same as "24 Jul 12:13" in a
-// shape the eye takes in at once. Right-aligned, so the dots and the times line up
-// down the list.
 func commitTimeAt(t, now time.Time) string {
 	if t.IsZero() {
 		return strings.Repeat(" ", commitStampWidth)
 	}
 
 	var s string
-	if t.Year() == now.Year() {
-		s = fmt.Sprintf("%d.%d. %02d:%02d", t.Day(), int(t.Month()), t.Hour(), t.Minute())
-	} else {
-		// Across years the year matters more than the minute.
-		s = fmt.Sprintf("%d.%d.%d", t.Day(), int(t.Month()), t.Year())
+	switch {
+	case sameDay(t, now):
+		s = t.Format("15:04")
+	case t.Year() == now.Year():
+		s = fmt.Sprintf("%d.%d.", t.Day(), int(t.Month()))
+	default:
+		// Another year: the year earns its place, the minute does not.
+		s = fmt.Sprintf("%d.%d.%02d", t.Day(), int(t.Month()), t.Year()%100)
 	}
+	// Right-aligned, so the dots and the times line up down the list.
 	return fmt.Sprintf("%*s", commitStampWidth, s)
+}
+
+// sameDay reports whether two times fall on the same calendar day.
+func sameDay(a, b time.Time) bool {
+	ay, am, ad := a.Date()
+	by, bm, bd := b.Date()
+	return ay == by && am == bm && ad == bd
 }
