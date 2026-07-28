@@ -71,10 +71,15 @@ func TimeAgo(t time.Time) string {
 // the clock time comes with it. Only the year is dropped when it is this one.
 func CommitTime(t time.Time) string { return commitTimeAt(t, time.Now()) }
 
-// commitStampWidth is the width of the column: "27 Jul 09:12".
+// commitStampWidth is the width of the column: "24.12. 12:13" at its longest.
 const commitStampWidth = 12
 
 // commitTimeAt is CommitTime with an explicit "now", for tests.
+//
+// Numeric and day-first, because a month spelled out spread the column across the
+// row for no more information: "24.7. 12:13" says the same as "24 Jul 12:13" in a
+// shape the eye takes in at once. Right-aligned, so the dots and the times line up
+// down the list.
 func commitTimeAt(t, now time.Time) string {
 	if t.IsZero() {
 		return strings.Repeat(" ", commitStampWidth)
@@ -82,10 +87,10 @@ func commitTimeAt(t, now time.Time) string {
 
 	var s string
 	if t.Year() == now.Year() {
-		s = t.Format("2 Jan 15:04")
+		s = fmt.Sprintf("%d.%d. %02d:%02d", t.Day(), int(t.Month()), t.Hour(), t.Minute())
 	} else {
 		// Across years the year matters more than the minute.
-		s = t.Format("2 Jan 2006")
+		s = fmt.Sprintf("%d.%d.%d", t.Day(), int(t.Month()), t.Year())
 	}
-	return fmt.Sprintf("%-*s", commitStampWidth, s)
+	return fmt.Sprintf("%*s", commitStampWidth, s)
 }

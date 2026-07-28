@@ -173,16 +173,16 @@ func TestCommitTime(t *testing.T) {
 	}{
 		// The date alone was not enough: a day with six commits read as six rows of
 		// "27 Jul", which is what sent us looking for the clock.
-		{"this morning", now.Add(-2 * time.Hour), "25 Jul 07:30"},
-		{"later today", time.Date(2026, time.July, 25, 17, 21, 0, 0, time.UTC), "25 Jul 17:21"},
-		{"yesterday, not an age", now.Add(-24 * time.Hour), "24 Jul 09:30"},
-		{"earlier this year", time.Date(2026, time.February, 3, 8, 0, 0, 0, time.UTC), "3 Feb 08:00"},
-		{"another year takes the year over the minute", time.Date(2025, time.December, 30, 8, 0, 0, 0, time.UTC), "30 Dec 2025"},
+		{"this morning", now.Add(-2 * time.Hour), "25.7. 07:30"},
+		{"later today", time.Date(2026, time.July, 25, 17, 21, 0, 0, time.UTC), "25.7. 17:21"},
+		{"yesterday, not an age", now.Add(-24 * time.Hour), "24.7. 09:30"},
+		{"earlier this year", time.Date(2026, time.February, 3, 8, 0, 0, 0, time.UTC), "3.2. 08:00"},
+		{"another year takes the year over the minute", time.Date(2025, time.December, 30, 8, 0, 0, 0, time.UTC), "30.12.2025"},
 		{"zero time is blank, not epoch", time.Time{}, ""},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := strings.TrimRight(commitTimeAt(tc.when, now), " "); got != tc.want {
+			if got := strings.TrimSpace(commitTimeAt(tc.when, now)); got != tc.want {
 				t.Errorf("commitTimeAt = %q, want %q", got, tc.want)
 			}
 		})
