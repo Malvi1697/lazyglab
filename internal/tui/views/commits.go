@@ -198,12 +198,13 @@ func (v *CommitsView) Body(width, height int) string {
 	for i, c := range visible {
 		titles[i] = c.Title
 	}
-	kindWidth := commitKindWidth(titles)
 	rowWidth := leftWidth - components.SelectionGutter
+	kindWidth, subjectWidth := commitColumns(titles, rowWidth)
 
 	left := renderRowsBox(leftWidth, height,
 		v.search.title("Commits", len(visible), len(v.commits)),
-		len(visible), func(i int) string { return commitItemRow(visible[i], kindWidth, rowWidth) },
+		len(visible),
+		func(i int) string { return commitItemRow(visible[i], kindWidth, subjectWidth, rowWidth) },
 		v.cursor, &v.scroll)
 
 	detail := v.commitDetail()
@@ -216,9 +217,9 @@ func (v *CommitsView) Body(width, height int) string {
 }
 
 // commitItemRow renders one commit list row.
-func commitItemRow(c gitlab.Commit, kindWidth, width int) string {
+func commitItemRow(c gitlab.Commit, kindWidth, subjectWidth, width int) string {
 	return commitRow(util.CommitTime(c.CreatedAt), commitStatusIcon(c.Status),
-		c.AuthorName, c.Title, kindWidth, width)
+		c.AuthorName, c.Title, kindWidth, subjectWidth, width)
 }
 
 func (v *CommitsView) commitDetail() string {

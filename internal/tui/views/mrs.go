@@ -6,6 +6,7 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"github.com/Malvi1697/lazyglab/internal/gitlab"
 	"github.com/Malvi1697/lazyglab/internal/tui/components"
@@ -199,9 +200,10 @@ func (v *MRsView) Body(width, height int) string {
 
 	visible := v.visible()
 	rowWidth := leftWidth - components.SelectionGutter
+	titleWidth := mrTitleWidth(visible, rowWidth)
 	left := renderRowsBox(leftWidth, height,
 		v.search.title("Merge Requests", len(visible), len(v.mrs)),
-		len(visible), func(i int) string { return mrRow(visible[i], rowWidth) },
+		len(visible), func(i int) string { return mrRow(visible[i], titleWidth, rowWidth) },
 		v.cursor, &v.scroll)
 
 	detail := v.mrDetail()
@@ -233,8 +235,31 @@ const (
 	mrTitleMin     = 24
 )
 
+// mrTitleWidth measures the title column over the whole list, so the columns after
+// it stay beside it instead of against the right edge.
+func mrTitleWidth(mrs []gitlab.MergeRequest, width int) int {
+	titles := make([]string, len(mrs))
+	for i, mr := range mrs {
+		titles[i] = mr.Title
+		if mr.Draft {
+			titles[i] = "[Draft] " + titles[i]
+		}
+	}
+	// The title and the author are what a row is for, so they get their place first.
+	room := width - mrRefWidth - 1 - 2 - 1 - (1 + mrAuthorWidth)
+
+	// The branch and the date keep theirs too, when the row is wide enough to hold
+	// all four: one outlier of a title would otherwise eat the columns everybody
+	// else's row would have shown, and a column a single row can delete is not a
+	// column. On a narrower row they drop off instead, and the title takes the space.
+	if optional := (1 + mrBranchWidth) + (1 + mrUpdatedWidth); room-optional >= mrTitleMin {
+		room -= optional
+	}
+	return columnWidth(titles, mrTitleMin, max(room, mrTitleMin))
+}
+
 // mrRow renders one merge-request list row within width.
-func mrRow(mr gitlab.MergeRequest, width int) string {
+func mrRow(mr gitlab.MergeRequest, titleWidth, width int) string {
 	title := mr.Title
 	if mr.Draft {
 		title = "[Draft] " + title
@@ -247,9 +272,12 @@ func mrRow(mr gitlab.MergeRequest, width int) string {
 	head := components.MutedStyle.Render(
 		components.PadRight(fmt.Sprintf("!%d", mr.IID), mrRefWidth)) + " " + icon
 
-	// Every column that fits, in order of what you would give up last.
-	tail := ""
-	room := width - mrRefWidth - 1 - 2 - 1
+	row := head + " " +
+		components.BodyStyle.Render(components.PadRight(components.Truncate(title, titleWidth), titleWidth))
+
+	// Every column that still fits, in the order you would give them up: what it is
+	// matters more than who wrote it, and a branch cut to eight characters says
+	// nothing.
 	for _, col := range []struct {
 		width int
 		text  string
@@ -258,19 +286,13 @@ func mrRow(mr gitlab.MergeRequest, width int) string {
 		{mrBranchWidth, mr.SourceBranch},
 		{mrUpdatedWidth, updatedStamp(mr.UpdatedAt)},
 	} {
-		if room-len([]rune(tail))-col.width-1 < mrTitleMin {
+		if lipgloss.Width(row)+1+col.width > width {
 			break
 		}
-		tail += " " + components.PadRight(components.Truncate(col.text, col.width), col.width)
+		row += " " + components.MutedStyle.Render(
+			components.PadRight(components.Truncate(col.text, col.width), col.width))
 	}
-
-	titleWidth := room - len([]rune(tail))
-	if titleWidth < 1 {
-		titleWidth = 1
-	}
-	return head + " " +
-		components.BodyStyle.Render(components.PadRight(components.Truncate(title, titleWidth), titleWidth)) +
-		components.MutedStyle.Render(tail)
+	return row
 }
 
 // updatedStamp is when something last moved, in the same words a commit row uses.

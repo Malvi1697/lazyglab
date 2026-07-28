@@ -252,7 +252,7 @@ func TestMRList_ColumnsSayWhoFromWhereAndWhen(t *testing.T) {
 		UpdatedAt: time.Date(time.Now().Year(), 7, 27, 9, 12, 0, 0, time.Local),
 	}
 
-	row := plain(mrRow(mr, 140))
+	row := plain(mrRow(mr, 40, 140))
 	for _, want := range []string{"!42", "capacity-aware promotion", "jiri.kucera", "registered_wait", "27.7. 09:12"} {
 		if !strings.Contains(row, want) {
 			t.Errorf("row = %q, want it to carry %q", row, want)
@@ -275,7 +275,7 @@ func TestMRList_NarrowTerminalKeepsTheTitle(t *testing.T) {
 		SourceBranch: "registered_waiting_list", UpdatedAt: time.Now(),
 	}
 
-	narrow := plain(mrRow(mr, 60))
+	narrow := plain(mrRow(mr, mrTitleWidth([]gitlab.MergeRequest{mr}, 60), 60))
 	if !strings.Contains(narrow, "capacity-aware") {
 		t.Errorf("narrow row = %q, want the title kept", narrow)
 	}

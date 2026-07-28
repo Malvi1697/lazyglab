@@ -324,22 +324,23 @@ func (v *DashboardView) commitsBox(width, height int) string {
 	for i, c := range visible {
 		titles[i] = c.Title
 	}
-	kindWidth := commitKindWidth(titles)
 	rowWidth := width - components.SelectionGutter
+	kindWidth, subjectWidth := commitColumns(titles, rowWidth)
 
 	return renderRowsBox(width, height,
 		v.search.title("Recent Commits", len(visible), len(v.commits)),
-		len(visible), func(i int) string { return v.commitRow(visible[i], kindWidth, rowWidth) },
+		len(visible),
+		func(i int) string { return v.commitRow(visible[i], kindWidth, subjectWidth, rowWidth) },
 		cursorWhen(v.focus == focusPage, v.cursor), &v.scroll)
 }
 
 // commitRow renders one recent-commits row, mapping the commit's CI status from
 // the loaded pipelines by SHA. kindWidth and width come from the frame being
 // rendered, so every row in it lines up.
-func (v *DashboardView) commitRow(c gitlab.Commit, kindWidth, width int) string {
+func (v *DashboardView) commitRow(c gitlab.Commit, kindWidth, subjectWidth, width int) string {
 	return commitRow(util.CommitTime(c.CreatedAt),
 		commitStatusIcon(commitStatus(c.ShortID, v.pipelines)),
-		c.AuthorName, c.Title, kindWidth, width)
+		c.AuthorName, c.Title, kindWidth, subjectWidth, width)
 }
 
 // commitStatusIcon renders a commit's CI state, or a faint dot when no pipeline

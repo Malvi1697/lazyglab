@@ -129,24 +129,45 @@ func DefaultViewIndex(views []ViewID, name string) int {
 // the time, the kind and the author are metadata to scan past, the subject is what
 // you read.
 const (
-	authorWidth = 14 // the author column, at the right
-	kindMax     = 14 // a conventional prefix longer than this is truncated
-	subjectMin  = 20 // below this the row is too narrow to bother aligning
+	authorWidth      = 14 // the author column, after the subject
+	kindMax          = 14 // a conventional prefix longer than this is truncated
+	subjectMin       = 20 // below this the row is too narrow to bother aligning
+	commitStampWidth = 12 // "24.12. 12:13", from util.CommitTime
 )
 
-// commitKindWidth is the widest conventional prefix among these commits, so their
-// subjects line up in one column without cutting anyone's scope. Measured over the
-// whole list rather than the visible window, so scrolling does not shift the text
-// sideways.
-func commitKindWidth(titles []string) int {
+// columnWidth is the width a column needs for these values: the widest of them,
+// clamped.
+//
+// Sizing to content is what keeps the columns together. Padding one out to the full
+// width instead leaves a canyon of blank between it and the next — the author
+// stranded against the right edge, reading as a separate list rather than the last
+// column of this one. Whatever is left over belongs at the end of the row.
+//
+// Measured over the whole list, not the visible window, so scrolling never shifts
+// the text sideways.
+func columnWidth(values []string, minWidth, maxWidth int) int {
 	widest := 0
-	for _, title := range titles {
-		kind, _ := splitConventional(title)
-		if n := len([]rune(kind)); n > widest {
+	for _, v := range values {
+		if n := lipgloss.Width(v); n > widest {
 			widest = n
 		}
 	}
-	return min(widest, kindMax)
+	return min(max(widest, minWidth), maxWidth)
+}
+
+// commitColumns measures a commit list's two elastic columns: the conventional
+// prefix and the subject beside it.
+func commitColumns(titles []string, width int) (kindWidth, subjectWidth int) {
+	kinds := make([]string, len(titles))
+	subjects := make([]string, len(titles))
+	for i, title := range titles {
+		kinds[i], subjects[i] = splitConventional(title)
+	}
+
+	kindWidth = columnWidth(kinds, 0, kindMax)
+	// when + space + icon(2) + space + kind + space + subject + space + author
+	room := width - commitStampWidth - 1 - 2 - 1 - kindWidth - 1 - 1 - authorWidth
+	return kindWidth, columnWidth(subjects, subjectMin, max(room, subjectMin))
 }
 
 // splitConventional splits "feat(scope): subject" into its prefix (with the colon)
@@ -158,29 +179,23 @@ func splitConventional(title string) (kind, subject string) {
 	return "", title
 }
 
-// commitRow renders one row. width is the room the row has; kindWidth comes from
-// commitKindWidth over the list it belongs to.
-func commitRow(when, icon, author, title string, kindWidth, width int) string {
+// commitRow renders one row, with the column widths commitColumns measured for the
+// list it belongs to.
+func commitRow(when, icon, author, title string, kindWidth, subjectWidth, width int) string {
 	kind, subject := splitConventional(title)
 
-	// when + space + icon(2) + space + kind + space + subject + space + author
-	fixed := len([]rune(when)) + 1 + 2 + 1 + kindWidth + 1 + 1 + authorWidth
-	subjectWidth := width - fixed
-	if subjectWidth < subjectMin {
-		// Too narrow for the author column: the subject is what matters.
-		return fmt.Sprintf("%s %s %s %s",
-			components.MutedStyle.Render(when), icon,
-			components.MutedStyle.Render(components.PadRight(kind, kindWidth)),
-			components.BodyStyle.Render(subject))
-	}
-
-	return fmt.Sprintf("%s %s %s %s %s",
+	row := fmt.Sprintf("%s %s %s %s",
 		components.MutedStyle.Render(when),
 		icon,
 		components.MutedStyle.Render(components.PadRight(components.Truncate(kind, kindWidth), kindWidth)),
 		components.BodyStyle.Render(components.PadRight(components.Truncate(subject, subjectWidth), subjectWidth)),
-		components.MutedStyle.Render(components.Truncate(author, authorWidth)),
 	)
+
+	// The author comes along only if it fits beside the rest, not instead of it.
+	if lipgloss.Width(row)+1+authorWidth <= width {
+		row += " " + components.MutedStyle.Render(components.Truncate(author, authorWidth))
+	}
+	return row
 }
 
 // refAndTitle renders a row that names something by number — "!42", "#7" — and
