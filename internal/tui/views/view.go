@@ -165,29 +165,56 @@ func commitColumns(titles []string, width int) (kindWidth, subjectWidth int) {
 	}
 
 	kindWidth = columnWidth(kinds, 0, kindMax)
-	// when + space + icon(2) + space + kind + space + subject + space + author
-	room := width - commitStampWidth - 1 - 2 - 1 - kindWidth - 1 - 1 - authorWidth
-	return kindWidth, columnWidth(subjects, subjectMin, max(room, subjectMin))
+	// when + space + icon(2, with its space) + kind + space + subject + space + author
+	room := width - commitStampWidth - 1 - 2 - kindWidth - 1 - 1 - authorWidth
+
+	// The subject takes what is left, so the author lands against the right edge
+	// rather than trailing whatever the longest subject happened to be.
+	return kindWidth, max(room, subjectMin)
 }
 
-// splitConventional splits "feat(scope): subject" into its prefix (with the colon)
-// and the subject. A title that is not conventional is all subject.
+// splitConventional splits "feat(scope): subject" into the kind of change and what
+// it says. A title that is not conventional is all subject.
+//
+// The scope is dropped: aligning "refactor(#105934):" into a column cost thirteen
+// characters of every row before the message even started, and a scope is almost
+// always either repeated by the subject or an issue number that lives in the body.
+// What the change is — feat, fix, docs — is the part worth a column.
 func splitConventional(title string) (kind, subject string) {
-	if i := strings.Index(title, ": "); i > 0 && i < 24 && !strings.Contains(title[:i], " ") {
-		return title[:i+1], title[i+2:]
+	i := strings.Index(title, ": ")
+	if i <= 0 || i >= 24 || strings.Contains(title[:i], " ") {
+		return "", title
 	}
-	return "", title
+	kind = title[:i]
+	if open := strings.IndexByte(kind, '('); open > 0 {
+		kind = kind[:open]
+	}
+	return kind + ":", title[i+2:]
+}
+
+// padLeft right-aligns s in w columns, which is how the kind column is set: the
+// colons line up and the subject starts right after them, so the gap the eye has
+// to cross sits before the dim text rather than between it and the message.
+func padLeft(s string, w int) string {
+	if pad := w - lipgloss.Width(s); pad > 0 {
+		return strings.Repeat(" ", pad) + s
+	}
+	return s
 }
 
 // commitRow renders one row, with the column widths commitColumns measured for the
 // list it belongs to.
+//
+// The metadata is kept to the left edge — the date, the CI mark and the kind take
+// twenty-odd columns between them, not thirty — and the author sits against the
+// right, where a column of names is something the eye finds rather than reads.
 func commitRow(when, icon, author, title string, kindWidth, subjectWidth, width int) string {
 	kind, subject := splitConventional(title)
 
-	row := fmt.Sprintf("%s %s %s %s",
+	row := fmt.Sprintf("%s %s%s %s",
 		components.MutedStyle.Render(when),
-		icon,
-		components.MutedStyle.Render(components.PadRight(components.Truncate(kind, kindWidth), kindWidth)),
+		icon, // already carries its own trailing space
+		components.MutedStyle.Render(padLeft(components.Truncate(kind, kindWidth), kindWidth)),
 		components.BodyStyle.Render(components.PadRight(components.Truncate(subject, subjectWidth), subjectWidth)),
 	)
 
