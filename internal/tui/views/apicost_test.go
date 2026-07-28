@@ -157,6 +157,10 @@ func bodyFor(path string) string {
 		return `{"id":1042,"iid":42,"approved":false,"approvals_required":2,"approvals_left":1,
 			"approved_by":[{"user":{"username":"dave"}}],"user_can_approve":true}`
 
+	case "/projects/:id/merge_requests/:id/notes", "/projects/:id/issues/:id/notes":
+		return `[{"id":9,"author":{"username":"alice"},"body":"Looks good","system":false,
+			"created_at":"2026-07-20T09:00:00Z"}]`
+
 	case "/todos":
 		return `[{"id":1,"action_name":"review_requested","target_type":"MergeRequest",
 			"target":{"iid":42,"title":"MR"},"target_url":"https://gl/mr/42","body":"MR","state":"pending"}]`
@@ -385,5 +389,98 @@ func TestAPICost_MergeRequestPage(t *testing.T) {
 	})
 	if back != 0 {
 		t.Errorf("stepping back to an already-fetched merge request costs %d requests, want none", back)
+	}
+}
+
+func TestAPICost_RefreshFollowsWhatIsOnScreen(t *testing.T) {
+	// The tick used to reload the list behind whatever you had open, so a pipeline
+	// you sat watching never changed — and on the Pipelines view it threw you out
+	// of the jobs panel every thirty seconds.
+	rec, ctx, done := costHarness(t)
+	defer done()
+
+	t.Run("pipelines: the jobs, not the list", func(t *testing.T) {
+		v := NewPipelinesView(ctx)
+		v.width, v.height = 120, 40
+		drain(v, v.Focus())
+		drain(v, v.Update(tea.KeyPressMsg{Code: tea.KeyEnter})) // into the jobs
+
+		rec.reset()
+		drain(v, v.Focus())
+		_, table := rec.report()
+		if !strings.Contains(table, "/pipelines/:id/jobs") {
+			t.Errorf("a refresh asked for%s, want the jobs on screen", table)
+		}
+		if strings.Contains(table, "  /projects/:id/pipelines\n") {
+			t.Errorf("a refresh asked for%s, want no list reload behind the panel", table)
+		}
+		if !v.viewingJobs {
+			t.Error("a refresh must not throw you out of the jobs panel")
+		}
+	})
+
+	t.Run("merge request: the page", func(t *testing.T) {
+		v := NewMRsView(ctx)
+		v.width, v.height = 160, 45
+		drain(v, v.Focus())
+		drain(v, v.Update(tea.KeyPressMsg{Code: tea.KeyEnter}))
+
+		rec.reset()
+		drain(v, v.Focus())
+		_, table := rec.report()
+		if !strings.Contains(table, "/merge_requests/:id\n") {
+			t.Errorf("a refresh asked for%s, want the open merge request", table)
+		}
+	})
+
+	t.Run("commit page: the commit", func(t *testing.T) {
+		v := NewOverviewView(ctx)
+		v.width, v.height = 160, 45
+		drain(v, v.Focus())
+		drain(v, v.Update(tea.KeyPressMsg{Code: tea.KeyEnter}))
+
+		rec.reset()
+		drain(v, v.Focus())
+		_, table := rec.report()
+		if !strings.Contains(table, "/repository/commits/:sha\n") {
+			t.Errorf("a refresh asked for%s, want the open commit", table)
+		}
+		if strings.Contains(table, "/projects/:id/issues") {
+			t.Errorf("a refresh asked for%s, want the page rather than Overview's lists", table)
+		}
+	})
+
+	t.Run("issue page: its discussion", func(t *testing.T) {
+		v := NewIssuesView(ctx)
+		v.width, v.height = 160, 45
+		drain(v, v.Focus())
+		drain(v, v.Update(tea.KeyPressMsg{Code: tea.KeyEnter}))
+
+		rec.reset()
+		drain(v, v.Focus())
+		if _, table := rec.report(); !strings.Contains(table, "/issues/:id/notes") {
+			t.Errorf("a refresh asked for%s, want the discussion", table)
+		}
+	})
+}
+
+func TestAPICost_NothingIsRefetchedUnderSomeoneReading(t *testing.T) {
+	// A refetch would move what someone is halfway through: the diff's scroll, the
+	// log's, the thread's.
+	rec, ctx, done := costHarness(t)
+	defer done()
+
+	v := NewMRsView(ctx)
+	v.width, v.height = 160, 45
+	drain(v, v.Focus())
+	drain(v, v.Update(tea.KeyPressMsg{Code: tea.KeyEnter})) // the page
+	drain(v, v.Update(tea.KeyPressMsg{Code: tea.KeyEnter})) // into the changed files
+	drain(v, v.Update(tea.KeyPressMsg{Code: tea.KeyEnter})) // reading a diff
+
+	if !v.detail.reading {
+		t.Fatal("expected a diff on screen")
+	}
+	if got := cost(t, rec, "Refresh while reading a diff", func() { drain(v, v.Focus()) }); got != 0 {
+		t.Errorf("a refresh cost %d requests while a diff was being read, want none", got)
 	}
 }

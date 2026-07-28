@@ -38,8 +38,17 @@ func NewIssuesView(ctx *Context) *IssuesView {
 // Title implements View.
 func (v *IssuesView) Title() string { return "Issues" }
 
-// Focus implements View: loads issues for the active project.
-func (v *IssuesView) Focus() tea.Cmd { return v.load() }
+// Focus implements View: refreshes what is on screen — an open issue's discussion,
+// where a new comment is exactly the thing worth noticing, or the list.
+func (v *IssuesView) Focus() tea.Cmd {
+	if v.detail.active {
+		if v.detail.readingBody() {
+			return nil
+		}
+		return v.detail.reload()
+	}
+	return v.load()
+}
 
 // ============================================================================
 // Update

@@ -432,6 +432,17 @@ func (d *commitDetail) cycleFocus(step int) tea.Cmd {
 	return nil
 }
 
+// reload refetches the commit on screen, so a pipeline you are watching changes as
+// it runs. The cached copy of the page is dropped first, or the refetch would be
+// answered from it.
+func (d *commitDetail) reload() tea.Cmd {
+	if !d.active || d.commit == nil {
+		return nil
+	}
+	d.forget(d.sha)
+	return d.load(d.commit)
+}
+
 // readingBody reports whether something long-form has the screen — a file's diff
 // or a job's log — so the view hosting the page knows the arrows are not its to
 // act on. Stepping to another commit from inside either would swap what you are

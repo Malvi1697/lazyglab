@@ -45,6 +45,14 @@ func (v *OverviewView) Title() string { return "Overview" }
 // Focus implements View: loads commits, pipelines, merge requests, and issues
 // concurrently for the active project/branch.
 func (v *OverviewView) Focus() tea.Cmd {
+	// With a commit page open, the page is what is on screen — refreshing the lists
+	// behind it left its pipeline frozen at whatever it said when you opened it.
+	if v.detail.active {
+		if v.detail.readingBody() {
+			return nil
+		}
+		return v.detail.reload()
+	}
 	return tea.Batch(v.loadCommits(), v.loadPipelines(), v.loadMRs(), v.loadIssues())
 }
 

@@ -56,11 +56,19 @@ func NewPipelinesView(ctx *Context) *PipelinesView {
 // Title implements View.
 func (v *PipelinesView) Title() string { return "Pipelines" }
 
-// Focus implements View: loads pipelines for the active project/branch.
-// While an open job log is being viewed, do not disturb it on auto-refresh.
+// Focus implements View: refreshes whatever is on screen, which is not always the
+// pipeline list.
+//
+// Drilled into a pipeline's jobs, the jobs are what you are watching, so they are
+// what gets refetched — reloading the list instead used to throw you back out of
+// the panel every thirty seconds. An open log is left alone entirely: refetching
+// it would yank the scroll back to the top of a file someone is reading.
 func (v *PipelinesView) Focus() tea.Cmd {
-	if v.viewingJobs && v.jobs.showingTrace() {
-		return nil
+	if v.viewingJobs {
+		if v.jobs.showingTrace() {
+			return nil
+		}
+		return v.jobs.load()
 	}
 	return v.load()
 }
@@ -82,8 +90,6 @@ func (v *PipelinesView) Update(msg tea.Msg) tea.Cmd {
 			return statusCmd(fmt.Sprintf("Error loading pipelines: %v", msg.Err), true)
 		}
 		v.pipelines = msg.Pipelines
-		v.viewingJobs = false
-		v.jobs.close()
 		v.clampCursor()
 		return nil
 

@@ -94,6 +94,16 @@ func (d *issueDetail) close() {
 	d.iid, d.requested, d.scroll = 0, 0, 0
 }
 
+// reload refetches the open issue's discussion: a new comment is the one thing
+// about an issue that arrives while you are looking at it.
+func (d *issueDetail) reload() tea.Cmd {
+	if !d.active || d.iid == 0 {
+		return nil
+	}
+	delete(d.pages, d.iid)
+	return d.load(d.iid)
+}
+
 // readingBody reports whether the thread has the screen, so the host knows the
 // arrows are not its to act on.
 func (d *issueDetail) readingBody() bool { return d.threadOpen }

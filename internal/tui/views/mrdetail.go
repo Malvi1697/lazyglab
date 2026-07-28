@@ -166,6 +166,16 @@ func (d *mrDetail) forget(iid int) {
 	}
 }
 
+// reload refetches the merge request on screen — its pipeline, jobs, approvals,
+// mergeability and discussion all move while you watch.
+func (d *mrDetail) reload() tea.Cmd {
+	if !d.active || d.iid == 0 {
+		return nil
+	}
+	d.forget(d.iid)
+	return d.load(d.iid)
+}
+
 // readingBody reports whether something long-form has the screen — a diff or a
 // job's log — so the view hosting the page knows the arrows are not its to act on.
 func (d *mrDetail) readingBody() bool {

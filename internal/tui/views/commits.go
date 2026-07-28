@@ -33,8 +33,17 @@ func NewCommitsView(ctx *Context) *CommitsView {
 // Title implements View.
 func (v *CommitsView) Title() string { return "Commits" }
 
-// Focus implements View: loads commits for the active project/branch.
-func (v *CommitsView) Focus() tea.Cmd { return v.load() }
+// Focus implements View: refreshes what is on screen — the open commit page, or
+// the list when none is.
+func (v *CommitsView) Focus() tea.Cmd {
+	if v.detail.active {
+		if v.detail.readingBody() {
+			return nil
+		}
+		return v.detail.reload()
+	}
+	return v.load()
+}
 
 // ============================================================================
 // Update

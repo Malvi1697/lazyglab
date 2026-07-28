@@ -41,11 +41,18 @@ func NewMRsView(ctx *Context) *MRsView {
 // Title implements View.
 func (v *MRsView) Title() string { return "Merge Requests" }
 
-// Focus implements View: loads merge requests for the active project. An open job
-// log is left alone, as in the Pipelines view.
+// Focus implements View: refreshes what is on screen. With a merge request open,
+// that is the page — its pipeline, its jobs, its approvals — and not the list
+// behind it, which was the reason a page you sat watching never changed.
+//
+// Anything long-form being read (a diff, a log, a thread) is left alone: a refetch
+// would move what someone is halfway through.
 func (v *MRsView) Focus() tea.Cmd {
-	if v.detail.active && v.detail.jobs.showingTrace() {
-		return nil
+	if v.detail.active {
+		if v.detail.readingBody() {
+			return nil
+		}
+		return v.detail.reload()
 	}
 	return v.load()
 }
