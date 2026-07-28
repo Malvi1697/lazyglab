@@ -10,7 +10,6 @@ import (
 
 	"github.com/Malvi1697/lazyglab/internal/gitlab"
 	"github.com/Malvi1697/lazyglab/internal/tui/components"
-	"github.com/Malvi1697/lazyglab/internal/util"
 )
 
 // ViewID identifies a cockpit view.
@@ -122,24 +121,33 @@ func DefaultViewIndex(views []ViewID, name string) int {
 	return 0
 }
 
-// A commit row is four columns: when it happened, its CI status, what kind of
-// change it is, what it says, and who wrote it.
+// A commit row reads left to right as: how CI went, what kind of change it is, what
+// it says, who wrote it, and when.
 //
-// The kind gets a column of its own because "fix:" and "refactor(api):" are
-// different lengths: left inline, every subject started somewhere else and the eye
-// had nothing to follow down the list. Three weights of text as everywhere else —
-// the time, the kind and the author are metadata to scan past, the subject is what
-// you read.
+// The when is at the far right, past the author, rather than opening the row: it is
+// the thing you look up rather than scan, and nineteen columns of metadata before
+// the message was that much of every row spent on something the eye skips. The kind
+// keeps a column of its own — "fix:" and "refactor:" are different lengths, and
+// inline they left every subject starting somewhere else.
 const (
-	authorWidth      = 14 // the author column, after the subject
-	kindMax          = 14 // a conventional prefix longer than this is truncated
-	subjectMin       = 20 // below this the row is too narrow to bother aligning
-	commitStampWidth = 12 // "24.12. 12:13", from util.CommitTime
+	authorWidth  = 14 // the author column
+	kindMax      = 10 // "refactor:" is the longest that matters
+	subjectMin   = 20 // below this the row is too narrow to bother aligning
+	updatedWidth = 14 // "30.12.25 08:00", the widest whole timestamp
 )
 
-// commitStamp is util.CommitTime without its padding, so the column can be
-// measured like every other one.
-func commitStamp(t time.Time) string { return strings.TrimSpace(util.CommitTime(t)) }
+// commitStamp is a commit's whole timestamp, date and time together, for the column
+// at the right. Empty for a commit GitLab gave no date.
+func commitStamp(t time.Time) string {
+	if t.IsZero() {
+		return ""
+	}
+	if t.Year() == time.Now().Year() {
+		return fmt.Sprintf("%d.%d. %02d:%02d", t.Day(), int(t.Month()), t.Hour(), t.Minute())
+	}
+	return fmt.Sprintf("%d.%d.%02d %02d:%02d",
+		t.Day(), int(t.Month()), t.Year()%100, t.Hour(), t.Minute())
+}
 
 // columnWidth is the width a column needs for these values: the widest of them,
 // clamped.
@@ -147,7 +155,7 @@ func commitStamp(t time.Time) string { return strings.TrimSpace(util.CommitTime(
 // Sizing to content is what keeps the columns together. Padding one out to the full
 // width instead leaves a canyon of blank between it and the next — the author
 // stranded against the right edge, reading as a separate list rather than the last
-// column of this one. Whatever is left over belongs at the end of the row.
+// column of this one.
 //
 // Measured over the whole list, not the visible window, so scrolling never shifts
 // the text sideways.
@@ -161,27 +169,27 @@ func columnWidth(values []string, minWidth, maxWidth int) int {
 	return min(max(widest, minWidth), maxWidth)
 }
 
-// commitColumns measures a commit list's three elastic columns: when it happened,
-// the kind of change, and the subject beside them.
-//
-// The stamp is measured like the rest: a list nobody committed to across a year
-// boundary never shows "30.12.25", so it should not pay eight columns for the
-// possibility.
-func commitColumns(stamps, titles []string, width int) (stampWidth, kindWidth, subjectWidth int) {
+// commitLayout is the measured width of a commit list's columns.
+type commitLayout struct{ kind, subject, updated int }
+
+// commitColumns measures them over the whole list, so every row lines up.
+func commitColumns(titles, stamps []string, width int) (cols commitLayout) {
 	kinds := make([]string, len(titles))
 	subjects := make([]string, len(titles))
 	for i, title := range titles {
 		kinds[i], subjects[i] = splitConventional(title)
 	}
 
-	stampWidth = columnWidth(stamps, 0, commitStampWidth)
-	kindWidth = columnWidth(kinds, 0, kindMax)
-	// when + space + icon(2, with its space) + kind + space + subject + space + author
-	room := width - stampWidth - 1 - 2 - kindWidth - 1 - 1 - authorWidth
+	cols.kind = columnWidth(kinds, 0, kindMax)
+	cols.updated = columnWidth(stamps, 0, updatedWidth)
 
-	// The subject takes what is left, so the author lands against the right edge
-	// rather than trailing whatever the longest subject happened to be.
-	return stampWidth, kindWidth, max(room, subjectMin)
+	// icon(2, with its space) + kind + space + subject + space + author + space + when
+	room := width - 2 - cols.kind - 1 - 1 - authorWidth - 1 - cols.updated
+
+	// The subject takes what is left, so the two right-hand columns land against the
+	// right edge rather than trailing whatever the longest subject happened to be.
+	cols.subject = max(room, subjectMin)
+	return cols
 }
 
 // splitConventional splits "feat(scope): subject" into the kind of change and what
@@ -203,6 +211,25 @@ func splitConventional(title string) (kind, subject string) {
 	return kind + ":", title[i+2:]
 }
 
+// refAndTitle renders a row that names something by number — "!42", "#7" — and
+// then says what it is. The number is how you refer to it, not what it is about,
+// so it is metadata to scan past, exactly like a commit's "feat(scope):" prefix.
+func refAndTitle(ref, title string) string {
+	if ref == "" {
+		return styleCommitTitle(title)
+	}
+	return components.MutedStyle.Render(ref) + " " + styleCommitTitle(title)
+}
+
+// styleCommitTitle dims a leading "type(scope):" so the subject stands out. Used
+// where a title is one column rather than two — the merge-request and issue lists.
+func styleCommitTitle(title string) string {
+	if i := strings.Index(title, ": "); i > 0 && i < 24 && !strings.Contains(title[:i], " ") {
+		return components.MutedStyle.Render(title[:i+1]) + components.BodyStyle.Render(title[i+1:])
+	}
+	return components.BodyStyle.Render(title)
+}
+
 // padLeft right-aligns s in w columns, which is how the kind column is set: the
 // colons line up and the subject starts right after them, so the gap the eye has
 // to cross sits before the dim text rather than between it and the message.
@@ -213,48 +240,26 @@ func padLeft(s string, w int) string {
 	return s
 }
 
-// commitRow renders one row, with the column widths commitColumns measured for the
-// list it belongs to.
-//
-// The metadata is kept to the left edge — the date, the CI mark and the kind take
-// twenty-odd columns between them, not thirty — and the author sits against the
-// right, where a column of names is something the eye finds rather than reads.
-func commitRow(when, icon, author, title string, stampWidth, kindWidth, subjectWidth, width int) string {
+// commitRow renders one row with the widths commitColumns measured for its list.
+func commitRow(icon, author, title, when string, cols commitLayout, width int) string {
 	kind, subject := splitConventional(title)
 
-	row := fmt.Sprintf("%s %s%s %s",
-		components.MutedStyle.Render(padLeft(when, stampWidth)),
+	row := fmt.Sprintf("%s%s %s",
 		icon, // already carries its own trailing space
-		components.MutedStyle.Render(padLeft(components.Truncate(kind, kindWidth), kindWidth)),
-		components.BodyStyle.Render(components.PadRight(components.Truncate(subject, subjectWidth), subjectWidth)),
+		components.MutedStyle.Render(padLeft(components.Truncate(kind, cols.kind), cols.kind)),
+		components.BodyStyle.Render(components.PadRight(components.Truncate(subject, cols.subject), cols.subject)),
 	)
 
-	// The author comes along only if it fits beside the rest, not instead of it.
+	// The two right-hand columns come along only if they fit beside the rest, never
+	// instead of it: on a narrow terminal the message is what matters.
 	if lipgloss.Width(row)+1+authorWidth <= width {
-		row += " " + components.MutedStyle.Render(components.Truncate(author, authorWidth))
+		row += " " + components.MutedStyle.Render(
+			components.PadRight(components.Truncate(author, authorWidth), authorWidth))
+	}
+	if cols.updated > 0 && lipgloss.Width(row)+1+cols.updated <= width {
+		row += " " + components.MutedStyle.Render(padLeft(when, cols.updated))
 	}
 	return row
-}
-
-// refAndTitle renders a row that names something by number — "!42", "#7" — and
-// then says what it is. The number is how you refer to it, not what it is about,
-// so it is metadata to scan past, exactly like a commit's "feat(scope):" prefix.
-//
-// Every list that carries a title goes through here, or the same commit reads one
-// way in Recent Commits and another in Pipelines.
-func refAndTitle(ref, title string) string {
-	if ref == "" {
-		return styleCommitTitle(title)
-	}
-	return components.MutedStyle.Render(ref) + " " + styleCommitTitle(title)
-}
-
-// styleCommitTitle dims a leading "type(scope):" so the subject stands out.
-func styleCommitTitle(title string) string {
-	if i := strings.Index(title, ": "); i > 0 && i < 24 && !strings.Contains(title[:i], " ") {
-		return components.MutedStyle.Render(title[:i+1]) + components.BodyStyle.Render(title[i+1:])
-	}
-	return components.BodyStyle.Render(title)
 }
 
 // statusCmd puts a line in the shell's status bar.

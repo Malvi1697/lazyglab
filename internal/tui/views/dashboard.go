@@ -319,31 +319,28 @@ func (v *DashboardView) Body(width, height int) string {
 // commitsBox renders the recent-commits list.
 func (v *DashboardView) commitsBox(width, height int) string {
 	visible := v.visible()
-	stamps := make([]string, len(visible))
 	titles := make([]string, len(visible))
+	stamps := make([]string, len(visible))
 	for i, c := range visible {
-		stamps[i] = commitStamp(c.CreatedAt)
 		titles[i] = c.Title
+		stamps[i] = commitStamp(c.CreatedAt)
 	}
 	rowWidth := width - components.SelectionGutter
-	stampWidth, kindWidth, subjectWidth := commitColumns(stamps, titles, rowWidth)
+	cols := commitColumns(titles, stamps, rowWidth)
 
 	return renderRowsBox(width, height,
 		v.search.title("Recent Commits", len(visible), len(v.commits)),
 		len(visible),
-		func(i int) string {
-			return v.commitRow(visible[i], stampWidth, kindWidth, subjectWidth, rowWidth)
-		},
+		func(i int) string { return v.commitRow(visible[i], cols, rowWidth) },
 		cursorWhen(v.focus == focusPage, v.cursor), &v.scroll)
 }
 
 // commitRow renders one recent-commits row, mapping the commit's CI status from
 // the loaded pipelines by SHA. kindWidth and width come from the frame being
 // rendered, so every row in it lines up.
-func (v *DashboardView) commitRow(c gitlab.Commit, stampWidth, kindWidth, subjectWidth, width int) string {
-	return commitRow(commitStamp(c.CreatedAt),
-		commitStatusIcon(commitStatus(c.ShortID, v.pipelines)),
-		c.AuthorName, c.Title, stampWidth, kindWidth, subjectWidth, width)
+func (v *DashboardView) commitRow(c gitlab.Commit, cols commitLayout, width int) string {
+	return commitRow(commitStatusIcon(commitStatus(c.ShortID, v.pipelines)),
+		c.AuthorName, c.Title, commitStamp(c.CreatedAt), cols, width)
 }
 
 // commitStatusIcon renders a commit's CI state, or a faint dot when no pipeline

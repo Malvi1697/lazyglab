@@ -194,21 +194,19 @@ func (v *CommitsView) Body(width, height int) string {
 	rightWidth := width - leftWidth
 
 	visible := v.visible()
-	stamps := make([]string, len(visible))
 	titles := make([]string, len(visible))
+	stamps := make([]string, len(visible))
 	for i, c := range visible {
-		stamps[i] = commitStamp(c.CreatedAt)
 		titles[i] = c.Title
+		stamps[i] = commitStamp(c.CreatedAt)
 	}
 	rowWidth := leftWidth - components.SelectionGutter
-	stampWidth, kindWidth, subjectWidth := commitColumns(stamps, titles, rowWidth)
+	cols := commitColumns(titles, stamps, rowWidth)
 
 	left := renderRowsBox(leftWidth, height,
 		v.search.title("Commits", len(visible), len(v.commits)),
 		len(visible),
-		func(i int) string {
-			return commitItemRow(visible[i], stampWidth, kindWidth, subjectWidth, rowWidth)
-		},
+		func(i int) string { return commitItemRow(visible[i], cols, rowWidth) },
 		v.cursor, &v.scroll)
 
 	detail := v.commitDetail()
@@ -221,9 +219,9 @@ func (v *CommitsView) Body(width, height int) string {
 }
 
 // commitItemRow renders one commit list row.
-func commitItemRow(c gitlab.Commit, stampWidth, kindWidth, subjectWidth, width int) string {
-	return commitRow(commitStamp(c.CreatedAt), commitStatusIcon(c.Status),
-		c.AuthorName, c.Title, stampWidth, kindWidth, subjectWidth, width)
+func commitItemRow(c gitlab.Commit, cols commitLayout, width int) string {
+	return commitRow(commitStatusIcon(c.Status), c.AuthorName, c.Title,
+		commitStamp(c.CreatedAt), cols, width)
 }
 
 func (v *CommitsView) commitDetail() string {

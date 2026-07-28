@@ -108,7 +108,7 @@ func TestDashboard_ShowClockOrDateNotAnAge(t *testing.T) {
 		ShortID: "a", Title: "today", AuthorName: "A", CreatedAt: noon,
 	}}
 
-	row := ansi.Strip(v.commitRow(v.visible()[0], 6, 6, 60, 120))
+	row := ansi.Strip(v.commitRow(v.visible()[0], commitLayout{kind: 6, subject: 60, updated: 11}, 120))
 	if strings.Contains(row, "1d") || strings.Contains(row, "2h") {
 		t.Errorf("row = %q, should not show a relative age", row)
 	}
@@ -277,39 +277,71 @@ func TestDashboard_CommitColumnsLineUp(t *testing.T) {
 		t.Errorf("subjects start at %d, %d and %d:\n%s", first, second, third, strings.Join(rows, "\n"))
 	}
 
-	// And the order is when, kind, subject, author.
+	// And the order is kind, subject, author, when — the timestamp last, past the
+	// author, because it is looked up rather than scanned.
 	row := rows[0]
 	if at(row, "fix:") >= first || first >= at(row, "Jan Všetíček") {
-		t.Errorf("row = %q, want when, kind, subject, then the author", row)
+		t.Errorf("row = %q, want kind, subject, then the author", row)
 	}
-	if when := at(row, now.Format("15:04")); when < 0 || when > at(row, "fix:") {
-		t.Errorf("row = %q, want the date and time first", row)
+	if when := at(row, now.Format("15:04")); when < at(row, "Jan Všetíček") {
+		t.Errorf("row = %q, want the timestamp at the right, past the author", row)
 	}
 }
 
-func TestDashboard_TodayIsToldByTheClock(t *testing.T) {
-	// A day with six commits read as six identical dates; today's rows carry the
-	// time instead, which is what tells them apart. Older days need only the date —
-	// paying for both on every row is what made the column wide.
+func TestDashboard_TheTimestampSitsAtTheRight(t *testing.T) {
+	// Nineteen columns of metadata went past before the message started. The when
+	// moved to the far right — past the author, where it is looked up rather than
+	// scanned — and carries the date and the time together.
 	v := NewDashboardView(&Context{})
 	now := time.Now()
-	earlier := now.Add(-3 * time.Hour)
 	lastWeek := now.AddDate(0, 0, -7)
 	v.commits = []gitlab.Commit{
 		{ShortID: "a", Title: "chore: one", AuthorName: "A", CreatedAt: now},
-		{ShortID: "b", Title: "chore: two", AuthorName: "A", CreatedAt: earlier},
-		{ShortID: "c", Title: "chore: three", AuthorName: "A", CreatedAt: lastWeek},
+		{ShortID: "b", Title: "chore: two", AuthorName: "A", CreatedAt: lastWeek},
 	}
 
-	rows := strings.Split(ansi.Strip(v.commitsBox(120, 6)), "\n")[1:4]
-	if !strings.Contains(rows[0], now.Format("15:04")) ||
-		!strings.Contains(rows[1], earlier.Format("15:04")) {
-		t.Errorf("today's rows should differ by their clock time:\n%s", strings.Join(rows, "\n"))
+	rows := strings.Split(ansi.Strip(v.commitsBox(120, 5)), "\n")[1:3]
+
+	// Nothing before the CI mark and the kind: the row opens with what it is. In
+	// display columns, since the selection gutter is multibyte.
+	for i, row := range rows {
+		if strings.TrimSpace(row) == "" {
+			t.Fatalf("row %d is blank", i)
+		}
+		at := strings.Index(row, "chore:")
+		if at < 0 {
+			t.Fatalf("row %d = %q, want the message in it", i, row)
+		}
+		if before := lipgloss.Width(row[:at]); before > 8 {
+			t.Errorf("row = %q, want the message to start early, not %d columns in", row, before)
+		}
 	}
-	if want := fmt.Sprintf("%d.%d.", lastWeek.Day(), int(lastWeek.Month())); !strings.Contains(rows[2], want) {
-		t.Errorf("row = %q, want last week's row to carry %q", rows[2], want)
+
+	for i, when := range []time.Time{now, lastWeek} {
+		want := fmt.Sprintf("%d.%d. %02d:%02d", when.Day(), int(when.Month()), when.Hour(), when.Minute())
+		if !strings.Contains(rows[i], want) {
+			t.Errorf("row = %q, want it to end with %q", rows[i], want)
+		}
+		if strings.Index(rows[i], want) < strings.Index(rows[i], "chore:") {
+			t.Errorf("row = %q, want the timestamp after the message", rows[i])
+		}
 	}
-	if strings.Contains(rows[2], lastWeek.Format("15:04")) {
-		t.Errorf("row = %q, want no clock on a row from another day", rows[2])
+}
+
+func TestDashboard_NarrowRowsKeepTheMessage(t *testing.T) {
+	// The author and the timestamp come along only if they fit beside the message,
+	// never instead of it.
+	v := NewDashboardView(&Context{})
+	v.commits = []gitlab.Commit{{
+		ShortID: "a", Title: "feat: a reasonably long subject line here",
+		AuthorName: "Jan Všetíček", CreatedAt: time.Now(),
+	}}
+
+	row := ansi.Strip(strings.Split(v.commitsBox(46, 3), "\n")[1])
+	if !strings.Contains(row, "reasonably long") {
+		t.Errorf("row = %q, want the message kept on a narrow terminal", row)
+	}
+	if lipgloss.Width(row) > 46 {
+		t.Errorf("row is %d wide, want at most 46: %q", lipgloss.Width(row), row)
 	}
 }

@@ -152,7 +152,7 @@ func BenchmarkCommitRowStyling(b *testing.B) {
 
 	for b.Loop() {
 		for i := range visible {
-			_ = v.commitRow(visible[i], 6, 6, 80, 160)
+			_ = v.commitRow(visible[i], commitLayout{kind: 6, subject: 80, updated: 11}, 160)
 		}
 	}
 }
