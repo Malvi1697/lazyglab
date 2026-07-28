@@ -121,7 +121,7 @@ func DefaultViewIndex(views []ViewID, name string) int {
 	return 0
 }
 
-// A commit row reads left to right as: how CI went, what kind of change it is, what
+// A commit row reads left to right as: what kind of change it is, how CI went, what
 // it says, who wrote it, and when.
 //
 // The when is at the far right, past the author, rather than opening the row: it is
@@ -183,8 +183,8 @@ func commitColumns(titles, stamps []string, width int) (cols commitLayout) {
 	cols.kind = columnWidth(kinds, 0, kindMax)
 	cols.updated = columnWidth(stamps, 0, updatedWidth)
 
-	// icon(2, with its space) + kind + space + subject + space + author + space + when
-	room := width - 2 - cols.kind - 1 - 1 - authorWidth - 1 - cols.updated
+	// kind + space + icon(2, with its space) + subject + space + author + space + when
+	room := width - cols.kind - 1 - 2 - 1 - authorWidth - 1 - cols.updated
 
 	// The subject takes what is left, so the two right-hand columns land against the
 	// right edge rather than trailing whatever the longest subject happened to be.
@@ -244,9 +244,13 @@ func padLeft(s string, w int) string {
 func commitRow(icon, author, title, when string, cols commitLayout, width int) string {
 	kind, subject := splitConventional(title)
 
-	row := fmt.Sprintf("%s%s %s",
-		icon, // already carries its own trailing space
+	// The kind is right-aligned and the CI mark follows it, so both sit against the
+	// message: the colons line up, the marks line up, and the only ragged edge is the
+	// blank at the very left. With the mark out on the edge instead, it was stranded
+	// across a gap that changed width from row to row.
+	row := fmt.Sprintf("%s %s%s",
 		components.MutedStyle.Render(padLeft(components.Truncate(kind, cols.kind), cols.kind)),
+		icon, // already carries its own trailing space
 		components.BodyStyle.Render(components.PadRight(components.Truncate(subject, cols.subject), cols.subject)),
 	)
 
