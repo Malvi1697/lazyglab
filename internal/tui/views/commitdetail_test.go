@@ -70,7 +70,7 @@ func TestCommitsView_EnterOpensDetailInPlace(t *testing.T) {
 
 func TestOverviewView_EnterOpensDetailInPlace(t *testing.T) {
 	// Drilling in must not move the user to another tab.
-	v := NewOverviewView(&Context{})
+	v := NewDashboardView(&Context{})
 	v.width, v.height = 120, 30
 	v.commits = []gitlab.Commit{{ShortID: "38333fa4"}}
 

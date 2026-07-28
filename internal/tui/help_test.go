@@ -16,7 +16,7 @@ func helpApp(width, height int) *App {
 		Clients:      map[string]*gitlab.Client{"h": nil},
 		HostNames:    []string{"h"},
 		DetectedHost: "h",
-		ViewIDs:      []views.ViewID{views.ViewOverview},
+		ViewIDs:      []views.ViewID{views.ViewDashboard},
 	})
 	a.width, a.height = width, height
 	a.overlay = overlayHelp

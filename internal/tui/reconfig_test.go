@@ -21,7 +21,7 @@ func newTestApp(t *testing.T, reconfigure ReconfigureFunc) *App {
 		Clients:      map[string]*gitlab.Client{"gitlab.example.com": nil},
 		HostNames:    []string{"gitlab.example.com"},
 		DetectedHost: "gitlab.example.com",
-		ViewIDs:      []views.ViewID{views.ViewOverview},
+		ViewIDs:      []views.ViewID{views.ViewDashboard},
 		Reconfigure:  reconfigure,
 	})
 	a.width, a.height = 100, 40

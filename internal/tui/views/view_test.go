@@ -12,7 +12,7 @@ func TestParseViews(t *testing.T) {
 		got, warnings := ParseViews(nil)
 		// Commits is deliberately not a default tab: Overview lists recent commits
 		// and Enter opens the full commit page in place. It stays opt-in.
-		want := []ViewID{ViewOverview, ViewPipelines, ViewMRs, ViewIssues, ViewTodos}
+		want := []ViewID{ViewDashboard, ViewPipelines, ViewMRs, ViewIssues, ViewTodos}
 		if len(got) != len(want) {
 			t.Fatalf("want %d views, got %d (%v)", len(want), len(got), got)
 		}
@@ -60,7 +60,7 @@ func TestParseViews(t *testing.T) {
 }
 
 func TestDefaultViewIndex(t *testing.T) {
-	views := []ViewID{ViewOverview, ViewPipelines}
+	views := []ViewID{ViewDashboard, ViewPipelines}
 
 	if got := DefaultViewIndex(views, "pipelines"); got != 1 {
 		t.Errorf(`DefaultViewIndex(views, "pipelines") = %d, want 1`, got)

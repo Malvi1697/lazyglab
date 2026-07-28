@@ -20,7 +20,7 @@ func refreshApp(t *testing.T, at time.Time) *App {
 		Clients:         map[string]*gitlab.Client{"h": nil},
 		HostNames:       []string{"h"},
 		DetectedHost:    "h",
-		ViewIDs:         []views.ViewID{views.ViewOverview},
+		ViewIDs:         []views.ViewID{views.ViewDashboard},
 		RefreshInterval: 30 * time.Second,
 	})
 	a.width, a.height = 120, 40
@@ -241,7 +241,7 @@ func TestRefresh_SwitchingViewsReusesWhatWasJustFetched(t *testing.T) {
 		Clients:         map[string]*gitlab.Client{"h": nil},
 		HostNames:       []string{"h"},
 		DetectedHost:    "h",
-		ViewIDs:         []views.ViewID{views.ViewOverview, views.ViewIssues},
+		ViewIDs:         []views.ViewID{views.ViewDashboard, views.ViewIssues},
 		RefreshInterval: 30 * time.Second,
 	})
 	a.width, a.height = 120, 40

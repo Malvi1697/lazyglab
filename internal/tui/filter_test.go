@@ -17,7 +17,7 @@ func newPickerApp(t *testing.T) *App {
 		Clients:      map[string]*gitlab.Client{"h": nil},
 		HostNames:    []string{"h"},
 		DetectedHost: "h",
-		ViewIDs:      []views.ViewID{views.ViewOverview},
+		ViewIDs:      []views.ViewID{views.ViewDashboard},
 	})
 	a.width, a.height = 100, 40
 	a.projects = []gitlab.Project{

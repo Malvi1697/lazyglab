@@ -215,7 +215,7 @@ func TestAPICost_OverviewRefresh(t *testing.T) {
 	rec, ctx, done := costHarness(t)
 	defer done()
 
-	v := NewOverviewView(ctx)
+	v := NewDashboardView(ctx)
 	v.width, v.height = 120, 40
 
 	first := cost(t, rec, "Overview: first load", func() { drain(v, v.Focus()) })
@@ -255,7 +255,7 @@ func TestAPICost_OpeningAndSteppingCommits(t *testing.T) {
 	rec, ctx, done := costHarness(t)
 	defer done()
 
-	v := NewOverviewView(ctx)
+	v := NewDashboardView(ctx)
 	v.width, v.height = 120, 40
 	drain(v, v.Focus())
 
@@ -307,7 +307,7 @@ func TestAPICost_HoldingTheStepKeyFetchesOnlyWhereYouStop(t *testing.T) {
 	rec, ctx, done := costHarness(t)
 	defer done()
 
-	v := NewOverviewView(ctx)
+	v := NewDashboardView(ctx)
 	v.width, v.height = 120, 40
 	drain(v, v.Focus())
 	drain(v, v.Update(tea.KeyPressMsg{Code: tea.KeyEnter})) // open the first commit
@@ -347,7 +347,7 @@ func TestAPICost_OpeningIsNotDelayed(t *testing.T) {
 	rec, ctx, done := costHarness(t)
 	defer done()
 
-	v := NewOverviewView(ctx)
+	v := NewDashboardView(ctx)
 	v.width, v.height = 120, 40
 	drain(v, v.Focus())
 
@@ -434,7 +434,7 @@ func TestAPICost_RefreshFollowsWhatIsOnScreen(t *testing.T) {
 	})
 
 	t.Run("commit page: the commit", func(t *testing.T) {
-		v := NewOverviewView(ctx)
+		v := NewDashboardView(ctx)
 		v.width, v.height = 160, 45
 		drain(v, v.Focus())
 		drain(v, v.Update(tea.KeyPressMsg{Code: tea.KeyEnter}))

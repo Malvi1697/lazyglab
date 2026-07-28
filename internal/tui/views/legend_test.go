@@ -105,7 +105,7 @@ func TestLegend_AnOpenLogOwnsTheArrows(t *testing.T) {
 func TestLegend_EveryListOffersTheSearch(t *testing.T) {
 	ctx := &Context{}
 	for name, hints := range map[string][]KeyHint{
-		"overview":  NewOverviewView(ctx).KeyHints(),
+		"overview":  NewDashboardView(ctx).KeyHints(),
 		"pipelines": NewPipelinesView(ctx).KeyHints(),
 		"mrs":       NewMRsView(ctx).KeyHints(),
 		"issues":    NewIssuesView(ctx).KeyHints(),

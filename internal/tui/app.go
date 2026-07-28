@@ -146,8 +146,8 @@ func NewApp(o Options) *App {
 	built := make(map[views.ViewID]views.View, len(viewIDs))
 	for _, id := range viewIDs {
 		switch id {
-		case views.ViewOverview:
-			built[id] = views.NewOverviewView(ctx)
+		case views.ViewDashboard:
+			built[id] = views.NewDashboardView(ctx)
 		case views.ViewPipelines:
 			built[id] = views.NewPipelinesView(ctx)
 		case views.ViewMRs:

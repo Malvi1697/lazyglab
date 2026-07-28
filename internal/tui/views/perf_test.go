@@ -52,11 +52,10 @@ func benchJobs(n int) []gitlab.Job {
 }
 
 func BenchmarkOverviewBody(b *testing.B) {
-	v := NewOverviewView(&Context{})
+	v := NewDashboardView(&Context{})
 	v.commits = benchCommits()
 	v.pipelines = benchPipelines(30)
-	v.mrs = []gitlab.MergeRequest{{IID: 1, Title: "MR"}}
-	v.issues = []gitlab.Issue{{IID: 1, Title: "Issue"}}
+	v.setReadme("README.md", strings.Repeat("a line of the readme with some words in it\n", 200))
 
 	for b.Loop() {
 		v.Body(160, 45)
@@ -64,7 +63,7 @@ func BenchmarkOverviewBody(b *testing.B) {
 }
 
 func BenchmarkOverviewBodyWhileSearching(b *testing.B) {
-	v := NewOverviewView(&Context{})
+	v := NewDashboardView(&Context{})
 	v.commits = benchCommits()
 	v.pipelines = benchPipelines(30)
 	v.search.filter.Query = "number 4"
@@ -146,7 +145,7 @@ func BenchmarkDiffScroll(b *testing.B) {
 
 func BenchmarkCommitRowStyling(b *testing.B) {
 	// How much of a frame is styling rows that the window will never show.
-	v := NewOverviewView(&Context{})
+	v := NewDashboardView(&Context{})
 	v.commits = benchCommits()
 	v.pipelines = benchPipelines(30)
 	visible := v.visible()
@@ -159,7 +158,7 @@ func BenchmarkCommitRowStyling(b *testing.B) {
 }
 
 func BenchmarkVisibleSlice(b *testing.B) {
-	v := NewOverviewView(&Context{})
+	v := NewDashboardView(&Context{})
 	v.commits = benchCommits()
 	v.search.filter.Query = "number 4"
 

@@ -135,7 +135,7 @@ The five views:
 
 | # | View | What it shows |
 |---|------|----------------|
-| 1 | **Overview** | Dashboard: a navigable recent-commits list (with CI status) plus summaries of pipelines, merge requests, and issues. Default view. |
+| 1 | **Dashboard** | The project's front page: recent commits with their CI status above, the project's README below. `Tab` moves between them. Default view. |
 | 2 | **Pipelines** | Pipeline list; `Enter` drills into jobs grouped by stage, and into a job's log. |
 | 3 | **Merge Requests** | Open MRs; `Enter` opens the full merge-request page in place, with approve/merge. |
 | 4 | **Issues** | Open issues, with close/reopen; `Enter` opens the issue page and its discussion. |
@@ -144,6 +144,18 @@ The five views:
 **Todos** is the only view that ignores the selected project — it answers "what is
 waiting on me" rather than "what is happening here", which is the question you have
 before you have picked a project. Set `default_view: todos` to land there.
+
+The README is rendered as terminal text rather than converted: headings take the
+accent, list bullets and quotes their marker, fenced code goes grey. It is fetched
+once per project and branch — it is the one thing on the page that does not change
+while you watch.
+
+**What refreshes:** whatever is on screen. `r` and the thirty-second tick refresh
+the *active* view, and within it the thing you are looking at — the open commit,
+merge request or issue page, or the jobs of the pipeline you drilled into, rather
+than the list behind it. Anything long-form being read (a diff, a job log, a
+discussion) is left alone, because a refetch would move what you are halfway
+through. Switching tabs reuses data younger than ten seconds; `r` always fetches.
 
 Every list takes `/` to **search** it: type to narrow, `Enter` to keep the list
 narrowed while the action keys work again, `Esc` to clear.
@@ -289,17 +301,17 @@ hosts:
     last_project: my-group/my-project
 settings:
   # Enabled tabs, in display order. Omit any to hide it.
-  # Empty/omitted = overview, pipelines, mrs, issues, todos.
-  views: [overview, pipelines, mrs, issues, todos, commits]
+  # Empty/omitted = dashboard, pipelines, mrs, issues, todos.
+  views: [dashboard, pipelines, mrs, issues, todos, commits]
   # The view shown at launch. Empty/omitted = first enabled view.
-  default_view: overview
+  default_view: dashboard
   # Auto-refresh interval for the active view, in seconds. 0 disables it.
   refresh_interval: 30
 ```
 
 - **views** — reorder or hide tabs. For example `[overview, pipelines]` shows
-  only those two. Valid names: `overview`, `pipelines`, `mrs`, `issues`,
-  `todos`, `commits`. Unknown or duplicate names are dropped with a warning.
+  only those two. Valid names: `dashboard` (`overview` still works), `pipelines`,
+  `mrs`, `issues`, `todos`, `commits`. Unknown or duplicate names are dropped with a warning.
 - **default_view** — which view is active on launch, by name. Falls back to
   the first enabled view if empty, unknown, or not in `views`.
 - **refresh_interval** — the active view reloads on this interval (paused while

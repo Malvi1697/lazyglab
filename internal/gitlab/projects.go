@@ -1,6 +1,7 @@
 package gitlab
 
 import (
+	"strings"
 	"sync"
 
 	gogitlab "gitlab.com/gitlab-org/api/client-go"
@@ -23,7 +24,39 @@ func (c *Client) GetProjectByPath(path string) (*Project, error) {
 		PathWithNamespace: util.StripANSI(p.PathWithNamespace),
 		WebURL:            util.StripANSI(p.WebURL),
 		DefaultBranch:     util.StripANSI(p.DefaultBranch),
+		ReadmeFile:        readmeFile(p.ReadmeURL),
 	}, nil
+}
+
+// readmeFile is the repository path of a project's README, taken from the URL
+// GitLab sends: ".../-/blob/main/docs/README.md" -> "docs/README.md".
+//
+// Cheaper than looking for it: the project payload already carries this, and a
+// project without one carries an empty string, which is the answer too.
+func readmeFile(readmeURL string) string {
+	if readmeURL == "" {
+		return ""
+	}
+	i := strings.Index(readmeURL, "/-/blob/")
+	if i < 0 {
+		// Some deployments write the older form without the "/-/" separator.
+		i = strings.Index(readmeURL, "/blob/")
+		if i < 0 {
+			return ""
+		}
+		rest := readmeURL[i+len("/blob/"):]
+		return util.StripANSI(afterFirstSlash(rest))
+	}
+	rest := readmeURL[i+len("/-/blob/"):]
+	return util.StripANSI(afterFirstSlash(rest))
+}
+
+// afterFirstSlash drops the ref that follows /blob/, leaving the file path.
+func afterFirstSlash(s string) string {
+	if i := strings.Index(s, "/"); i >= 0 {
+		return s[i+1:]
+	}
+	return ""
 }
 
 const (
@@ -95,6 +128,7 @@ func (c *Client) projectPage(page int) ([]Project, *gogitlab.Response, error) {
 			PathWithNamespace: util.StripANSI(p.PathWithNamespace),
 			WebURL:            util.StripANSI(p.WebURL),
 			DefaultBranch:     util.StripANSI(p.DefaultBranch),
+			ReadmeFile:        readmeFile(p.ReadmeURL),
 		}
 	}
 	return projects, resp, nil

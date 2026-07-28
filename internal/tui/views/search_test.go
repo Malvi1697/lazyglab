@@ -130,7 +130,7 @@ func TestSearch_PastedTextExtendsTheQuery(t *testing.T) {
 func TestSearch_CommitPageStepsWithinTheSearchResults(t *testing.T) {
 	// The page was opened from the narrowed list, so → walks that list rather than
 	// jumping to a commit the search excluded.
-	v := NewOverviewView(&Context{})
+	v := NewDashboardView(&Context{})
 	v.height = 20
 	v.commits = []gitlab.Commit{
 		{ShortID: "aaa1111", Title: "feat: one"},
@@ -157,7 +157,7 @@ func TestSearch_CommitPageStepsWithinTheSearchResults(t *testing.T) {
 
 func TestSearch_IsNotOfferedInsideTheCommitPage(t *testing.T) {
 	// The page has no list of its own to narrow, and "/" there would swallow keys.
-	v := NewOverviewView(&Context{})
+	v := NewDashboardView(&Context{})
 	v.height = 20
 	v.commits = []gitlab.Commit{{ShortID: "aaa1111", Title: "one"}}
 	v.Update(tea.KeyPressMsg{Code: tea.KeyEnter})

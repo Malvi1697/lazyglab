@@ -27,7 +27,7 @@ func TestCommitRows_ShowAuthorNotHash(t *testing.T) {
 }
 
 func TestOverviewRows_ShowAuthorNotHash(t *testing.T) {
-	v := NewOverviewView(&Context{})
+	v := NewDashboardView(&Context{})
 	v.commits = []gitlab.Commit{{ShortID: "bbb2222", Title: "t", AuthorName: "Someone Else"}}
 
 	row := v.commitRow(v.visible()[0])

@@ -515,6 +515,10 @@ func helpEntries() []helpEntry {
 		{"y / Y", "Copy the job's name / link"},
 		{"Esc", "Back (log, then jobs)"},
 
+		{"Dashboard", ""},
+		{"Tab", "Commits / readme"},
+		{"j / k", "Move or scroll, whichever has focus"},
+
 		{"Commit lists", ""},
 		{"Enter", "Open the commit page in place"},
 		{"y / Y", "Copy the SHA / the commit link"},

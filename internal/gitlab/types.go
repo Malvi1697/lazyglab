@@ -10,6 +10,11 @@ type Project struct {
 	PathWithNamespace string
 	WebURL            string
 	DefaultBranch     string
+
+	// ReadmeFile is the repository path of the project's README, taken from the
+	// readme_url GitLab already sends with every project. Empty when it has none,
+	// which is how the dashboard knows not to ask.
+	ReadmeFile string
 }
 
 // MergeRequest represents a GitLab merge request.

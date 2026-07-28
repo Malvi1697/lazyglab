@@ -24,7 +24,7 @@ func newFavApp(t *testing.T, favorites []string, saved *savedFavorites) *App {
 		Clients:      map[string]*gitlab.Client{"gitlab.example.com": nil},
 		HostNames:    []string{"gitlab.example.com"},
 		DetectedHost: "gitlab.example.com",
-		ViewIDs:      []views.ViewID{views.ViewOverview, views.ViewPipelines, views.ViewCommits},
+		ViewIDs:      []views.ViewID{views.ViewDashboard, views.ViewPipelines, views.ViewCommits},
 		Favorites:    favorites,
 		SaveFavorites: func(host string, paths []string) error {
 			saved.host = host
@@ -284,7 +284,7 @@ func TestFavorites_NoSaveFuncKeepsStarsInSession(t *testing.T) {
 		Clients:      map[string]*gitlab.Client{"h": nil},
 		HostNames:    []string{"h"},
 		DetectedHost: "h",
-		ViewIDs:      []views.ViewID{views.ViewOverview},
+		ViewIDs:      []views.ViewID{views.ViewDashboard},
 	})
 	a.width, a.height = 100, 40
 	a.projects = []gitlab.Project{{ID: 1, PathWithNamespace: "g/p"}}

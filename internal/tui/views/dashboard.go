@@ -12,39 +12,50 @@ import (
 	"github.com/Malvi1697/lazyglab/internal/util"
 )
 
-// OverviewView is a dashboard summarizing recent activity across commits,
-// pipelines, merge requests, and issues. The recent-commits list is navigable;
-// the three summary boxes below it are read-only.
-type OverviewView struct {
+// DashboardView is the project's front page, the way GitLab's own is: what has
+// been happening, and what the project says about itself.
+//
+// The recent commits scroll at the top with their CI status; the README fills the
+// space below. Tab moves between them, so both scroll with j/k. The summaries of
+// pipelines, merge requests and issues that used to sit here are gone — each has
+// a tab of its own, and the README is what you actually want on a front page.
+type DashboardView struct {
 	ctx           *Context
 	width, height int // last body size, tracked from tea.WindowSizeMsg / Body
 
 	commits   []gitlab.Commit
 	pipelines []gitlab.Pipeline
-	mrs       []gitlab.MergeRequest
-	issues    []gitlab.Issue
 
 	cursor int // into the visible (searched) commits
 	scroll int // first visible row, kept across frames
 
 	search listSearch
 
+	// readmeBox is the project's own words, below the commits. It belongs to a
+	// project and a ref, so switching either has to drop it.
+	readmeBox
+	readmeProject int
+	readmeRef     string
+
+	// focus says whether the keys drive the commit list or the README.
+	focus pageFocus
+
 	// detail is the in-place commit page, opened with Enter — the same one the
 	// Commits view uses, so drilling in never moves you to another tab.
 	detail commitDetail
 }
 
-// NewOverviewView creates an OverviewView bound to the shared session context.
-func NewOverviewView(ctx *Context) *OverviewView {
-	return &OverviewView{ctx: ctx, detail: newCommitDetail(ctx)}
+// NewDashboardView creates a DashboardView bound to the shared session context.
+func NewDashboardView(ctx *Context) *DashboardView {
+	return &DashboardView{ctx: ctx, detail: newCommitDetail(ctx)}
 }
 
 // Title implements View.
-func (v *OverviewView) Title() string { return "Overview" }
+func (v *DashboardView) Title() string { return "Dashboard" }
 
 // Focus implements View: loads commits, pipelines, merge requests, and issues
 // concurrently for the active project/branch.
-func (v *OverviewView) Focus() tea.Cmd {
+func (v *DashboardView) Focus() tea.Cmd {
 	// With a commit page open, the page is what is on screen — refreshing the lists
 	// behind it left its pipeline frozen at whatever it said when you opened it.
 	if v.detail.active {
@@ -53,7 +64,37 @@ func (v *OverviewView) Focus() tea.Cmd {
 		}
 		return v.detail.reload()
 	}
-	return tea.Batch(v.loadCommits(), v.loadPipelines(), v.loadMRs(), v.loadIssues())
+
+	// The commits and the pipelines that give them their CI status are what moves;
+	// the README is fetched once per project, since it is the one thing here that
+	// does not change while you watch.
+	return tea.Batch(v.loadCommits(), v.loadPipelines(), v.syncReadme())
+}
+
+// syncReadme fetches the README when it is missing and drops it when it belongs to
+// a project or ref you have left — otherwise the last project's words would sit
+// under the new project's commits, and a project without a README would keep
+// showing someone else's.
+func (v *DashboardView) syncReadme() tea.Cmd {
+	if v.ctx == nil || v.ctx.Project == nil {
+		return nil
+	}
+	project, file, ref := v.ctx.Project.ID, v.ctx.Project.ReadmeFile, v.ref()
+
+	if v.readmeProject != project || v.readmeRef != ref {
+		v.readmeProject, v.readmeRef = project, ref
+		v.resetReadme()
+		if file == "" {
+			// It has none; saying so beats loading for ever.
+			v.setReadme("", "")
+			return nil
+		}
+		return v.loadReadme()
+	}
+	if v.wants(file) {
+		return v.loadReadme()
+	}
+	return nil
 }
 
 // ============================================================================
@@ -62,7 +103,7 @@ func (v *OverviewView) Focus() tea.Cmd {
 
 // Update implements View: navigates the recent-commits list and opens the
 // selected commit in a browser. View switching stays with the shell.
-func (v *OverviewView) Update(msg tea.Msg) tea.Cmd {
+func (v *DashboardView) Update(msg tea.Msg) tea.Cmd {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		v.width = msg.Width
@@ -85,16 +126,14 @@ func (v *OverviewView) Update(msg tea.Msg) tea.Cmd {
 		}
 		return nil
 
-	case MRsLoadedMsg:
-		if msg.Err == nil {
-			v.mrs = msg.MRs
+	case ReadmeLoadedMsg:
+		if msg.Err != nil {
+			// A project can deny a raw file (or have moved it) without the dashboard
+			// being broken; say so once and stop asking.
+			v.setReadme(msg.File, "")
+			return statusCmd(fmt.Sprintf("Could not read %s: %v", msg.File, msg.Err), true)
 		}
-		return nil
-
-	case IssuesLoadedMsg:
-		if msg.Err == nil {
-			v.issues = msg.Issues
-		}
+		v.setReadme(msg.File, msg.Source)
 		return nil
 
 	case tea.PasteMsg:
@@ -110,7 +149,7 @@ func (v *OverviewView) Update(msg tea.Msg) tea.Cmd {
 
 // handleKey navigates the recent-commits list. The same keys work here as in
 // every other view, so j/k are never dead — this is the default view.
-func (v *OverviewView) handleKey(msg tea.KeyMsg) tea.Cmd {
+func (v *DashboardView) handleKey(msg tea.KeyMsg) tea.Cmd {
 	key := msg.String()
 
 	if v.detail.active {
@@ -121,6 +160,25 @@ func (v *OverviewView) handleKey(msg tea.KeyMsg) tea.Cmd {
 			return v.stepCommit(step)
 		}
 		return v.detail.handleKey(key, v.height)
+	}
+
+	switch key {
+	case keyTab:
+		v.focus = cycleFocus(v.focus, 1, false, false, true)
+		return nil
+	case keyShiftTab:
+		v.focus = cycleFocus(v.focus, -1, false, false, true)
+		return nil
+	}
+
+	// The README has the keys: j/k scroll it, Esc hands them back to the commits.
+	if v.focus == focusNotes {
+		if key == keyEscape {
+			v.focus = focusPage
+			return nil
+		}
+		v.readmeKey(key, v.height)
+		return nil
 	}
 
 	if v.search.handleKey(msg, &v.cursor) {
@@ -151,10 +209,10 @@ func (v *OverviewView) handleKey(msg tea.KeyMsg) tea.Cmd {
 
 // CapturingText implements TextCapturer: while the search is being typed, the
 // shell must not read the letters as its own commands.
-func (v *OverviewView) CapturingText() bool { return !v.detail.active && v.search.capturing() }
+func (v *DashboardView) CapturingText() bool { return !v.detail.active && v.search.capturing() }
 
 // visible is the commits matching the search; the cursor indexes it.
-func (v *OverviewView) visible() []gitlab.Commit {
+func (v *DashboardView) visible() []gitlab.Commit {
 	return filtered(v.commits, v.search.filter, func(c gitlab.Commit) string {
 		return c.Title + " " + c.AuthorName + " " + c.ShortID
 	})
@@ -162,7 +220,7 @@ func (v *OverviewView) visible() []gitlab.Commit {
 
 // copyHash copies the selected commit's full SHA to the clipboard, since the
 // list shows the author rather than the hash.
-func (v *OverviewView) copyHash() tea.Cmd {
+func (v *DashboardView) copyHash() tea.Cmd {
 	selected := v.selectedCommit()
 	if selected == nil {
 		return nil
@@ -181,7 +239,7 @@ func (v *OverviewView) copyHash() tea.Cmd {
 // stepCommit moves to the neighbouring commit, keeping the page open. It steps
 // within the search results when one is applied: the page was opened from that
 // list, so those are the commits you are working through.
-func (v *OverviewView) stepCommit(step int) tea.Cmd {
+func (v *DashboardView) stepCommit(step int) tea.Cmd {
 	visible := v.visible()
 	next := v.cursor + step
 	if next < 0 || next >= len(visible) {
@@ -192,7 +250,7 @@ func (v *OverviewView) stepCommit(step int) tea.Cmd {
 }
 
 // selectedCommit returns the highlighted commit, or nil.
-func (v *OverviewView) selectedCommit() *gitlab.Commit {
+func (v *DashboardView) selectedCommit() *gitlab.Commit {
 	visible := v.visible()
 	if v.cursor < 0 || v.cursor >= len(visible) {
 		return nil
@@ -200,12 +258,12 @@ func (v *OverviewView) selectedCommit() *gitlab.Commit {
 	return &visible[v.cursor]
 }
 
-func (v *OverviewView) clampCursor() {
+func (v *DashboardView) clampCursor() {
 	v.cursor = clampCursor(v.cursor, len(v.visible()))
 }
 
 // openCommitInBrowser opens the selected commit's page on the GitLab host.
-func (v *OverviewView) openCommitInBrowser() tea.Cmd {
+func (v *DashboardView) openCommitInBrowser() tea.Cmd {
 	c := v.selectedCommit()
 	if c == nil {
 		return nil
@@ -226,9 +284,8 @@ func (v *OverviewView) openCommitInBrowser() tea.Cmd {
 // Body / rendering
 // ============================================================================
 
-// Body implements View: top half is a recent-commits list, bottom half is
-// three side-by-side summary boxes for pipelines, merge requests, and issues.
-func (v *OverviewView) Body(width, height int) string {
+// Body implements View: the recent commits above, the README below.
+func (v *DashboardView) Body(width, height int) string {
 	v.width = width
 	v.height = height
 
@@ -237,129 +294,45 @@ func (v *OverviewView) Body(width, height int) string {
 		return v.detail.body(width, height)
 	}
 
-	// A blank row between the commit list and the summaries below it. Without a
-	// frame to do the separating, the two halves otherwise run into each other.
+	// A blank row between them. Without a frame to do the separating, the two halves
+	// otherwise run into each other.
 	const gap = 1
 
-	// The summaries take the height their content needs — they hold at most
-	// summaryRows entries — and the commit list gets everything left over. Split
-	// evenly, three short lists were stretched down half a tall terminal while
-	// the list you actually read was cut off.
-	bottomHeight := 1 + max(
-		len(v.pipelineLines()),
-		len(v.mrLines()),
-		len(v.issueLines()),
-	)
-	if bottomHeight < 4 {
-		bottomHeight = 4 // a heading and room to say "nothing here"
+	// Half each, which is what makes this a front page rather than a commit list
+	// with a footnote. The commits keep a floor, so a short terminal still shows a
+	// few of them.
+	topHeight := (height - gap) / 2
+	if topHeight < 5 {
+		topHeight = min(5, height-gap-1)
 	}
-	if maxBottom := (height - gap) / 2; bottomHeight > maxBottom {
-		bottomHeight = maxBottom
-	}
-
-	topHeight := height - gap - bottomHeight
-	if topHeight < 1 {
-		topHeight = 1
-	}
+	bottomHeight := height - gap - topHeight
 	if bottomHeight < 1 {
-		bottomHeight = 1
+		return v.commitsBox(width, height)
 	}
 
+	return lipgloss.JoinVertical(lipgloss.Left,
+		v.commitsBox(width, topHeight),
+		"",
+		v.readmePanel(width, bottomHeight, v.focus == focusNotes),
+	)
+}
+
+// commitsBox renders the recent-commits list.
+func (v *DashboardView) commitsBox(width, height int) string {
 	visible := v.visible()
-	top := renderRowsBox(width, topHeight,
+	return renderRowsBox(width, height,
 		v.search.title("Recent Commits", len(visible), len(v.commits)),
 		len(visible), func(i int) string { return v.commitRow(visible[i]) },
-		v.cursor, &v.scroll)
-
-	colWidth := width / 3
-	lastColWidth := width - colWidth*2
-
-	pipelines := components.RenderPanel(v.pipelinesTitle(), v.pipelineLines(), colWidth-3, bottomHeight, false)
-	mrs := components.RenderPanel(v.mrsTitle(), v.mrLines(), colWidth-3, bottomHeight, false)
-	issues := components.RenderPanel(v.issuesTitle(), v.issueLines(), lastColWidth-3, bottomHeight, false)
-
-	rule := components.VRule(bottomHeight)
-	bottom := lipgloss.JoinHorizontal(lipgloss.Top, pipelines, " ", rule, " ", mrs, " ", rule, " ", issues)
-
-	return lipgloss.JoinVertical(lipgloss.Left, top, "", bottom)
-}
-
-func (v *OverviewView) pipelinesTitle() string {
-	return fmt.Sprintf("Pipelines (%d)", len(v.pipelines))
-}
-
-func (v *OverviewView) mrsTitle() string {
-	return fmt.Sprintf("Merge Requests (%d)", len(v.mrs))
-}
-
-func (v *OverviewView) issuesTitle() string {
-	return fmt.Sprintf("Issues (%d)", len(v.issues))
+		cursorWhen(v.focus == focusPage, v.cursor), &v.scroll)
 }
 
 // commitRow renders one recent-commits row, mapping the commit's CI status from
 // the loaded pipelines by SHA.
-func (v *OverviewView) commitRow(c gitlab.Commit) string {
+func (v *DashboardView) commitRow(c gitlab.Commit) string {
 	return commitRow(util.CommitTime(c.CreatedAt),
 		commitStatusIcon(commitStatus(c.ShortID, v.pipelines)),
 		c.AuthorName, c.Title)
 }
-
-// pipelineLines renders a short list of the most recent pipelines.
-func (v *OverviewView) pipelineLines() []string {
-	const maxRows = summaryRows
-	n := len(v.pipelines)
-	if n > maxRows {
-		n = maxRows
-	}
-	lines := make([]string, n)
-	for i := 0; i < n; i++ {
-		p := v.pipelines[i]
-		title := p.CommitTitle
-		if title == "" {
-			title = p.Ref
-		}
-		lines[i] = fmt.Sprintf("%s %s", components.StatusIconPadded(p.Status), styleCommitTitle(title))
-	}
-	return lines
-}
-
-// mrLines renders a short list of the most recent merge requests.
-func (v *OverviewView) mrLines() []string {
-	const maxRows = summaryRows
-	n := len(v.mrs)
-	if n > maxRows {
-		n = maxRows
-	}
-	lines := make([]string, n)
-	for i := 0; i < n; i++ {
-		mr := v.mrs[i]
-		pipeIcon := ""
-		if mr.Pipeline != nil {
-			pipeIcon = " " + components.StatusIcon(mr.Pipeline.Status)
-		}
-		lines[i] = refAndTitle(fmt.Sprintf("!%d", mr.IID), mr.Title) + pipeIcon
-	}
-	return lines
-}
-
-// issueLines renders a short list of the most recent issues.
-func (v *OverviewView) issueLines() []string {
-	const maxRows = summaryRows
-	n := len(v.issues)
-	if n > maxRows {
-		n = maxRows
-	}
-	lines := make([]string, n)
-	for i := 0; i < n; i++ {
-		issue := v.issues[i]
-		lines[i] = refAndTitle(fmt.Sprintf("#%d", issue.IID), issue.Title)
-	}
-	return lines
-}
-
-// summaryRows caps each of Overview's three summary lists, which also decides how
-// tall the bottom row of the dashboard is.
-const summaryRows = 8
 
 // commitStatusIcon renders a commit's CI state, or a faint dot when no pipeline
 // ran for it — a blank would break the column that the eye follows down.
@@ -391,12 +364,20 @@ func commitStatus(shortID string, pipelines []gitlab.Pipeline) string {
 // ============================================================================
 
 // KeyHints implements View.
-func (v *OverviewView) KeyHints() []KeyHint {
+func (v *DashboardView) KeyHints() []KeyHint {
 	if v.detail.active {
 		return v.detail.keyHints()
 	}
+	if v.focus == focusNotes {
+		hints := []KeyHint{}
+		if v.scrollable {
+			hints = append(hints, KeyHint{"j/k", "Scroll"})
+		}
+		return append(hints, KeyHint{"Tab", "Commits"}, KeyHint{"Esc", "Back"})
+	}
 	return []KeyHint{
 		{Key: "Enter", Desc: "Commit page"},
+		{Key: "Tab", Desc: "Readme"},
 		{Key: "y/Y", Desc: "Copy SHA/link"},
 		{Key: "o", Desc: "Open commit"},
 		v.search.hint(),
@@ -407,14 +388,14 @@ func (v *OverviewView) KeyHints() []KeyHint {
 // Commands (async API calls)
 // ============================================================================
 
-func (v *OverviewView) ref() string {
+func (v *DashboardView) ref() string {
 	if v.ctx == nil || v.ctx.Branch == nil {
 		return ""
 	}
 	return v.ctx.Branch.Name
 }
 
-func (v *OverviewView) loadCommits() tea.Cmd {
+func (v *DashboardView) loadCommits() tea.Cmd {
 	if v.ctx == nil || v.ctx.Project == nil || v.ctx.Client == nil {
 		return nil
 	}
@@ -427,7 +408,7 @@ func (v *OverviewView) loadCommits() tea.Cmd {
 	}
 }
 
-func (v *OverviewView) loadPipelines() tea.Cmd {
+func (v *DashboardView) loadPipelines() tea.Cmd {
 	if v.ctx == nil || v.ctx.Project == nil || v.ctx.Client == nil {
 		return nil
 	}
@@ -446,26 +427,17 @@ func (v *OverviewView) loadPipelines() tea.Cmd {
 	}
 }
 
-func (v *OverviewView) loadMRs() tea.Cmd {
+// loadReadme fetches the project's README once per project.
+func (v *DashboardView) loadReadme() tea.Cmd {
 	if v.ctx == nil || v.ctx.Project == nil || v.ctx.Client == nil {
 		return nil
 	}
 	client := v.ctx.Client
 	projectID := v.ctx.Project.ID
+	file := v.ctx.Project.ReadmeFile
+	ref := v.ref()
 	return func() tea.Msg {
-		mrs, err := client.ListMergeRequests(projectID)
-		return MRsLoadedMsg{MRs: mrs, Err: err}
-	}
-}
-
-func (v *OverviewView) loadIssues() tea.Cmd {
-	if v.ctx == nil || v.ctx.Project == nil || v.ctx.Client == nil {
-		return nil
-	}
-	client := v.ctx.Client
-	projectID := v.ctx.Project.ID
-	return func() tea.Msg {
-		issues, err := client.ListIssues(projectID)
-		return IssuesLoadedMsg{Issues: issues, Err: err}
+		source, err := client.GetReadme(projectID, file, ref)
+		return ReadmeLoadedMsg{File: file, Source: source, Err: err}
 	}
 }

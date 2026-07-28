@@ -15,7 +15,7 @@ import (
 type ViewID int
 
 const (
-	ViewOverview ViewID = iota
+	ViewDashboard ViewID = iota
 	ViewPipelines
 	ViewMRs
 	ViewIssues
@@ -45,8 +45,10 @@ type View interface {
 
 func viewIDFromName(name string) (ViewID, bool) {
 	switch name {
-	case "overview":
-		return ViewOverview, true
+	// "overview" is what this tab was called before it became the dashboard; a
+	// config that names it must keep working.
+	case "dashboard", "overview":
+		return ViewDashboard, true
 	case "pipelines":
 		return ViewPipelines, true
 	case "mrs":
@@ -72,7 +74,7 @@ func viewIDFromName(name string) (ViewID, bool) {
 // taller list of the same thing. It remains available via settings.views for
 // anyone who wants it.
 func defaultViews() []ViewID {
-	return []ViewID{ViewOverview, ViewPipelines, ViewMRs, ViewIssues, ViewTodos}
+	return []ViewID{ViewDashboard, ViewPipelines, ViewMRs, ViewIssues, ViewTodos}
 }
 
 // ParseViews converts config names into an ordered, deduplicated ViewID list.

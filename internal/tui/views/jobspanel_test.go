@@ -263,7 +263,7 @@ func TestCommitPage_RoutesJobMessagesToThePanel(t *testing.T) {
 	commits.commits = []gitlab.Commit{{ShortID: "38333fa4"}}
 	hosts["commits"] = commits
 
-	overview := NewOverviewView(ctx)
+	overview := NewDashboardView(ctx)
 	overview.width, overview.height = 120, 30
 	overview.commits = []gitlab.Commit{{ShortID: "38333fa4"}}
 	hosts["overview"] = overview
@@ -274,7 +274,7 @@ func TestCommitPage_RoutesJobMessagesToThePanel(t *testing.T) {
 			switch h := host.(type) {
 			case *CommitsView:
 				detail = &h.detail
-			case *OverviewView:
+			case *DashboardView:
 				detail = &h.detail
 			}
 

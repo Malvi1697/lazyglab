@@ -25,7 +25,7 @@ func newSessionApp(t *testing.T, lastProject, detectedPath string, saved *savedP
 		HostNames:    []string{"h"},
 		DetectedHost: "h",
 		DetectedPath: detectedPath,
-		ViewIDs:      []views.ViewID{views.ViewOverview},
+		ViewIDs:      []views.ViewID{views.ViewDashboard},
 		LastProject:  lastProject,
 		SaveLastProject: func(host, path string) error {
 			saved.host = host
@@ -143,7 +143,7 @@ func TestShell_TabDoesNotSwitchViews(t *testing.T) {
 		Clients:      map[string]*gitlab.Client{"h": nil},
 		HostNames:    []string{"h"},
 		DetectedHost: "h",
-		ViewIDs:      []views.ViewID{views.ViewOverview, views.ViewPipelines, views.ViewIssues},
+		ViewIDs:      []views.ViewID{views.ViewDashboard, views.ViewPipelines, views.ViewIssues},
 	})
 	a.width, a.height = 100, 40
 

@@ -91,6 +91,14 @@ type IssueActionDoneMsg struct {
 	IsErr bool
 }
 
+// ReadmeLoadedMsg carries a project's README. File is what was asked for, so a
+// reply for a project you have moved off can be told apart.
+type ReadmeLoadedMsg struct {
+	File   string
+	Source string
+	Err    error
+}
+
 // BranchesLoadedMsg is sent when branches have been fetched.
 type BranchesLoadedMsg struct {
 	Branches []gitlab.Branch
@@ -179,6 +187,7 @@ func (m CommitsLoadedMsg) loadErr() error      { return m.Err }
 func (m CommitDetailLoadedMsg) loadErr() error { return m.Err }
 func (m MRDetailLoadedMsg) loadErr() error     { return m.Err }
 func (m IssueNotesLoadedMsg) loadErr() error   { return m.Err }
+func (m ReadmeLoadedMsg) loadErr() error       { return m.Err }
 func (m ErrorMsg) loadErr() error              { return m.Err }
 
 // IsLoadResult reports whether a message is a data load reporting back, whether
