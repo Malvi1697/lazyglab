@@ -95,11 +95,22 @@ type App struct {
 	// now returns the current time. A field so tests can pin it.
 	now func() time.Time
 
+	// A newer release, found once at startup. Kept out of the status line: that is
+	// overwritten by the next thing that happens, and this is worth still being
+	// there an hour later.
+	checkUpdate   CheckUpdateFunc
+	updateVersion string
+
 	// Dimensions and status line.
 	width, height int
 	statusText    string
 	statusIsErr   bool
 }
+
+// CheckUpdateFunc returns the newest released version when it is newer than the
+// running one, and "" when there is nothing to say. It blocks on the network, so
+// the shell only ever calls it from a command.
+type CheckUpdateFunc func() string
 
 // Options is everything the cockpit shell needs from the app layer: the GitLab
 // clients, the preferences read from the config file, and the callbacks that
@@ -128,6 +139,8 @@ type Options struct {
 	// SaveLastProject records the active project; nil means the next launch will
 	// not resume it.
 	SaveLastProject SaveLastProjectFunc
+	// CheckUpdate looks for a newer release; nil skips the check entirely.
+	CheckUpdate CheckUpdateFunc
 }
 
 // NewApp builds the cockpit shell: it selects the active host, constructs the
@@ -183,6 +196,7 @@ func NewApp(o Options) *App {
 		saveFavorites:   o.SaveFavorites,
 		lastProject:     o.LastProject,
 		saveLastProject: o.SaveLastProject,
+		checkUpdate:     o.CheckUpdate,
 	}
 }
 
@@ -194,7 +208,7 @@ func (a *App) activeView() views.View { return a.views[a.viewIDs[a.active]] }
 // ============================================================================
 
 func (a *App) Init() tea.Cmd {
-	cmds := []tea.Cmd{a.refresh(), a.clockCmd()}
+	cmds := []tea.Cmd{a.refresh(), a.clockCmd(), a.updateCheckCmd()}
 	if a.refreshInterval > 0 {
 		a.nextRefresh = a.clock().Add(a.refreshInterval)
 		cmds = append(cmds, a.tickCmd())
@@ -459,6 +473,10 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return a, nil
 
+	case updateFoundMsg:
+		a.updateVersion = msg.version
+		return a, nil
+
 	case tickMsg:
 		var cmd tea.Cmd
 		// A modal overlay means the user is mid-decision, and an unfocused terminal
@@ -667,7 +685,7 @@ func (a *App) View() tea.View {
 
 	contextBar := renderContextBar(a.width, a.ctx, a.statusText, a.statusIsErr,
 		a.refreshNote(a.clock()))
-	tabs := renderTabs(a.width, a.viewIDs, a.active, titles)
+	tabs := renderTabs(a.width, a.viewIDs, a.active, titles, a.updateNote())
 
 	// A blank row between the tabs and the body: without it the context line, the
 	// tabs and the first heading pile up as three rows of bold text.

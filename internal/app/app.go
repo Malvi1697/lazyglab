@@ -13,8 +13,9 @@ import (
 	"github.com/Malvi1697/lazyglab/internal/util"
 )
 
-// Run initializes the application and starts the TUI.
-func Run() error {
+// Run initializes the application and starts the TUI. version is the running
+// build, which the shell needs to tell the user when a newer one exists.
+func Run(version string) error {
 	cfg, err := resolveConfig()
 	if err != nil {
 		return err
@@ -68,6 +69,10 @@ func Run() error {
 		Reconfigure:      ReconfigureAuth,
 		SaveFavorites:    SaveFavorites,
 		SaveLastProject:  SaveLastProject,
+		// Asked once, in the background, and only reported if there is something to
+		// report. Printing it here instead would put the notice on the screen the alt
+		// buffer is about to replace, where nobody ever saw it.
+		CheckUpdate: func() string { return LatestVersion(version) },
 	})
 	p := tea.NewProgram(model)
 	if _, err := p.Run(); err != nil {

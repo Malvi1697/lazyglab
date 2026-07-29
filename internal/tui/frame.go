@@ -60,9 +60,11 @@ func renderContextBar(width int, ctx *views.Context, status string, statusIsErr 
 	return lipgloss.NewStyle().Width(width).Render(bar)
 }
 
-// renderTabs renders the numbered view tabs, highlighting the active one. Tabs
-// are numbered by position (1-based). Full width.
-func renderTabs(width int, viewIDs []views.ViewID, active int, titles []string) string {
+// renderTabs renders the numbered view tabs, highlighting the active one, with
+// the update notice (if any) at the far right — the tabs row is the one line with
+// room to spare, and a notice there survives every status message. Tabs are
+// numbered by position (1-based). Full width.
+func renderTabs(width int, viewIDs []views.ViewID, active int, titles []string, notice string) string {
 	activeStyle := lipgloss.NewStyle().Bold(true).Foreground(components.ColorPrimary)
 	inactiveStyle := components.MutedStyle
 
@@ -83,7 +85,13 @@ func renderTabs(width int, viewIDs []views.ViewID, active int, titles []string) 
 	// A rule under the tabs separates the frame from the body, which no longer
 	// has borders of its own.
 	bar := " " + strings.Join(parts, components.HelpSepStyle.Render(" · "))
-	return lipgloss.NewStyle().Width(width).Render(bar)
+
+	// The notice is dropped rather than allowed to push the tabs around: knowing
+	// which view you are in matters more than knowing a release is out.
+	if gap := width - lipgloss.Width(bar) - lipgloss.Width(notice) - 1; notice != "" && gap >= 2 {
+		bar += strings.Repeat(" ", gap) + notice + " "
+	}
+	return lipgloss.NewStyle().Width(width).MaxWidth(width).Render(bar)
 }
 
 // sprintTab formats a tab label as pre + number + mid + title.

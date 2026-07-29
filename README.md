@@ -63,6 +63,22 @@ cd lazyglab
 make build
 ```
 
+## Updating
+
+lazyglab checks for a newer release once per launch, in the background, and says
+so on the tabs row when there is one (`▲ v0.5.0 available · lazyglab update`).
+Nothing is downloaded until you ask:
+
+```bash
+lazyglab update
+```
+
+It downloads the build for your platform, verifies its SHA-256 against the
+release's `checksums.txt`, and replaces the running binary in place. A copy
+installed by a package manager (Homebrew, `.deb`/`.rpm`, Nix) is left alone —
+the command tells you which upgrade to run instead. If the install directory
+needs root, use `sudo lazyglab update`.
+
 ## First Run
 
 On first launch, lazyglab will:
