@@ -39,9 +39,10 @@ type DashboardView struct {
 	// focus says whether the keys drive the commit list or the README.
 	focus pageFocus
 
-	// readmeHidden folds the README away, for a small window where half the rows
-	// spent on it is half the commits you cannot see. Session-only: it is a change
-	// of view, not a preference.
+	// readmeHidden folds the README away, and starts folded: the commits are what
+	// the page is opened for, and half the rows spent on prose you have read once is
+	// half the commits you cannot see. "t" brings it up. Session-only, so every
+	// launch starts on the commits.
 	readmeHidden bool
 
 	// detail is the in-place commit page, opened with Enter — the same one the
@@ -51,7 +52,7 @@ type DashboardView struct {
 
 // NewDashboardView creates a DashboardView bound to the shared session context.
 func NewDashboardView(ctx *Context) *DashboardView {
-	return &DashboardView{ctx: ctx, detail: newCommitDetail(ctx)}
+	return &DashboardView{ctx: ctx, detail: newCommitDetail(ctx), readmeHidden: true}
 }
 
 // Title implements View.

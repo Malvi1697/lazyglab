@@ -102,29 +102,25 @@ func TestLists_TheColumnsMeanTheSameThingEverywhere(t *testing.T) {
 	}
 }
 
-func TestDashboard_TFoldsTheReadmeAway(t *testing.T) {
+func TestDashboard_TShowsAndFoldsTheReadme(t *testing.T) {
 	// In a small window half the rows spent on the README is half the commits you
 	// cannot see, which is the whole reason the key exists.
 	v := NewDashboardView(&Context{})
 	v.commits = []gitlab.Commit{{ShortID: "abc1234", Title: "feat: one", AuthorName: "jan"}}
 	v.setReadme("README.md", "# Idiskgolf\n\nThis is the frontend.")
 
-	if body := plain(v.Body(testWidth, 20)); !strings.Contains(body, "This is the frontend") {
-		t.Fatalf("the README should be there to begin with:\n%s", body)
-	}
-
-	v.Update(tea.KeyPressMsg{Code: 't', Text: "t"})
+	// It starts folded: the commits are what the page is opened for.
 	body := plain(v.Body(testWidth, 20))
 	if strings.Contains(body, "This is the frontend") {
-		t.Errorf("t should have folded the README away:\n%s", body)
+		t.Errorf("the README should start folded away:\n%s", body)
 	}
 	if !strings.Contains(body, "feat:") || !strings.Contains(body, "one") {
-		t.Errorf("the commits should have the whole page now:\n%s", body)
+		t.Errorf("the commits should have the whole page:\n%s", body)
 	}
 	// The hint has to say which way the key goes, or it promises to hide something
 	// that is already hidden.
 	if !hasHint(v.KeyHints(), "t", "Show readme") {
-		t.Errorf("hints = %v, want t offering to show it again", v.KeyHints())
+		t.Errorf("hints = %v, want t offering to show it", v.KeyHints())
 	}
 	if hasHint(v.KeyHints(), "Tab", "Readme") {
 		t.Errorf("hints = %v, want no Tab to a box that is not on screen", v.KeyHints())
@@ -132,7 +128,15 @@ func TestDashboard_TFoldsTheReadmeAway(t *testing.T) {
 
 	v.Update(tea.KeyPressMsg{Code: 't', Text: "t"})
 	if body := plain(v.Body(testWidth, 20)); !strings.Contains(body, "This is the frontend") {
-		t.Errorf("t should have brought it back:\n%s", body)
+		t.Errorf("t should have brought the README up:\n%s", body)
+	}
+	if !hasHint(v.KeyHints(), "t", "Hide readme") {
+		t.Errorf("hints = %v, want t offering to fold it away again", v.KeyHints())
+	}
+
+	v.Update(tea.KeyPressMsg{Code: 't', Text: "t"})
+	if body := plain(v.Body(testWidth, 20)); strings.Contains(body, "This is the frontend") {
+		t.Errorf("t should have folded it away again:\n%s", body)
 	}
 }
 
@@ -142,6 +146,7 @@ func TestDashboard_FoldingTheReadmeTakesTheKeysBack(t *testing.T) {
 	v := NewDashboardView(&Context{})
 	v.commits = []gitlab.Commit{{ShortID: "abc1234", Title: "feat: one"}}
 	v.setReadme("README.md", "words")
+	v.Update(tea.KeyPressMsg{Code: 't', Text: "t"}) // bring it up first
 
 	v.Update(tea.KeyPressMsg{Code: tea.KeyTab})
 	if v.focus != focusNotes {

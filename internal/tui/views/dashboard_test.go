@@ -125,6 +125,7 @@ func TestDashboard_CommitsAboveTheReadme(t *testing.T) {
 		v.commits = append(v.commits, gitlab.Commit{ShortID: "c", Title: "commit", AuthorName: "A"})
 	}
 	v.setReadme("README.md", "# The Project\n\nWhat it does.\n")
+	v.Update(tea.KeyPressMsg{Code: 't', Text: "t"}) // it starts folded away
 
 	const height = 40
 	rows := strings.Split(v.Body(120, height), "\n")
@@ -165,6 +166,7 @@ func TestDashboard_TabMovesBetweenTheHalves(t *testing.T) {
 	v.height = 40
 	v.commits = []gitlab.Commit{{ShortID: "a", Title: "one"}, {ShortID: "b", Title: "two"}}
 	v.setReadme("README.md", strings.Repeat("a line of the readme\n", 200))
+	v.Update(tea.KeyPressMsg{Code: 't', Text: "t"}) // it starts folded away
 	v.Body(120, 40)
 
 	v.Update(tea.KeyPressMsg{Code: tea.KeyTab})

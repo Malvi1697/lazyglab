@@ -151,7 +151,7 @@ The five views:
 
 | # | View | What it shows |
 |---|------|----------------|
-| 1 | **Dashboard** | The project's front page: recent commits with their CI status above, the project's README below. `Tab` moves between them. Default view. |
+| 1 | **Dashboard** | The project's front page: recent commits with their CI status. `t` brings the project's README up below them, `Tab` moves between the two. Default view. |
 | 2 | **Pipelines** | Pipeline list; `Enter` drills into jobs grouped by stage, and into a job's log. |
 | 3 | **Merge Requests** | Open MRs; `Enter` opens the full merge-request page in place, with approve/merge. |
 | 4 | **Issues** | Open issues, with close/reopen; `Enter` opens the issue page and its discussion. |
@@ -184,9 +184,12 @@ highlighted row: `Enter` opens the real thing (the jobs, the merge-request page,
 the issue and its discussion), and half the width spent on a summary was coming
 out of the titles.
 
-**`t` folds the second box away** where there is one — the README under the
-dashboard, the reason under a to-do. In a small window those rows are better spent
-on the list, and the footer says which way the key goes.
+**`t` toggles the second box** where there is one. On the dashboard the README
+**starts folded away** — the commits are what the page is opened for, and half the
+rows spent on prose you have read once is half the commits you cannot see; `t`
+brings it up and `Tab` then moves between the two. Under a to-do the reason starts
+open, since it is about the highlighted row. The footer always says which way the
+key goes.
 
 The README is rendered as terminal text rather than converted: headings take the
 accent, list bullets and quotes their marker, fenced code goes grey. It is fetched
@@ -429,8 +432,8 @@ Overview is shown first, and auto-refresh runs every 30s.
 | Key | Action |
 |-----|--------|
 | `Enter` | Open the commit page in place |
-| `Tab` | Move between the commits and the README |
-| `t` | Fold the README away |
+| `t` | Show / fold the README (folded when the view opens) |
+| `Tab` | Move between the commits and the README, once it is up |
 | `o` | Open the commit in a browser |
 
 ### Todos
