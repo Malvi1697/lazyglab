@@ -39,6 +39,11 @@ type DashboardView struct {
 	// focus says whether the keys drive the commit list or the README.
 	focus pageFocus
 
+	// readmeHidden folds the README away, for a small window where half the rows
+	// spent on it is half the commits you cannot see. Session-only: it is a change
+	// of view, not a preference.
+	readmeHidden bool
+
 	// detail is the in-place commit page, opened with Enter — the same one the
 	// Commits view uses, so drilling in never moves you to another tab.
 	detail commitDetail
@@ -162,11 +167,18 @@ func (v *DashboardView) handleKey(msg tea.KeyMsg) tea.Cmd {
 	}
 
 	switch key {
+	case keyToggleBox:
+		v.readmeHidden = !v.readmeHidden
+		if v.readmeHidden {
+			// The keys cannot stay with a box that is no longer on screen.
+			v.focus = focusPage
+		}
+		return nil
 	case keyTab:
-		v.focus = cycleFocus(v.focus, 1, false, false, true)
+		v.focus = cycleFocus(v.focus, 1, false, false, !v.readmeHidden)
 		return nil
 	case keyShiftTab:
-		v.focus = cycleFocus(v.focus, -1, false, false, true)
+		v.focus = cycleFocus(v.focus, -1, false, false, !v.readmeHidden)
 		return nil
 	}
 
@@ -293,6 +305,11 @@ func (v *DashboardView) Body(width, height int) string {
 		return v.detail.body(width, height)
 	}
 
+	// Folded away with "t": the commits take the whole page.
+	if v.readmeHidden {
+		return v.commitsBox(width, height)
+	}
+
 	// A blank row between them. Without a frame to do the separating, the two halves
 	// otherwise run into each other.
 	const gap = 1
@@ -319,28 +336,31 @@ func (v *DashboardView) Body(width, height int) string {
 // commitsBox renders the recent-commits list.
 func (v *DashboardView) commitsBox(width, height int) string {
 	visible := v.visible()
-	titles := make([]string, len(visible))
-	stamps := make([]string, len(visible))
+	rows := make([]listRow, len(visible))
 	for i, c := range visible {
-		titles[i] = c.Title
-		stamps[i] = commitStamp(c.CreatedAt)
+		rows[i] = v.commitRow(c)
 	}
 	rowWidth := width - components.SelectionGutter
-	cols := commitColumns(titles, stamps, rowWidth)
+	cols := measureColumns(rows, rowWidth)
 
 	return renderRowsBox(width, height,
 		v.search.title("Recent Commits", len(visible), len(v.commits)),
 		len(visible),
-		func(i int) string { return v.commitRow(visible[i], cols, rowWidth) },
+		func(i int) string { return renderListRow(rows[i], cols, rowWidth) },
 		cursorWhen(v.focus == focusPage, v.cursor), &v.scroll)
 }
 
-// commitRow renders one recent-commits row, mapping the commit's CI status from
-// the loaded pipelines by SHA. kindWidth and width come from the frame being
-// rendered, so every row in it lines up.
-func (v *DashboardView) commitRow(c gitlab.Commit, cols commitLayout, width int) string {
-	return commitRow(commitStatusIcon(commitStatus(c.ShortID, v.pipelines)),
-		c.AuthorName, c.Title, commitStamp(c.CreatedAt), cols, width)
+// commitRow describes one recent-commits row, mapping the commit's CI status from
+// the loaded pipelines by SHA.
+func (v *DashboardView) commitRow(c gitlab.Commit) listRow {
+	kind, subject := splitConventional(c.Title)
+	return listRow{
+		kind:    kind,
+		icon:    commitStatusIcon(commitStatus(c.ShortID, v.pipelines)),
+		subject: subject,
+		author:  c.AuthorName,
+		stamp:   commitStamp(c.CreatedAt),
+	}
 }
 
 // commitStatusIcon renders a commit's CI state, or a faint dot when no pipeline
@@ -382,15 +402,22 @@ func (v *DashboardView) KeyHints() []KeyHint {
 		if v.scrollable {
 			hints = append(hints, KeyHint{"j/k", "Scroll"})
 		}
-		return append(hints, KeyHint{"Tab", "Commits"}, KeyHint{"Esc", "Back"})
+		return append(hints,
+			KeyHint{"Tab", "Commits"}, KeyHint{"t", "Hide readme"}, KeyHint{"Esc", "Back"})
 	}
-	return []KeyHint{
-		{Key: "Enter", Desc: "Commit page"},
-		{Key: "Tab", Desc: "Readme"},
-		{Key: "y/Y", Desc: "Copy SHA/link"},
-		{Key: "o", Desc: "Open commit"},
+	hints := []KeyHint{{Key: "Enter", Desc: "Commit page"}}
+	// The hint says which way the key goes, so it never promises a box that is
+	// already there or offers to hide one that is not.
+	if v.readmeHidden {
+		hints = append(hints, KeyHint{Key: "t", Desc: "Show readme"})
+	} else {
+		hints = append(hints, KeyHint{Key: "Tab", Desc: "Readme"}, KeyHint{Key: "t", Desc: "Hide readme"})
+	}
+	return append(hints,
+		KeyHint{Key: "y/Y", Desc: "Copy SHA/link"},
+		KeyHint{Key: "o", Desc: "Open commit"},
 		v.search.hint(),
-	}
+	)
 }
 
 // ============================================================================

@@ -149,10 +149,15 @@ func BenchmarkCommitRowStyling(b *testing.B) {
 	v.commits = benchCommits()
 	v.pipelines = benchPipelines(30)
 	visible := v.visible()
+	rows := make([]listRow, len(visible))
+	for i, c := range visible {
+		rows[i] = v.commitRow(c)
+	}
+	cols := measureColumns(rows, 160)
 
 	for b.Loop() {
-		for i := range visible {
-			_ = v.commitRow(visible[i], commitLayout{kind: 6, subject: 80, updated: 11}, 160)
+		for i := range rows {
+			_ = renderListRow(rows[i], cols, 160)
 		}
 	}
 }

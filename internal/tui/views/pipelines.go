@@ -6,11 +6,9 @@ import (
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
-	"charm.land/lipgloss/v2"
 
 	"github.com/Malvi1697/lazyglab/internal/gitlab"
 	"github.com/Malvi1697/lazyglab/internal/tui/components"
-	"github.com/Malvi1697/lazyglab/internal/util"
 )
 
 // Local key constants (the tui package's key table can't be imported here
@@ -26,6 +24,7 @@ const (
 	keyCopyLink   = "Y" // copy the selected item's URL
 	keyComment    = "c" // write a comment, on a page that has a discussion
 	keySystem     = "s" // show/hide GitLab's own record in a discussion
+	keyToggleBox  = "t" // fold the second box away, for a window with few rows
 	keyTab        = "tab"
 	keyShiftTab   = "shift+tab"
 )
@@ -233,92 +232,58 @@ func (v *PipelinesView) handleKey(msg tea.KeyMsg) tea.Cmd {
 // Body / rendering
 // ============================================================================
 
-// Body implements View: a horizontal split with a list on the left and a
-// detail/trace panel on the right.
+// Body implements View: the pipeline list, full width, laid out like every other
+// list in the app.
+//
+// The preview panel that used to sit beside it is gone. Every fact it held — the
+// status, the branch, the commit, when it ran — is a column of the list now, and
+// what it did not hold is the jobs, which is what Enter opens. Half the width
+// spent restating the highlighted row was the reason a commit message did not fit
+// on the row that carried it.
 func (v *PipelinesView) Body(width, height int) string {
 	v.width = width
 	v.height = height
 
-	leftWidth := width * 45 / 100
-	if leftWidth < 20 {
-		leftWidth = 20
-	}
-	if leftWidth > width {
-		leftWidth = width
-	}
-	rightWidth := width - leftWidth
-
-	// Left list. Pipelines and jobs are separate lists, so each keeps its own
-	// scroll position rather than inheriting the other's.
 	// Drilled into jobs: the shared panel owns both halves.
 	if v.viewingJobs {
 		return v.jobs.body(width, height)
 	}
 
 	visible := v.visible()
-	left := renderRowsBox(leftWidth, height,
-		v.search.title("Pipelines", len(visible), len(v.pipelines)),
-		len(visible), func(i int) string { return pipelineRow(visible[i]) },
-		v.cursor, &v.scroll)
-
-	detail := v.pipelineDetail()
-	if detail == "" {
-		detail = "Select an item to view details"
+	rows := make([]listRow, len(visible))
+	for i, p := range visible {
+		rows[i] = pipelineRow(p)
 	}
-	right := components.RenderPanel("Pipeline", strings.Split(detail, "\n"), rightWidth-4, height, false)
+	rowWidth := width - components.SelectionGutter
+	cols := measureColumns(rows, rowWidth)
 
-	return joinPanels(left, right, height)
+	return renderRowsBox(width, height,
+		v.search.title("Pipelines", len(visible), len(v.pipelines)),
+		len(visible), func(i int) string { return renderListRow(rows[i], cols, rowWidth) },
+		v.cursor, &v.scroll)
 }
 
-// pipelineRow renders one pipeline list row (no ref column).
-func pipelineRow(p gitlab.Pipeline) string {
+// pipelineRow describes one pipeline row: what it built, how it went, on which
+// branch, and when it started.
+func pipelineRow(p gitlab.Pipeline) listRow {
 	title := p.CommitTitle
 	if title == "" {
 		title = p.Ref
 	}
-	return fmt.Sprintf("%s %s %s",
-		components.MutedStyle.Render(util.TimeAgoShort(p.CreatedAt)),
-		components.StatusIconPadded(p.Status),
-		styleCommitTitle(title),
-	)
-}
-
-// jobItems returns display lines for jobs grouped by stage, plus a mapping from
-// job index to display-row index (accounting for stage header lines). Header
-// lines carry a leading "\x00" marker so renderListBox skips highlighting.
-func (v *PipelinesView) pipelineDetail() string {
-	if len(v.pipelines) == 0 {
-		return "No pipelines"
+	kind, subject := splitConventional(title)
+	status := p.Status
+	if p.HasWarnings {
+		// A failed allowed-to-fail job is not a plain success, the same way the
+		// dashboard's commit list says so.
+		status = components.StatusWarning
 	}
-	selected := v.selectedPipeline()
-	if selected == nil {
-		if v.search.on() {
-			return components.HelpDescStyle.Render("No pipeline matches " + v.search.filter.Query)
-		}
-		return ""
+	return listRow{
+		kind:    kind,
+		icon:    components.StatusIconPadded(status),
+		subject: subject,
+		extra:   p.Ref,
+		stamp:   commitStamp(p.CreatedAt),
 	}
-	p := *selected
-
-	var lines []string
-	lines = append(lines,
-		fmt.Sprintf("Status:  %s %s",
-			components.StatusIcon(p.Status),
-			lipgloss.NewStyle().Foreground(components.StatusColor(p.Status)).Render(p.Status),
-		),
-	)
-	lines = append(lines, fmt.Sprintf("Ref:     %s", p.Ref))
-	if p.CommitTitle != "" {
-		lines = append(lines, fmt.Sprintf("Commit:  %s", p.CommitTitle))
-	}
-	if !p.CreatedAt.IsZero() {
-		lines = append(lines, fmt.Sprintf("Created: %s", util.TimeAgo(p.CreatedAt)))
-	}
-	if !p.UpdatedAt.IsZero() {
-		lines = append(lines, fmt.Sprintf("Updated: %s", util.TimeAgo(p.UpdatedAt)))
-	}
-	lines = append(lines, "")
-	lines = append(lines, components.HelpDescStyle.Render(p.WebURL))
-	return strings.Join(lines, "\n")
 }
 
 // ============================================================================

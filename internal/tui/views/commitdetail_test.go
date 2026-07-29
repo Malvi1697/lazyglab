@@ -781,3 +781,17 @@ func TestCommitPage_ArrowsStepCommitsFromThePageNotFiles(t *testing.T) {
 		t.Errorf("from the page the arrows step commits, got %s", v.detail.commit.ShortID)
 	}
 }
+
+// renderRows lays out a list of rows at one width and renders them, the way a view
+// does: measure over the whole list, then render each row to those columns.
+func renderRows(rows []listRow, width int) []string {
+	cols := measureColumns(rows, width)
+	out := make([]string, len(rows))
+	for i, r := range rows {
+		out[i] = renderListRow(r, cols, width)
+	}
+	return out
+}
+
+// renderRow is renderRows for a single row.
+func renderRow(r listRow, width int) string { return renderRows([]listRow{r}, width)[0] }

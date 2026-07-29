@@ -73,41 +73,61 @@ func TestDefaultViewIndex(t *testing.T) {
 	}
 }
 
-func TestRefAndTitle_TheNumberIsMetadataLikeTheCommitPrefix(t *testing.T) {
+func TestListRow_TheNumberAndTheKindAreMetadata(t *testing.T) {
 	// The same change read one way in Recent Commits and another in Pipelines: the
 	// conventional-commit prefix was dimmed in one list and bright in the others.
-	row := refAndTitle("!42", "feat(cart): capacity-aware promotion")
+	// Both are now columns of the one layout, dimmed everywhere.
+	row := renderRow(listRow{ref: "!42", kind: "feat:", subject: "capacity-aware promotion"}, 60)
 	plainRow := plain(row)
-	if plainRow != "!42 feat(cart): capacity-aware promotion" {
-		t.Errorf("row = %q, want the text unchanged underneath the styling", plainRow)
+	if !strings.HasPrefix(plainRow, "!42 feat: capacity-aware promotion") {
+		t.Errorf("row = %q, want the number then the kind then the subject", plainRow)
 	}
 
-	// The number and the prefix carry styling; the subject is left alone, so the
-	// escape codes stop before it.
+	// Measured over the list, and right-aligned within it: a four-digit number in one
+	// row indents the shorter ones so every subject starts in the same column.
+	mixed := renderRows([]listRow{
+		{ref: "!42", subject: "short number"},
+		{ref: "!1234", subject: "long number"},
+	}, 60)
+	if !strings.HasPrefix(plain(mixed[0]), "  !42 short number") {
+		t.Errorf("row = %q, want the shorter number right-aligned to the longer one", plain(mixed[0]))
+	}
+
+	// The metadata carries styling; the subject is left alone, so the escape codes
+	// stop before it.
 	if row == plainRow {
-		t.Errorf("row = %q, want the number and prefix dimmed", row)
+		t.Errorf("row = %q, want the number and kind dimmed", row)
 	}
 	if i := strings.Index(row, "capacity-aware promotion"); i < 0 || strings.Contains(row[i:], "\x1b[") {
 		t.Errorf("row = %q, want no styling from the subject onwards", row)
 	}
 
-	// Without a number it is just a title.
-	if got := plain(refAndTitle("", "chore: bump deps")); got != "chore: bump deps" {
-		t.Errorf("got %q, want the bare title", got)
+	// A column no row fills costs nothing: no number means no gap where one would be.
+	if got := plain(renderRow(listRow{kind: "chore:", subject: "bump deps"}, 60)); !strings.HasPrefix(got, "chore: bump deps") {
+		t.Errorf("got %q, want no room reserved for a number the list does not have", got)
 	}
 }
 
-func TestRefAndTitle_EveryListUsesIt(t *testing.T) {
-	// Each of these renders a row that names something by number and then says what
-	// it is; they must all read the same way.
-	rows := map[string]string{
-		"merge request": mrRow(gitlab.MergeRequest{IID: 42, Title: "feat(cart): promote"}, 30, 120),
-		"issue":         issueRow(gitlab.Issue{IID: 7, Title: "fix(api): crash"}),
+func TestListRow_EveryListIsLaidOutTheSameWay(t *testing.T) {
+	// The point of the shared layout: pick any list and the columns mean the same
+	// thing in the same order, with the subject starting in the same place.
+	rows := map[string]listRow{
+		"merge request": mrRow(gitlab.MergeRequest{IID: 42, Title: "feat(cart): promote", Author: "jiri"}),
+		"issue":         issueRow(gitlab.Issue{IID: 7, Title: "fix(api): crash", Author: "alice"}),
 		"pipeline":      pipelineRow(gitlab.Pipeline{ID: 1, Status: "success", CommitTitle: "feat(cart): promote"}),
+		"commit":        commitItemRow(gitlab.Commit{ShortID: "abc1234", Title: "feat(cart): promote", AuthorName: "jiri"}),
+		"todo":          todoRow(gitlab.Todo{Reference: "!42", Action: "review_requested", Title: "feat(cart): promote"}),
 	}
-	for name, row := range rows {
+	for name, r := range rows {
+		if r.kind == "" && r.ref == "" {
+			t.Errorf("%s row = %+v, want it to fill the metadata columns", name, r)
+		}
+		row := renderRow(r, 120)
 		if row == plain(row) {
-			t.Errorf("%s row = %q, want the number and prefix dimmed", name, row)
+			t.Errorf("%s row = %q, want its metadata dimmed", name, row)
+		}
+		if !strings.Contains(plain(row), "promote") && !strings.Contains(plain(row), "crash") {
+			t.Errorf("%s row = %q, want the subject in it", name, plain(row))
 		}
 	}
 }

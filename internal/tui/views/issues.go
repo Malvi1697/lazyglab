@@ -165,8 +165,10 @@ func (v *IssuesView) handleKey(msg tea.KeyMsg) tea.Cmd {
 // Body / rendering
 // ============================================================================
 
-// Body implements View: a horizontal split with a list on the left and a
-// detail panel on the right.
+// Body implements View: the issues, full width, in the columns every other list
+// uses. Enter opens the issue page and its discussion, which is where the
+// description belongs — it used to be crammed into a panel beside the list, at the
+// cost of the width the titles needed.
 func (v *IssuesView) Body(width, height int) string {
 	v.width = width
 	v.height = height
@@ -176,72 +178,32 @@ func (v *IssuesView) Body(width, height int) string {
 		return v.detail.body(width, height)
 	}
 
-	leftWidth := width * 45 / 100
-	if leftWidth < 20 {
-		leftWidth = 20
-	}
-	if leftWidth > width {
-		leftWidth = width
-	}
-	rightWidth := width - leftWidth
-
 	visible := v.visible()
-	left := renderRowsBox(leftWidth, height,
+	rows := make([]listRow, len(visible))
+	for i, issue := range visible {
+		rows[i] = issueRow(issue)
+	}
+	rowWidth := width - components.SelectionGutter
+	cols := measureColumns(rows, rowWidth)
+
+	return renderRowsBox(width, height,
 		v.search.title("Issues", len(visible), len(v.issues)),
-		len(visible), func(i int) string { return issueRow(visible[i]) },
+		len(visible), func(i int) string { return renderListRow(rows[i], cols, rowWidth) },
 		v.cursor, &v.scroll)
-
-	detail := v.issueDetail()
-	if detail == "" {
-		detail = "Select an item to view details"
-	}
-	right := components.RenderPanel(v.detailTitle(), strings.Split(detail, "\n"), rightWidth-4, height, false)
-
-	return joinPanels(left, right, height)
 }
 
-func (v *IssuesView) detailTitle() string {
-	if issue := v.selected(); issue != nil {
-		return fmt.Sprintf("Issue (#%d)", issue.IID)
+// issueRow describes one issue row. There is no CI on an issue, so the mark column
+// is left out entirely rather than filled with a placeholder.
+func issueRow(issue gitlab.Issue) listRow {
+	kind, subject := splitConventional(issue.Title)
+	return listRow{
+		ref:     fmt.Sprintf("#%d", issue.IID),
+		kind:    kind,
+		subject: subject,
+		author:  issue.Author,
+		extra:   strings.Join(issue.Assignees, ", "),
+		stamp:   commitStamp(issue.UpdatedAt),
 	}
-	return "Issue"
-}
-
-// issueRow renders one issue list row.
-func issueRow(issue gitlab.Issue) string {
-	return refAndTitle(fmt.Sprintf("#%d", issue.IID), issue.Title)
-}
-
-func (v *IssuesView) issueDetail() string {
-	if len(v.issues) == 0 {
-		return "No issues"
-	}
-	issue := v.selected()
-	if issue == nil {
-		if v.search.on() {
-			return components.HelpDescStyle.Render("No issue matches " + v.search.filter.Query)
-		}
-		return ""
-	}
-
-	labels := "none"
-	if len(issue.Labels) > 0 {
-		labels = strings.Join(issue.Labels, ", ")
-	}
-	assignees := "unassigned"
-	if len(issue.Assignees) > 0 {
-		assignees = strings.Join(issue.Assignees, ", ")
-	}
-
-	return fmt.Sprintf("%s\n\nAuthor: %s\nAssignees: %s\nLabels: %s\n\n%s\n\n%s\n\n%s",
-		components.TitleStyle.Render(fmt.Sprintf("#%d %s", issue.IID, issue.Title)),
-		issue.Author,
-		assignees,
-		labels,
-		issue.Description,
-		components.HelpDescStyle.Render(issue.WebURL),
-		components.HelpDescStyle.Render("Enter: the issue page and its discussion"),
-	)
 }
 
 // ============================================================================

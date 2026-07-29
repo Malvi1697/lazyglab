@@ -2,15 +2,11 @@ package views
 
 import (
 	"fmt"
-	"strings"
-	"time"
 
 	tea "charm.land/bubbletea/v2"
-	"charm.land/lipgloss/v2"
 
 	"github.com/Malvi1697/lazyglab/internal/gitlab"
 	"github.com/Malvi1697/lazyglab/internal/tui/components"
-	"github.com/Malvi1697/lazyglab/internal/util"
 )
 
 // Local key constants specific to the MRs view (see pipelines.go for the
@@ -176,8 +172,12 @@ func (v *MRsView) handleKey(msg tea.KeyMsg) tea.Cmd {
 // Body / rendering
 // ============================================================================
 
-// Body implements View: a horizontal split with a list on the left and a
-// detail panel on the right.
+// Body implements View: the merge requests, full width, in the same columns every
+// other list uses.
+//
+// The preview panel beside the list is gone: Enter opens the merge-request page
+// itself, which says everything the preview did and more, and the width it took
+// was coming out of the titles — the one thing on the row that cannot be guessed.
 func (v *MRsView) Body(width, height int) string {
 	v.width = width
 	v.height = height
@@ -187,153 +187,44 @@ func (v *MRsView) Body(width, height int) string {
 		return v.detail.body(width, height)
 	}
 
-	// The list carries five columns now, so it gets the larger share: the detail
-	// beside it is a preview of what Enter opens properly.
-	leftWidth := width * 62 / 100
-	if leftWidth < 20 {
-		leftWidth = 20
-	}
-	if leftWidth > width {
-		leftWidth = width
-	}
-	rightWidth := width - leftWidth
-
 	visible := v.visible()
-	rowWidth := leftWidth - components.SelectionGutter
-	titleWidth := mrTitleWidth(visible, rowWidth)
-	left := renderRowsBox(leftWidth, height,
+	rows := make([]listRow, len(visible))
+	for i, mr := range visible {
+		rows[i] = mrRow(mr)
+	}
+	rowWidth := width - components.SelectionGutter
+	cols := measureColumns(rows, rowWidth)
+
+	return renderRowsBox(width, height,
 		v.search.title("Merge Requests", len(visible), len(v.mrs)),
-		len(visible), func(i int) string { return mrRow(visible[i], titleWidth, rowWidth) },
+		len(visible), func(i int) string { return renderListRow(rows[i], cols, rowWidth) },
 		v.cursor, &v.scroll)
-
-	detail := v.mrDetail()
-	if detail == "" {
-		detail = "Select an item to view details"
-	}
-	right := components.RenderPanel(v.detailTitle(), strings.Split(detail, "\n"), rightWidth-4, height, false)
-
-	return joinPanels(left, right, height)
 }
 
-func (v *MRsView) detailTitle() string {
-	if mr := v.selected(); mr != nil {
-		return fmt.Sprintf("MR (!%d)", mr.IID)
-	}
-	return "Merge Request"
-}
-
-// The merge-request row's columns: its number, its CI, what it is, and then who,
-// from where, and when — the same shape GitLab's own list has.
-//
-// The last three are dropped as the terminal narrows, widest first: what it is
-// matters more than who wrote it, and a truncated branch name says nothing.
-const (
-	mrRefWidth     = 6
-	mrAuthorWidth  = 14
-	mrBranchWidth  = 20
-	mrUpdatedWidth = 8 // util.CommitTime's column
-	mrTitleMin     = 24
-)
-
-// mrTitleWidth measures the title column over the whole list, so the columns after
-// it stay beside it instead of against the right edge.
-func mrTitleWidth(mrs []gitlab.MergeRequest, width int) int {
-	titles := make([]string, len(mrs))
-	for i, mr := range mrs {
-		titles[i] = mr.Title
-		if mr.Draft {
-			titles[i] = "[Draft] " + titles[i]
-		}
-	}
-	// The title and the author are what a row is for, so they get their place first.
-	room := width - mrRefWidth - 1 - 2 - 1 - (1 + mrAuthorWidth)
-
-	// The branch and the date keep theirs too, when the row is wide enough to hold
-	// all four: one outlier of a title would otherwise eat the columns everybody
-	// else's row would have shown, and a column a single row can delete is not a
-	// column. On a narrower row they drop off instead, and the title takes the space.
-	if optional := (1 + mrBranchWidth) + (1 + mrUpdatedWidth); room-optional >= mrTitleMin {
-		room -= optional
-	}
-	return columnWidth(titles, mrTitleMin, max(room, mrTitleMin))
-}
-
-// mrRow renders one merge-request list row within width.
-func mrRow(mr gitlab.MergeRequest, titleWidth, width int) string {
+// mrRow describes one merge-request row: its number, its CI, what it is, then who
+// wrote it, where it comes from, and when it last moved — the same shape GitLab's
+// own list has.
+func mrRow(mr gitlab.MergeRequest) listRow {
 	title := mr.Title
 	if mr.Draft {
 		title = "[Draft] " + title
 	}
+	kind, subject := splitConventional(title)
 
 	icon := components.StatusIconPadded("") // two cells of nothing, so the column holds
 	if mr.Pipeline != nil {
 		icon = components.StatusIconPadded(mr.Pipeline.Status)
 	}
-	head := components.MutedStyle.Render(
-		components.PadRight(fmt.Sprintf("!%d", mr.IID), mrRefWidth)) + " " + icon
 
-	row := head + " " +
-		components.BodyStyle.Render(components.PadRight(components.Truncate(title, titleWidth), titleWidth))
-
-	// Every column that still fits, in the order you would give them up: what it is
-	// matters more than who wrote it, and a branch cut to eight characters says
-	// nothing.
-	for _, col := range []struct {
-		width int
-		text  string
-	}{
-		{mrAuthorWidth, mr.Author},
-		{mrBranchWidth, mr.SourceBranch},
-		{mrUpdatedWidth, updatedStamp(mr.UpdatedAt)},
-	} {
-		if lipgloss.Width(row)+1+col.width > width {
-			break
-		}
-		row += " " + components.MutedStyle.Render(
-			components.PadRight(components.Truncate(col.text, col.width), col.width))
+	return listRow{
+		ref:     fmt.Sprintf("!%d", mr.IID),
+		kind:    kind,
+		icon:    icon,
+		subject: subject,
+		author:  mr.Author,
+		extra:   mr.SourceBranch,
+		stamp:   commitStamp(mr.UpdatedAt),
 	}
-	return row
-}
-
-// updatedStamp is when something last moved, in the same words a commit row uses.
-func updatedStamp(t time.Time) string {
-	if t.IsZero() {
-		return ""
-	}
-	return strings.TrimSpace(util.CommitTime(t))
-}
-
-func (v *MRsView) mrDetail() string {
-	if len(v.mrs) == 0 {
-		return "No merge requests"
-	}
-	mr := v.selected()
-	if mr == nil {
-		if v.search.on() {
-			return components.HelpDescStyle.Render("No merge request matches " + v.search.filter.Query)
-		}
-		return ""
-	}
-
-	pipeStatus := "none"
-	if mr.Pipeline != nil {
-		pipeStatus = mr.Pipeline.Status
-	}
-	draft := ""
-	if mr.Draft {
-		draft = " [Draft]"
-	}
-
-	return fmt.Sprintf("%s%s\n\n%s -> %s\nAuthor: %s\nPipeline: %s\n\n%s\n\n%s\n\n%s",
-		components.TitleStyle.Render(fmt.Sprintf("!%d %s", mr.IID, mr.Title)),
-		draft,
-		mr.SourceBranch, mr.TargetBranch,
-		mr.Author,
-		pipeStatus,
-		mr.Description,
-		components.HelpDescStyle.Render(mr.WebURL),
-		components.HelpDescStyle.Render("Enter: the full merge-request page"),
-	)
 }
 
 // ============================================================================

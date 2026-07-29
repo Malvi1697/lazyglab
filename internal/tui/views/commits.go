@@ -7,7 +7,6 @@ import (
 
 	"github.com/Malvi1697/lazyglab/internal/gitlab"
 	"github.com/Malvi1697/lazyglab/internal/tui/components"
-	"github.com/Malvi1697/lazyglab/internal/util"
 )
 
 // CommitsView is the self-contained cockpit view for commits.
@@ -184,63 +183,32 @@ func (v *CommitsView) Body(width, height int) string {
 		return v.detail.body(width, height)
 	}
 
-	leftWidth := width * 45 / 100
-	if leftWidth < 20 {
-		leftWidth = 20
-	}
-	if leftWidth > width {
-		leftWidth = width
-	}
-	rightWidth := width - leftWidth
-
 	visible := v.visible()
-	titles := make([]string, len(visible))
-	stamps := make([]string, len(visible))
+	rows := make([]listRow, len(visible))
 	for i, c := range visible {
-		titles[i] = c.Title
-		stamps[i] = commitStamp(c.CreatedAt)
+		rows[i] = commitItemRow(c)
 	}
-	rowWidth := leftWidth - components.SelectionGutter
-	cols := commitColumns(titles, stamps, rowWidth)
+	rowWidth := width - components.SelectionGutter
+	cols := measureColumns(rows, rowWidth)
 
-	left := renderRowsBox(leftWidth, height,
+	return renderRowsBox(width, height,
 		v.search.title("Commits", len(visible), len(v.commits)),
 		len(visible),
-		func(i int) string { return commitItemRow(visible[i], cols, rowWidth) },
+		func(i int) string { return renderListRow(rows[i], cols, rowWidth) },
 		v.cursor, &v.scroll)
-
-	detail := v.commitDetail()
-	if detail == "" {
-		detail = "Select an item to view details"
-	}
-	right := components.RenderPanel("Commit", splitLines(detail), rightWidth-4, height, false)
-
-	return joinPanels(left, right, height)
 }
 
-// commitItemRow renders one commit list row.
-func commitItemRow(c gitlab.Commit, cols commitLayout, width int) string {
-	return commitRow(commitStatusIcon(c.Status), c.AuthorName, c.Title,
-		commitStamp(c.CreatedAt), cols, width)
-}
-
-func (v *CommitsView) commitDetail() string {
-	if len(v.commits) == 0 {
-		return "No commits"
+// commitItemRow describes one commit row. The status comes with the commit here,
+// rather than being matched in from the pipelines as the dashboard has to.
+func commitItemRow(c gitlab.Commit) listRow {
+	kind, subject := splitConventional(c.Title)
+	return listRow{
+		kind:    kind,
+		icon:    commitStatusIcon(c.Status),
+		subject: subject,
+		author:  c.AuthorName,
+		stamp:   commitStamp(c.CreatedAt),
 	}
-	c := v.selected()
-	if c == nil {
-		return ""
-	}
-
-	return fmt.Sprintf("%s\n\n%s\n\nAuthor: %s\n%s\n\n%s\n\n%s",
-		components.TitleStyle.Render(c.ShortID),
-		c.Title,
-		c.AuthorName,
-		util.TimeAgo(c.CreatedAt),
-		components.HelpDescStyle.Render(c.WebURL),
-		components.HelpDescStyle.Render("Enter: commit detail & pipelines"),
-	)
 }
 
 // commitDetailFull renders the drilled-in commit the way GitLab's commit page

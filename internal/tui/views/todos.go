@@ -2,6 +2,7 @@ package views
 
 import (
 	"fmt"
+	"image/color"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -35,6 +36,10 @@ type TodosView struct {
 	scroll int  // first visible row, kept across frames
 
 	search listSearch
+
+	// detailHidden folds the box below the list away, the way the dashboard's
+	// README folds. Session-only: it is a change of view, not a preference.
+	detailHidden bool
 }
 
 // NewTodosView creates a TodosView bound to the shared session context.
@@ -117,6 +122,11 @@ func (v *TodosView) handleKey(msg tea.KeyMsg) tea.Cmd {
 		return nil
 	}
 
+	if key == keyToggleBox {
+		v.detailHidden = !v.detailHidden
+		return nil
+	}
+
 	// Clearing the whole list works with an empty cursor, so it comes first.
 	if key == keyDoneAll {
 		if len(v.todos) == 0 {
@@ -153,30 +163,51 @@ func (v *TodosView) handleKey(msg tea.KeyMsg) tea.Cmd {
 // Body / rendering
 // ============================================================================
 
-// Body implements View: the list on the left, the highlighted to-do on the right.
+// Body implements View: the list, full width, with the highlighted to-do below it.
+//
+// Below rather than beside, like the dashboard's README: the list is the same
+// table every other view shows, and the detail is the only thing on this page that
+// Enter cannot open — Enter leads to a browser, so the reason a to-do exists has
+// nowhere else to be said. "t" folds it away when the rows matter more.
 func (v *TodosView) Body(width, height int) string {
 	v.width = width
 	v.height = height
 
-	leftWidth := width * 55 / 100
-	if leftWidth < 20 {
-		leftWidth = 20
+	if v.detailHidden {
+		return v.todosBox(width, height)
 	}
-	if leftWidth > width {
-		leftWidth = width
-	}
-	rightWidth := width - leftWidth
 
+	// A third, floored, so a short window still shows why the highlighted row is
+	// there without the list shrinking to nothing.
+	const gap = 1
+	bottomHeight := max(height/3, 6)
+	topHeight := height - gap - bottomHeight
+	if topHeight < 5 {
+		return v.todosBox(width, height)
+	}
+
+	return lipgloss.JoinVertical(lipgloss.Left,
+		v.todosBox(width, topHeight),
+		"",
+		components.RenderPanel(v.detailTitle(), splitLines(v.todoDetail()),
+			width, bottomHeight, false),
+	)
+}
+
+// todosBox renders the to-do list itself.
+func (v *TodosView) todosBox(width, height int) string {
 	visible := v.visible()
-	left := renderRowsBox(leftWidth, height,
+	rows := make([]listRow, len(visible))
+	for i, t := range visible {
+		rows[i] = todoRow(t)
+	}
+	rowWidth := width - components.SelectionGutter
+	cols := measureColumns(rows, rowWidth)
+
+	return renderRowsBox(width, height,
 		v.search.title("Todos", len(visible), len(v.todos)),
-		len(visible), func(i int) string { return todoRow(visible[i]) },
+		len(visible), func(i int) string { return renderListRow(rows[i], cols, rowWidth) },
 		v.cursor, &v.scroll)
-
-	right := components.RenderPanel(v.detailTitle(), splitLines(v.todoDetail()),
-		rightWidth-4, height, false)
-
-	return joinPanels(left, right, height)
 }
 
 func (v *TodosView) detailTitle() string {
@@ -186,19 +217,26 @@ func (v *TodosView) detailTitle() string {
 	return "Todo"
 }
 
-// todoRow renders one list row: when it arrived, why it is there, which project,
-// and what it is about.
-func todoRow(t gitlab.Todo) string {
+// todoRow describes one to-do row: why it is there, what it points at, which
+// project it is in, and when it arrived.
+//
+// Why it is there takes the column the other lists give the kind of change, because
+// it is the thing you triage on — a conflict is not a mention. That leaves the
+// title's own "feat:" prefix to be dimmed inline instead of aligned.
+func todoRow(t gitlab.Todo) listRow {
 	project := t.ProjectPath
 	if i := strings.LastIndex(project, "/"); i >= 0 {
 		project = project[i+1:] // the group repeats on every row; the project does not
 	}
-	return fmt.Sprintf("%s %s %s  %s",
-		components.MutedStyle.Render(util.TimeAgoShort(t.CreatedAt)),
-		todoActionTag(t.Action),
-		components.MutedStyle.Render(components.PadRight(components.Truncate(project, 16), 16)),
-		refAndTitle(t.Reference, t.Title),
-	)
+	return listRow{
+		ref:       t.Reference,
+		kind:      todoActionShort(t.Action),
+		kindColor: todoActionColor(t.Action),
+		subject:   t.Title,
+		dimPrefix: true,
+		extra:     project,
+		stamp:     commitStamp(t.CreatedAt),
+	}
 }
 
 func (v *TodosView) todoDetail() string {
@@ -252,19 +290,18 @@ func todoLabel(t gitlab.Todo) string {
 	return t.Reference + " " + t.Title
 }
 
-// todoActionTag is the fixed-width column saying why a to-do exists. Only the
-// ones that mean something is broken or blocked take a colour; the rest are the
-// same weight as the other metadata, or the list would be a wall of colour.
-func todoActionTag(action string) string {
-	word := components.PadRight(components.Truncate(todoActionShort(action), 8), 8)
+// todoActionColor colours the column that says why a to-do exists. Only the ones
+// that mean something is broken or blocked take a colour; the rest stay the same
+// weight as the other metadata, or the list would be a wall of colour. nil is that
+// default grey.
+func todoActionColor(action string) color.Color {
 	switch action {
 	case "build_failed", "unmergeable", "merge_train_removed":
-		return lipgloss.NewStyle().Foreground(components.ColorError).Render(word)
+		return components.ColorError
 	case "approval_required", "review_requested":
-		return lipgloss.NewStyle().Foreground(components.ColorWarning).Render(word)
-	default:
-		return components.MutedStyle.Render(word)
+		return components.ColorWarning
 	}
+	return nil
 }
 
 // todoActionShort is the one-word form of GitLab's action name, for the column.
@@ -331,10 +368,15 @@ func todoActionWord(action string) string {
 
 // KeyHints implements View.
 func (v *TodosView) KeyHints() []KeyHint {
+	toggle := KeyHint{"t", "Hide detail"}
+	if v.detailHidden {
+		toggle = KeyHint{"t", "Show detail"}
+	}
 	return []KeyHint{
 		{"Enter/o", "Open"},
 		{"d", "Done"},
 		{"D", "All done"},
+		toggle,
 		{"y/Y", "Copy ref/link"},
 		v.search.hint(),
 	}

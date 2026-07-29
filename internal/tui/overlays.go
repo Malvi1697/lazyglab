@@ -517,6 +517,7 @@ func helpEntries() []helpEntry {
 
 		{"Dashboard", ""},
 		{"Tab", "Commits / readme"},
+		{"t", "Fold the readme away, for a small window"},
 		{"j / k", "Move or scroll, whichever has focus"},
 
 		{"Commit lists", ""},
@@ -575,6 +576,7 @@ func helpEntries() []helpEntry {
 		{"Enter / o", "Open it on GitLab"},
 		{"d", "Mark the highlighted todo done"},
 		{"D", "Mark the whole list done"},
+		{"t", "Fold the detail below the list away"},
 		{"y / Y", "Copy the reference / the link"},
 	}
 }

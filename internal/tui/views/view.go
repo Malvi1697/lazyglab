@@ -2,6 +2,7 @@ package views
 
 import (
 	"fmt"
+	"image/color"
 	"strings"
 	"time"
 
@@ -121,20 +122,153 @@ func DefaultViewIndex(views []ViewID, name string) int {
 	return 0
 }
 
-// A commit row reads left to right as: what kind of change it is, how CI went, what
-// it says, who wrote it, and when.
+// Every list in the app is laid out the same way, because they are all the same
+// kind of thing: something with a name, a state, a subject, and some metadata about
+// who and when. Left to right —
 //
-// The when is at the far right, past the author, rather than opening the row: it is
-// the thing you look up rather than scan, and nineteen columns of metadata before
-// the message was that much of every row spent on something the eye skips. The kind
-// keeps a column of its own — "fix:" and "refactor:" are different lengths, and
-// inline they left every subject starting somewhere else.
+//	 !42   feat: ● capacity-aware promotion        jiri.kucera   promo-cap   28.7. 20:28
+//	        fix: ▲ count only free wild cards      Jan Všetíček              27.7. 15:35
+//	#1234       · Login crashes on Safari          alice                      4.7. 09:02
+//
+// what it is called, what kind of change it is, how CI went, what it says, then who,
+// where, and when.
+//
+// The when is at the far right rather than opening the row: it is the thing you look
+// up rather than scan, and nineteen columns of metadata before the message was that
+// much of every row spent on something the eye skips. The name and the kind keep
+// columns of their own and are right-aligned, so the numbers and the colons line up
+// and the subject starts in the same place on every row.
+//
+// Each list fills them in as far as it has them; an empty column costs nothing.
 const (
-	authorWidth  = 14 // the author column
-	kindMax      = 10 // "refactor:" is the longest that matters
-	subjectMin   = 20 // below this the row is too narrow to bother aligning
-	updatedWidth = 14 // "30.12.25 08:00", the widest whole timestamp
+	refWidth    = 5  // "!219", "#1234"
+	kindMax     = 10 // "refactor:" is the longest that matters
+	authorWidth = 14 // the author column
+	extraMax    = 18 // a source branch, a project name
+	stampWidth  = 14 // "30.12.25 08:00", the widest whole timestamp
+	subjectMin  = 20 // below this the row is too narrow to bother aligning
 )
+
+// listRow is what one row says. Every field is optional: a list that has no CI to
+// report, or no author, simply leaves it empty and no column is drawn for it.
+type listRow struct {
+	ref     string // how you refer to it: "!42", "#7"
+	kind    string // "feat:", or why a to-do exists
+	icon    string // the CI mark, two cells including its trailing space
+	subject string
+	author  string
+	extra   string // a source branch, a project — whatever the list's third fact is
+	stamp   string // when, from commitStamp
+
+	// kindColor overrides the metadata grey for the kind, which the to-do list uses
+	// to say that something is broken rather than merely waiting.
+	kindColor color.Color
+	// dimPrefix dims a conventional prefix inside the subject, for a list whose kind
+	// column says something else and so cannot hold it.
+	dimPrefix bool
+}
+
+// listColumns is the measured width of each column of a list.
+type listColumns struct{ ref, kind, icon, subject, author, extra, stamp int }
+
+// measureColumns sizes the columns to the whole list — not to the visible window, so
+// scrolling never shifts the text sideways — and gives the subject everything left
+// over, which is what puts the right-hand columns against the right edge instead of
+// trailing whatever the longest subject happened to be.
+func measureColumns(rows []listRow, width int) listColumns {
+	var cols listColumns
+	measure := func(get func(listRow) string, maxWidth int) int {
+		values := make([]string, len(rows))
+		for i, r := range rows {
+			values[i] = get(r)
+		}
+		return columnWidth(values, 0, maxWidth)
+	}
+
+	cols.ref = measure(func(r listRow) string { return r.ref }, refWidth)
+	cols.kind = measure(func(r listRow) string { return r.kind }, kindMax)
+	cols.author = measure(func(r listRow) string { return r.author }, authorWidth)
+	cols.extra = measure(func(r listRow) string { return r.extra }, extraMax)
+	cols.stamp = measure(func(r listRow) string { return r.stamp }, stampWidth)
+	for _, r := range rows {
+		if r.icon != "" {
+			cols.icon = lipgloss.Width(r.icon)
+			break
+		}
+	}
+
+	left := cols.icon // the icon carries its own trailing space
+	for _, w := range []int{cols.ref, cols.kind} {
+		if w > 0 {
+			left += w + 1
+		}
+	}
+	right := 0
+	for _, w := range []int{cols.author, cols.extra, cols.stamp} {
+		if w > 0 {
+			right += w + 1
+		}
+	}
+	cols.subject = max(width-left-right, subjectMin)
+	return cols
+}
+
+// renderListRow renders one row to the widths measured for its list.
+func renderListRow(r listRow, cols listColumns, width int) string {
+	kindStyle := components.MutedStyle
+	if r.kindColor != nil {
+		kindStyle = lipgloss.NewStyle().Foreground(r.kindColor)
+	}
+
+	// The left-hand columns are right-aligned and the CI mark follows them, so all of
+	// it sits against the message: the numbers line up, the colons line up, the marks
+	// line up, and the only ragged edge is the blank at the very left. With the mark
+	// out on the edge instead, it was stranded across a gap that changed width from
+	// row to row.
+	row := ""
+	if cols.ref > 0 {
+		row += components.MutedStyle.Render(padLeft(components.Truncate(r.ref, cols.ref), cols.ref)) + " "
+	}
+	if cols.kind > 0 {
+		row += kindStyle.Render(padLeft(components.Truncate(r.kind, cols.kind), cols.kind)) + " "
+	}
+	row += r.icon
+
+	subject := components.PadRight(components.Truncate(r.subject, cols.subject), cols.subject)
+	if r.dimPrefix {
+		row += styleCommitTitle(subject)
+	} else {
+		row += components.BodyStyle.Render(subject)
+	}
+
+	// The right-hand columns come along only if they fit beside the rest, never
+	// instead of it: on a narrow terminal the message is what matters, and a branch
+	// cut to eight characters says nothing.
+	for _, col := range []struct {
+		width int
+		text  string
+		right bool
+	}{
+		{cols.author, r.author, false},
+		{cols.extra, r.extra, false},
+		{cols.stamp, r.stamp, true},
+	} {
+		if col.width == 0 {
+			continue
+		}
+		if lipgloss.Width(row)+1+col.width > width {
+			break
+		}
+		text := components.Truncate(col.text, col.width)
+		if col.right {
+			text = padLeft(text, col.width)
+		} else {
+			text = components.PadRight(text, col.width)
+		}
+		row += " " + components.MutedStyle.Render(text)
+	}
+	return row
+}
 
 // commitStamp is a commit's whole timestamp, date and time together, for the column
 // at the right. Empty for a commit GitLab gave no date.
@@ -169,29 +303,6 @@ func columnWidth(values []string, minWidth, maxWidth int) int {
 	return min(max(widest, minWidth), maxWidth)
 }
 
-// commitLayout is the measured width of a commit list's columns.
-type commitLayout struct{ kind, subject, updated int }
-
-// commitColumns measures them over the whole list, so every row lines up.
-func commitColumns(titles, stamps []string, width int) (cols commitLayout) {
-	kinds := make([]string, len(titles))
-	subjects := make([]string, len(titles))
-	for i, title := range titles {
-		kinds[i], subjects[i] = splitConventional(title)
-	}
-
-	cols.kind = columnWidth(kinds, 0, kindMax)
-	cols.updated = columnWidth(stamps, 0, updatedWidth)
-
-	// kind + space + icon(2, with its space) + subject + space + author + space + when
-	room := width - cols.kind - 1 - 2 - 1 - authorWidth - 1 - cols.updated
-
-	// The subject takes what is left, so the two right-hand columns land against the
-	// right edge rather than trailing whatever the longest subject happened to be.
-	cols.subject = max(room, subjectMin)
-	return cols
-}
-
 // splitConventional splits "feat(scope): subject" into the kind of change and what
 // it says. A title that is not conventional is all subject.
 //
@@ -211,16 +322,6 @@ func splitConventional(title string) (kind, subject string) {
 	return kind + ":", title[i+2:]
 }
 
-// refAndTitle renders a row that names something by number — "!42", "#7" — and
-// then says what it is. The number is how you refer to it, not what it is about,
-// so it is metadata to scan past, exactly like a commit's "feat(scope):" prefix.
-func refAndTitle(ref, title string) string {
-	if ref == "" {
-		return styleCommitTitle(title)
-	}
-	return components.MutedStyle.Render(ref) + " " + styleCommitTitle(title)
-}
-
 // styleCommitTitle dims a leading "type(scope):" so the subject stands out. Used
 // where a title is one column rather than two — the merge-request and issue lists.
 func styleCommitTitle(title string) string {
@@ -238,32 +339,6 @@ func padLeft(s string, w int) string {
 		return strings.Repeat(" ", pad) + s
 	}
 	return s
-}
-
-// commitRow renders one row with the widths commitColumns measured for its list.
-func commitRow(icon, author, title, when string, cols commitLayout, width int) string {
-	kind, subject := splitConventional(title)
-
-	// The kind is right-aligned and the CI mark follows it, so both sit against the
-	// message: the colons line up, the marks line up, and the only ragged edge is the
-	// blank at the very left. With the mark out on the edge instead, it was stranded
-	// across a gap that changed width from row to row.
-	row := fmt.Sprintf("%s %s%s",
-		components.MutedStyle.Render(padLeft(components.Truncate(kind, cols.kind), cols.kind)),
-		icon, // already carries its own trailing space
-		components.BodyStyle.Render(components.PadRight(components.Truncate(subject, cols.subject), cols.subject)),
-	)
-
-	// The two right-hand columns come along only if they fit beside the rest, never
-	// instead of it: on a narrow terminal the message is what matters.
-	if lipgloss.Width(row)+1+authorWidth <= width {
-		row += " " + components.MutedStyle.Render(
-			components.PadRight(components.Truncate(author, authorWidth), authorWidth))
-	}
-	if cols.updated > 0 && lipgloss.Width(row)+1+cols.updated <= width {
-		row += " " + components.MutedStyle.Render(padLeft(when, cols.updated))
-	}
-	return row
 }
 
 // statusCmd puts a line in the shell's status bar.

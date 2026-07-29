@@ -35,9 +35,12 @@ func todosView() *TodosView {
 
 func TestTodos_RowSaysWhyItIsThereAndWhere(t *testing.T) {
 	v := todosView()
-	row := plain(todoRow(v.visible()[0]))
+	row := plain(renderRow(todoRow(v.visible()[0]), 120))
 
-	for _, want := range []string{"2h", "review", "api", "!42", "Fix the cart"} {
+	// The stamp is derived, not hardcoded: a test that says "2h" breaks whenever the
+	// list is laid out in another unit.
+	when := commitStamp(v.visible()[0].CreatedAt)
+	for _, want := range []string{when, "review", "api", "!42", "Fix the cart"} {
 		if !strings.Contains(row, want) {
 			t.Errorf("row = %q, want it to contain %q", row, want)
 		}

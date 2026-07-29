@@ -161,6 +161,33 @@ The five views:
 waiting on me" rather than "what is happening here", which is the question you have
 before you have picked a project. Set `default_view: todos` to land there.
 
+### One list, laid out the same way everywhere
+
+Every list is the same table, because every row is the same kind of thing: what it
+is called, what kind of change it is, how CI went, what it says, then who, where,
+and when.
+
+```
+  !16 feat: · split registration into two tables    jiri.kucera    registered_w…  1.6. 13:04
+  !12       · Test mr                               pavel.zehnula  test-MR        1.6. 13:04
+   !9  wip: · deprecate User.club in favour of …    michal.dolezel user-club     27.3. 16:47
+```
+
+The numbers and the prefixes are right-aligned, so they line up and every subject
+starts in the same column; the metadata stays grey and the message keeps the
+default weight. The columns are measured over the whole list, so scrolling never
+shifts the text sideways, and the ones at the right drop off on a narrow terminal
+in the order you would give them up — the message is what matters.
+
+The lists take the **whole width**. There is no preview panel restating the
+highlighted row: `Enter` opens the real thing (the jobs, the merge-request page,
+the issue and its discussion), and half the width spent on a summary was coming
+out of the titles.
+
+**`t` folds the second box away** where there is one — the README under the
+dashboard, the reason under a to-do. In a small window those rows are better spent
+on the list, and the footer says which way the key goes.
+
 The README is rendered as terminal text rather than converted: headings take the
 accent, list bullets and quotes their marker, fenced code goes grey. It is fetched
 once per project and branch — it is the one thing on the page that does not change
@@ -347,8 +374,10 @@ Overview is shown first, and auto-refresh runs every 30s.
 | `?` | Help overlay |
 | `1-5` | Switch view |
 | `Tab` / `Shift+Tab` | Cycle the boxes inside the active view |
-| `h` / `l` | Previous / next view |
+| `H` / `L` | Previous / next view |
 | `[` / `]` | Previous / next view |
+| `h` / `l`, `←` / `→` | Move *within* what is open (between commits, between a commit's files) |
+| `t` | Fold the second box away, where the view has one |
 | `P` | Project switcher (`f` stars the highlighted project) |
 | `f` | Favorites picker (`f` again unstars) |
 | `/` | Search inside the project / branch picker |
@@ -395,7 +424,22 @@ Overview is shown first, and auto-refresh runs every 30s.
 |-----|--------|
 | `o` | Open commit in browser |
 
-Overview is read-only and has no view-specific keys.
+### Dashboard
+
+| Key | Action |
+|-----|--------|
+| `Enter` | Open the commit page in place |
+| `Tab` | Move between the commits and the README |
+| `t` | Fold the README away |
+| `o` | Open the commit in a browser |
+
+### Todos
+
+| Key | Action |
+|-----|--------|
+| `Enter` / `o` | Open it on GitLab |
+| `d` / `D` | Mark the highlighted to-do / the whole list done |
+| `t` | Fold the detail below the list away |
 
 ## License
 
