@@ -134,7 +134,8 @@ func bodyFor(path string) string {
 		for i := range costSHAs {
 			nodes = append(nodes, fmt.Sprintf(
 				`{"id":"gid://gitlab/Ci::Pipeline/%d","stages":{"nodes":[
-				  {"name":"lint","status":"success"},{"name":"test","status":"success"}]}}`, 70+i))
+				  {"name":"lint","jobs":{"nodes":[{"status":"SUCCESS"}]}},
+				  {"name":"test","jobs":{"nodes":[{"status":"SUCCESS"}]}}]}}`, 70+i))
 		}
 		return `{"data":{"project":{"pipelines":{"nodes":[` + strings.Join(nodes, ",") + `]}}}}`
 

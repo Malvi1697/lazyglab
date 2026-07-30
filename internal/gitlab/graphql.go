@@ -91,15 +91,22 @@ func (c *Client) graphql(query string, variables map[string]any, out any) error 
 	return json.Unmarshal(envelope.Data, out)
 }
 
-// pipelineStagesQuery asks for the stages of specific pipelines. The filter is on
-// global ids ("gid://gitlab/Ci::Pipeline/724560"), which is what the REST id turns
-// into — there is no iids filter on this connection.
+// pipelineStagesQuery asks for the stages of specific pipelines, and for the status
+// of every job in them. The filter is on global ids
+// ("gid://gitlab/Ci::Pipeline/724560"), which is what the REST id turns into — there
+// is no iids filter on this connection.
+//
+// The jobs are the point. GitLab's own CiStage.status cannot be trusted: a stage
+// whose every job was canceled reports "success" (its own detailedStatus admits to
+// "status_warning"), so a pipeline that got nowhere showed three green marks and
+// then a screen of ⊗ when you pressed Enter. Deriving the mark from the jobs means
+// the row and the drill-down cannot disagree, because they are the same facts.
 const pipelineStagesQuery = `query ($path: ID!, $ids: [ID!]) {
   project(fullPath: $path) {
     pipelines(ids: $ids, first: 100) {
       nodes {
         id
-        stages { nodes { name status } }
+        stages { nodes { name jobs { nodes { status } } } }
       }
     }
   }
@@ -155,8 +162,12 @@ func (c *Client) readStages(projectPath string, batch []Pipeline, stages map[int
 					ID     string `json:"id"`
 					Stages struct {
 						Nodes []struct {
-							Name   string `json:"name"`
-							Status string `json:"status"`
+							Name string `json:"name"`
+							Jobs struct {
+								Nodes []struct {
+									Status string `json:"status"`
+								} `json:"nodes"`
+							} `json:"jobs"`
 						} `json:"nodes"`
 					} `json:"stages"`
 				} `json:"nodes"`
@@ -176,13 +187,52 @@ func (c *Client) readStages(projectPath string, batch []Pipeline, stages map[int
 		}
 		list := make([]Stage, 0, len(node.Stages.Nodes))
 		for _, s := range node.Stages.Nodes {
+			jobs := make([]string, 0, len(s.Jobs.Nodes))
+			for _, j := range s.Jobs.Nodes {
+				// GraphQL shouts its enums: SUCCESS, CANCELED.
+				jobs = append(jobs, strings.ToLower(util.StripANSI(j.Status)))
+			}
 			list = append(list, Stage{
 				Name:   util.StripANSI(s.Name),
-				Status: util.StripANSI(s.Status),
+				Status: StageStatus(jobs),
+				Jobs:   len(jobs),
 			})
 		}
 		stages[id] = list
 	}
+}
+
+// StageStatus is how a stage went, given how its jobs went: the worst thing that
+// happened to any of them, except that anything still moving wins — a stage with a
+// failed job and a running one is still running.
+//
+// This is what the mark in the pipeline list shows, rather than GitLab's own
+// CiStage.status, which calls a stage of nothing-but-canceled jobs a success.
+func StageStatus(jobs []string) string {
+	// Read down the list: the first state present is the one the stage is in.
+	for _, want := range []string{
+		"running",
+		"failed",
+		"canceled", "canceling",
+		"pending", "created", "waiting_for_resource", "preparing", "scheduled",
+		"manual",
+		"success",
+	} {
+		for _, got := range jobs {
+			if got != want {
+				continue
+			}
+			switch want {
+			case "canceling":
+				return "canceled"
+			case "created", "waiting_for_resource", "preparing", "scheduled":
+				return "pending"
+			}
+			return want
+		}
+	}
+	// No jobs at all, or only skipped ones: nothing ran here.
+	return "skipped"
 }
 
 // pipelineIDFromGID reads the numeric id out of "gid://gitlab/Ci::Pipeline/724560".

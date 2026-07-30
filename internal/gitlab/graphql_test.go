@@ -35,11 +35,27 @@ func (h *stagesHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write([]byte(h.body))
 }
 
+// The shape GitLab really sends: stages carrying their jobs, statuses shouted.
 const twoPipelineStages = `{"data":{"project":{"pipelines":{"nodes":[
 	{"id":"gid://gitlab/Ci::Pipeline/724560","stages":{"nodes":[
-		{"name":"lint","status":"success"},{"name":"build","status":"success"},{"name":"deploy","status":"skipped"}]}},
+		{"name":"lint","jobs":{"nodes":[{"status":"SUCCESS"},{"status":"SUCCESS"}]}},
+		{"name":"build","jobs":{"nodes":[{"status":"SUCCESS"}]}},
+		{"name":"deploy","jobs":{"nodes":[{"status":"SKIPPED"}]}}]}},
 	{"id":"gid://gitlab/Ci::Pipeline/724553","stages":{"nodes":[
-		{"name":"lint","status":"success"},{"name":"test","status":"failed"}]}}
+		{"name":"lint","jobs":{"nodes":[{"status":"SUCCESS"}]}},
+		{"name":"test","jobs":{"nodes":[{"status":"FAILED"},{"status":"SUCCESS"}]}}]}}
+]}}}}`
+
+// The pipeline that started all this: stage 5 to 7 hold nothing but canceled jobs,
+// and GitLab's own CiStage.status calls every one of them a success.
+const canceledPipelineStages = `{"data":{"project":{"pipelines":{"nodes":[
+	{"id":"gid://gitlab/Ci::Pipeline/724403","stages":{"nodes":[
+		{"name":"lint","status":"success","jobs":{"nodes":[{"status":"SUCCESS"},{"status":"SUCCESS"}]}},
+		{"name":"build","status":"canceled","jobs":{"nodes":[{"status":"CANCELED"},{"status":"SUCCESS"}]}},
+		{"name":"security","status":"canceled","jobs":{"nodes":[{"status":"FAILED"},{"status":"CANCELED"}]}},
+		{"name":"staging","status":"success","jobs":{"nodes":[{"status":"CANCELED"},{"status":"CANCELED"}]}},
+		{"name":"production","status":"success","jobs":{"nodes":[{"status":"CANCELED"}]}},
+		{"name":"operations","status":"success","jobs":{"nodes":[{"status":"CANCELED"}]}}]}}
 ]}}}}`
 
 func TestPipelineStages_OneRequestForTheWholePage(t *testing.T) {
@@ -65,6 +81,58 @@ func TestPipelineStages_OneRequestForTheWholePage(t *testing.T) {
 	}
 	if got := stages[724553]; len(got) != 2 || got[1].Name != "test" || got[1].Status != "failed" {
 		t.Errorf("pipeline 724553 stages = %v, want lint/test with test failed", got)
+	}
+	if got := stages[724560][0].Jobs; got != 2 {
+		t.Errorf("lint holds %d jobs, want 2", got)
+	}
+}
+
+func TestPipelineStages_ACanceledStageIsNotGreen(t *testing.T) {
+	// The bug this replaced: the row showed three green marks for a pipeline whose
+	// last three stages were nothing but canceled jobs, because that is what
+	// GitLab's CiStage.status said. The mark is derived from the jobs instead, so the
+	// row cannot disagree with what Enter shows.
+	h := &stagesHandler{body: canceledPipelineStages}
+	client, srv := setupTestClient(t, h)
+	defer srv.Close()
+
+	stages := client.PipelineStages("group/project", []Pipeline{{ID: 724403, Status: "canceled"}})
+
+	want := []string{"success", "canceled", "failed", "canceled", "canceled", "canceled"}
+	got := stages[724403]
+	if len(got) != len(want) {
+		t.Fatalf("got %d stages, want %d", len(got), len(want))
+	}
+	for i, w := range want {
+		if got[i].Status != w {
+			t.Errorf("stage %q = %q, want %q", got[i].Name, got[i].Status, w)
+		}
+	}
+}
+
+func TestStageStatus_TheWorstThingThatHappened(t *testing.T) {
+	tests := []struct {
+		name string
+		jobs []string
+		want string
+	}{
+		{"all passed", []string{"success", "success"}, "success"},
+		{"one failed", []string{"success", "failed"}, "failed"},
+		{"all canceled", []string{"canceled", "canceled"}, "canceled"},
+		{"canceled and passed", []string{"canceled", "success"}, "canceled"},
+		// Anything still moving wins: the stage has not finished failing yet.
+		{"failed but still running", []string{"failed", "running"}, "running"},
+		{"waiting to start", []string{"created", "created"}, "pending"},
+		{"manual", []string{"manual", "success"}, "manual"},
+		{"nothing ran", []string{"skipped", "skipped"}, "skipped"},
+		{"no jobs at all", nil, "skipped"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := StageStatus(tt.jobs); got != tt.want {
+				t.Errorf("StageStatus(%v) = %q, want %q", tt.jobs, got, tt.want)
+			}
+		})
 	}
 }
 

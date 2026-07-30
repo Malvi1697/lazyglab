@@ -2,6 +2,7 @@ package views
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -91,7 +92,7 @@ func (p *jobsPanel) closeTrace() {
 
 // setJobs absorbs a loaded job list, keeping the cursor in range.
 func (p *jobsPanel) setJobs(jobs []gitlab.Job) {
-	p.jobs = jobs
+	p.jobs = inStageOrder(jobs)
 	p.rows, p.rowOf = nil, nil // rebuilt on the next frame
 	if p.cursor >= len(p.jobs) {
 		p.cursor = len(p.jobs) - 1
@@ -99,6 +100,34 @@ func (p *jobsPanel) setJobs(jobs []gitlab.Job) {
 	if p.cursor < 0 {
 		p.cursor = 0
 	}
+}
+
+// inStageOrder puts the jobs into the order the pipeline runs them, grouped by
+// stage: lint, then build, then deploy.
+//
+// GitLab lists jobs newest first, which is the reverse — the panel opened on
+// "operations" and ended at "lint", so it read bottom-up against the row of stage
+// marks in the pipeline list, and comparing the two was guesswork. Job ids grow
+// with the pipeline, so the smallest id in a stage says when that stage started.
+func inStageOrder(jobs []gitlab.Job) []gitlab.Job {
+	firstOf := make(map[string]int, len(jobs))
+	for _, j := range jobs {
+		if at, seen := firstOf[j.Stage]; !seen || j.ID < at {
+			firstOf[j.Stage] = j.ID
+		}
+	}
+
+	ordered := make([]gitlab.Job, len(jobs))
+	copy(ordered, jobs)
+	sort.SliceStable(ordered, func(a, b int) bool {
+		if firstOf[ordered[a].Stage] != firstOf[ordered[b].Stage] {
+			return firstOf[ordered[a].Stage] < firstOf[ordered[b].Stage]
+		}
+		// Within a stage, the order they were created in — a matrix job's variants
+		// read as a block rather than shuffled.
+		return ordered[a].ID < ordered[b].ID
+	})
+	return ordered
 }
 
 // setTrace absorbs a loaded log.

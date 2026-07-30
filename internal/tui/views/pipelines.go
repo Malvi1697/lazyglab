@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"github.com/Malvi1697/lazyglab/internal/gitlab"
 	"github.com/Malvi1697/lazyglab/internal/tui/components"
@@ -43,6 +44,9 @@ type PipelinesView struct {
 	// shows in its own list. Fetched for the whole page in one request once the
 	// pipelines are in hand, so the list is never waiting on it.
 	stages map[int][]gitlab.Stage
+	// stagesHidden folds the box that names them away, and starts folded. Session-only,
+	// like every other "t".
+	stagesHidden bool
 
 	search listSearch
 
@@ -54,7 +58,7 @@ type PipelinesView struct {
 
 // NewPipelinesView creates a PipelinesView bound to the shared session context.
 func NewPipelinesView(ctx *Context) *PipelinesView {
-	return &PipelinesView{ctx: ctx, jobs: jobsPanel{ctx: ctx}}
+	return &PipelinesView{ctx: ctx, jobs: jobsPanel{ctx: ctx}, stagesHidden: true}
 }
 
 // Title implements View.
@@ -193,6 +197,11 @@ func (v *PipelinesView) handleKey(msg tea.KeyMsg) tea.Cmd {
 		return nil
 	}
 
+	if key == keyToggleBox {
+		v.stagesHidden = !v.stagesHidden
+		return nil
+	}
+
 	// Pipeline list navigation
 	if act := components.NavFor(key); act != components.NavNone {
 		v.cursor = components.ApplyNav(act, v.cursor, len(v.visible()), listRows(v.height))
@@ -258,6 +267,28 @@ func (v *PipelinesView) Body(width, height int) string {
 		return v.jobs.body(width, height)
 	}
 
+	// The marks say how far each pipeline got, but not which mark is which stage. The
+	// box below names them for the highlighted row, out of the stages already in hand
+	// — no request, and no need to drill in to find out what you are looking at. It
+	// starts folded, because the list is what the page is for.
+	if v.stagesHidden {
+		return v.listBox(width, height)
+	}
+	const gap = 1
+	bottomHeight := max(min(len(v.stages[v.selectedID()])+1, height/2), 4)
+	topHeight := height - gap - bottomHeight
+	if topHeight < 5 {
+		return v.listBox(width, height)
+	}
+	return lipgloss.JoinVertical(lipgloss.Left,
+		v.listBox(width, topHeight),
+		"",
+		components.RenderPanel(v.stagesTitle(), v.stageLines(), width, bottomHeight, false),
+	)
+}
+
+// listBox renders the pipeline list itself.
+func (v *PipelinesView) listBox(width, height int) string {
 	visible := v.visible()
 	rows := make([]listRow, len(visible))
 	for i, p := range visible {
@@ -270,6 +301,53 @@ func (v *PipelinesView) Body(width, height int) string {
 		v.search.title("Pipelines", len(visible), len(v.pipelines)),
 		len(visible), func(i int) string { return renderListRow(rows[i], cols, rowWidth) },
 		v.cursor, &v.scroll)
+}
+
+// selectedID is the highlighted pipeline's ID, or 0.
+func (v *PipelinesView) selectedID() int {
+	if p := v.selectedPipeline(); p != nil {
+		return p.ID
+	}
+	return 0
+}
+
+func (v *PipelinesView) stagesTitle() string {
+	if p := v.selectedPipeline(); p != nil {
+		return fmt.Sprintf("Stages (#%d)", p.ID)
+	}
+	return "Stages"
+}
+
+// stageLines names the highlighted pipeline's stages, in the order it ran them —
+// the same order as the marks on its row, and as the groups Enter opens.
+func (v *PipelinesView) stageLines() []string {
+	stages := v.stages[v.selectedID()]
+	if len(stages) == 0 {
+		if v.selectedPipeline() == nil {
+			return nil
+		}
+		return []string{components.HelpDescStyle.Render("No stages reported for this pipeline")}
+	}
+
+	width := 0
+	for _, s := range stages {
+		if n := lipgloss.Width(s.Name); n > width {
+			width = n
+		}
+	}
+
+	lines := make([]string, 0, len(stages))
+	for _, s := range stages {
+		jobs := fmt.Sprintf("%d jobs", s.Jobs)
+		if s.Jobs == 1 {
+			jobs = "1 job"
+		}
+		lines = append(lines, fmt.Sprintf("  %s %s  %s",
+			components.StatusIcon(s.Status),
+			components.PadRight(s.Name, width),
+			components.MutedStyle.Render(jobs)))
+	}
+	return lines
 }
 
 // pipelineRow describes one pipeline row: what it built, how it went stage by
@@ -321,8 +399,13 @@ func (v *PipelinesView) KeyHints() []KeyHint {
 	if v.viewingJobs {
 		return v.jobs.keyHints()
 	}
+	stages := KeyHint{"t", "Hide stages"}
+	if v.stagesHidden {
+		stages = KeyHint{"t", "Name the stages"}
+	}
 	return []KeyHint{
 		{"Enter", "Jobs"},
+		stages,
 		{"p", "Run"},
 		{"R", "Retry"},
 		{"C", "Cancel"},

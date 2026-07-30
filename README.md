@@ -152,7 +152,7 @@ The five views:
 | # | View | What it shows |
 |---|------|----------------|
 | 1 | **Dashboard** | The project's front page: recent commits with their CI status. `t` brings the project's README up below them, `Tab` moves between the two. Default view. |
-| 2 | **Pipelines** | Pipeline list with a mark per stage, so you can see where each one got to; `Enter` drills into the jobs grouped by stage, and into a job's log. |
+| 2 | **Pipelines** | Pipeline list with a mark per stage, so you can see where each one got to; `t` names those stages, `Enter` drills into the jobs grouped by stage, and into a job's log. |
 | 3 | **Merge Requests** | Open MRs; `Enter` opens the full merge-request page in place, with approve/merge. |
 | 4 | **Issues** | Open issues, with close/reopen; `Enter` opens the issue page and its discussion. |
 | 5 | **Todos** | Your GitLab To-Do list, across every project: reviews asked of you, mentions, assignments, failed pipelines. `d` marks one done, `D` clears the list. |
@@ -183,10 +183,16 @@ The pipeline list carries one mark per stage, the way GitLab's own does — wher
 pipeline got to, and where it stopped, without opening it:
 
 ```
- feat: ● add association application link       ● ● ● ◌ ◌ ◌   main   30.7. 12:53
- feat: ⊗ show division rating limits            ● ● ● ⊗ ● ● ● main   30.7. 12:42
-  fix: ▲ handle 409 conflict on league change   ● ● ● ● ◌ ◌ ◌ main   30.7. 12:07
+ feat: ● add association application link       ● ● ● ▶ ▶ ▶   main   30.7. 12:53
+  fix: ⊗ let VR members use the payments admin  ● ⊗ ● ⊗ ⊗ ⊗ ⊗ main   30.7. 08:30
+  fix: ▲ handle 409 conflict on league change   ● ● ● ● ▶ ▶ ▶ main   30.7. 12:07
 ```
+
+Each mark is worked out from that stage's jobs, not from what GitLab calls the
+stage: GitLab reports a stage of nothing-but-canceled jobs as a success, which put
+green marks on a pipeline that got nowhere. Left to right is the order the pipeline
+ran them, which is the order `t` names them in and the order `Enter` groups the
+jobs in — so the third mark is the third stage in both.
 
 The lists take the **whole width**. There is no preview panel restating the
 highlighted row: `Enter` opens the real thing (the jobs, the merge-request page,
@@ -415,6 +421,9 @@ Overview is shown first, and auto-refresh runs every 30s.
 | `o` | Open in browser |
 | `Esc` | Back (job log → jobs → pipeline list) |
 
+Pipelines also takes `t`, which names the stages behind the marks on the
+highlighted row.
+
 ### Merge Requests
 
 | Key | Action |
@@ -442,6 +451,7 @@ Overview is shown first, and auto-refresh runs every 30s.
 |-----|--------|
 | `Enter` | Open the commit page in place |
 | `t` | Show / fold the README (folded when the view opens) |
+
 | `Tab` | Move between the commits and the README, once it is up |
 | `o` | Open the commit in a browser |
 

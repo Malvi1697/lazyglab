@@ -125,7 +125,8 @@ type Job struct {
 // own pipeline list shows, which says where a pipeline got to without opening it.
 type Stage struct {
 	Name   string
-	Status string
+	Status string // derived from the jobs by StageStatus, not taken from GitLab
+	Jobs   int    // how many jobs it holds
 }
 
 // Branch represents a GitLab repository branch.
