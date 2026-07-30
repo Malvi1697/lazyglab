@@ -18,5 +18,12 @@ func setupTestClient(t *testing.T, handler http.Handler) (*Client, *httptest.Ser
 		srv.Close()
 		t.Fatalf("creating test gitlab client: %v", err)
 	}
-	return &Client{api: apiClient, hostname: "test.gitlab.com"}, srv
+	// token and baseURL as well, so the GraphQL query reaches the same test server
+	// the REST calls do.
+	return &Client{
+		api:      apiClient,
+		hostname: "test.gitlab.com",
+		token:    "test-token",
+		baseURL:  srv.URL + "/api/v4",
+	}, srv
 }

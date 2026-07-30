@@ -126,6 +126,18 @@ func bodyFor(path string) string {
 		}
 		return "[" + strings.Join(items, ",") + "]"
 
+	case "/api/graphql":
+		// The stages query, answered for whichever pipelines were asked about. The
+		// fixture always returns the same three stages; what the test cares about is
+		// how often it is asked.
+		var nodes []string
+		for i := range costSHAs {
+			nodes = append(nodes, fmt.Sprintf(
+				`{"id":"gid://gitlab/Ci::Pipeline/%d","stages":{"nodes":[
+				  {"name":"lint","status":"success"},{"name":"test","status":"success"}]}}`, 70+i))
+		}
+		return `{"data":{"project":{"pipelines":{"nodes":[` + strings.Join(nodes, ",") + `]}}}}`
+
 	case "/projects/:id/pipelines/:id":
 		return `{"id":70,"sha":"` + costSHAs[0] + `","ref":"main","status":"success",
 			"detailed_status":{"icon":"status_warning","text":"passed","label":"passed with warnings","group":"success-with-warnings"}}`
@@ -248,6 +260,31 @@ func TestAPICost_PipelineListDoesNotFanOutPerRow(t *testing.T) {
 	if second > 2 {
 		t.Errorf("refreshing 3 pipelines costs %d requests (first load %d); with 30 rows that is "+
 			"a per-row fan-out on every tick", second, first)
+	}
+
+	// The list is one request and the stage marks are one more for the whole page —
+	// the reason they come from GraphQL rather than from a jobs call per row.
+	if got := rec.counts["/api/graphql"]; got > 1 {
+		t.Errorf("the stages cost %d requests for one refresh, want at most 1", got)
+	}
+}
+
+func TestAPICost_FinishedPipelinesStagesAreAskedForOnce(t *testing.T) {
+	// A finished pipeline's stages cannot change, so the thirty-second refresh should
+	// stop asking about them entirely.
+	rec, ctx, done := costHarness(t)
+	defer done()
+
+	v := NewPipelinesView(ctx)
+	v.width, v.height = 120, 40
+
+	drain(v, v.Focus())
+	rec.reset()
+	drain(v, v.Focus())
+
+	if got := rec.counts["/api/graphql"]; got != 0 {
+		t.Errorf("a refresh asked for stages %d times, want none once they are cached%s",
+			got, func() string { _, table := rec.report(); return table }())
 	}
 }
 

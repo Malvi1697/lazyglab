@@ -16,6 +16,15 @@ type Client struct {
 	api      *gogitlab.Client
 	hostname string
 
+	// token and baseURL are kept for the one thing client-go cannot do: the GraphQL
+	// query in graphql.go, which is how a page of pipelines gets its stages in one
+	// request instead of thirty.
+	token   string
+	baseURL string
+	// httpClient overrides the transport, so the GraphQL query can be pointed at an
+	// httptest server.
+	httpClient *http.Client
+
 	// warningCache remembers which finished pipelines "passed with warnings".
 	// List endpoints do not report it, so it costs one request per pipeline —
 	// but a finished pipeline's verdict never changes, so it is asked once and
@@ -28,6 +37,10 @@ type Client struct {
 	// process. Without this a list of thirty pipelines cost thirty extra requests
 	// on every single auto-refresh.
 	titleCache sync.Map // SHA (string) -> title (string)
+
+	// stageCache remembers the stages of a finished pipeline, which are as
+	// immutable as its verdict.
+	stageCache sync.Map // pipeline ID (int) -> []Stage
 }
 
 // pipelineVerdict is the cached detailed status of a finished pipeline.
@@ -42,7 +55,7 @@ func NewClient(token, baseURL, hostname string) (*Client, error) {
 	if err != nil {
 		return nil, fmt.Errorf("creating gitlab client: %w", err)
 	}
-	return &Client{api: client, hostname: hostname}, nil
+	return &Client{api: client, hostname: hostname, token: token, baseURL: baseURL}, nil
 }
 
 // Hostname returns the hostname this client is connected to.

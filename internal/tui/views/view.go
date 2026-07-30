@@ -145,6 +145,7 @@ const (
 	kindMax     = 10 // "refactor:" is the longest that matters
 	authorWidth = 14 // the author column
 	extraMax    = 18 // a source branch, a project name
+	marksMax    = 24 // twelve stage marks, which is more stages than anyone has
 	stampWidth  = 14 // "30.12.25 08:00", the widest whole timestamp
 	subjectMin  = 20 // below this the row is too narrow to bother aligning
 )
@@ -156,6 +157,7 @@ type listRow struct {
 	kind    string // "feat:", or why a to-do exists
 	icon    string // the CI mark, two cells including its trailing space
 	subject string
+	marks   string // already-styled marks that follow the subject, one per pipeline stage
 	author  string
 	extra   string // a source branch, a project — whatever the list's third fact is
 	stamp   string // when, from commitStamp
@@ -169,7 +171,7 @@ type listRow struct {
 }
 
 // listColumns is the measured width of each column of a list.
-type listColumns struct{ ref, kind, icon, subject, author, extra, stamp int }
+type listColumns struct{ ref, kind, icon, subject, marks, author, extra, stamp int }
 
 // measureColumns sizes the columns to the whole list — not to the visible window, so
 // scrolling never shifts the text sideways — and gives the subject everything left
@@ -190,6 +192,10 @@ func measureColumns(rows []listRow, width int) listColumns {
 	cols.author = measure(func(r listRow) string { return r.author }, authorWidth)
 	cols.extra = measure(func(r listRow) string { return r.extra }, extraMax)
 	cols.stamp = measure(func(r listRow) string { return r.stamp }, stampWidth)
+	// The marks arrive already styled, so they are measured in display columns and
+	// never truncated: half a row of stage marks would be a lie about how far the
+	// pipeline got.
+	cols.marks = measure(func(r listRow) string { return r.marks }, marksMax)
 	for _, r := range rows {
 		if r.icon != "" {
 			cols.icon = lipgloss.Width(r.icon)
@@ -204,7 +210,7 @@ func measureColumns(rows []listRow, width int) listColumns {
 		}
 	}
 	right := 0
-	for _, w := range []int{cols.author, cols.extra, cols.stamp} {
+	for _, w := range []int{cols.marks, cols.author, cols.extra, cols.stamp} {
 		if w > 0 {
 			right += w + 1
 		}
@@ -245,19 +251,26 @@ func renderListRow(r listRow, cols listColumns, width int) string {
 	// instead of it: on a narrow terminal the message is what matters, and a branch
 	// cut to eight characters says nothing.
 	for _, col := range []struct {
-		width int
-		text  string
-		right bool
+		width  int
+		text   string
+		right  bool
+		styled bool
 	}{
-		{cols.author, r.author, false},
-		{cols.extra, r.extra, false},
-		{cols.stamp, r.stamp, true},
+		{cols.marks, r.marks, false, true},
+		{cols.author, r.author, false, false},
+		{cols.extra, r.extra, false, false},
+		{cols.stamp, r.stamp, true, false},
 	} {
 		if col.width == 0 {
 			continue
 		}
 		if lipgloss.Width(row)+1+col.width > width {
 			break
+		}
+		if col.styled {
+			// Already carries its own colours — the stage marks. Padding only.
+			row += " " + col.text + strings.Repeat(" ", max(col.width-lipgloss.Width(col.text), 0))
+			continue
 		}
 		text := components.Truncate(col.text, col.width)
 		if col.right {

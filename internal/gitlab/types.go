@@ -121,6 +121,13 @@ type Job struct {
 	StartedAt time.Time
 }
 
+// Stage is one stage of a pipeline and how it went — the row of marks GitLab's
+// own pipeline list shows, which says where a pipeline got to without opening it.
+type Stage struct {
+	Name   string
+	Status string
+}
+
 // Branch represents a GitLab repository branch.
 type Branch struct {
 	Name         string

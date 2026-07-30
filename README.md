@@ -152,7 +152,7 @@ The five views:
 | # | View | What it shows |
 |---|------|----------------|
 | 1 | **Dashboard** | The project's front page: recent commits with their CI status. `t` brings the project's README up below them, `Tab` moves between the two. Default view. |
-| 2 | **Pipelines** | Pipeline list; `Enter` drills into jobs grouped by stage, and into a job's log. |
+| 2 | **Pipelines** | Pipeline list with a mark per stage, so you can see where each one got to; `Enter` drills into the jobs grouped by stage, and into a job's log. |
 | 3 | **Merge Requests** | Open MRs; `Enter` opens the full merge-request page in place, with approve/merge. |
 | 4 | **Issues** | Open issues, with close/reopen; `Enter` opens the issue page and its discussion. |
 | 5 | **Todos** | Your GitLab To-Do list, across every project: reviews asked of you, mentions, assignments, failed pipelines. `d` marks one done, `D` clears the list. |
@@ -178,6 +178,15 @@ starts in the same column; the metadata stays grey and the message keeps the
 default weight. The columns are measured over the whole list, so scrolling never
 shifts the text sideways, and the ones at the right drop off on a narrow terminal
 in the order you would give them up — the message is what matters.
+
+The pipeline list carries one mark per stage, the way GitLab's own does — where a
+pipeline got to, and where it stopped, without opening it:
+
+```
+ feat: ● add association application link       ● ● ● ◌ ◌ ◌   main   30.7. 12:53
+ feat: ⊗ show division rating limits            ● ● ● ⊗ ● ● ● main   30.7. 12:42
+  fix: ▲ handle 409 conflict on league change   ● ● ● ● ◌ ◌ ◌ main   30.7. 12:07
+```
 
 The lists take the **whole width**. There is no preview panel restating the
 highlighted row: `Enter` opens the real thing (the jobs, the merge-request page,

@@ -25,14 +25,13 @@ func renderContextBar(width int, ctx *views.Context, status string, statusIsErr 
 		}
 	}
 
-	// The branch is what you check first, so it is bold; the project name is
-	// context and stays quieter. Neither takes the accent — that belongs to the
-	// active tab on the row below, which would otherwise have to compete with it.
+	// The branch is what you check first, so it takes the accent and the weight; the
+	// project name is context and stays a step behind it.
 	left := " "
 	if branch != "" {
-		left += lipgloss.NewStyle().Bold(true).Render(" "+branch) + "  "
+		left += components.TitleStyle.Render(" "+branch) + "  "
 	}
-	left += components.MutedStyle.Render(project)
+	left += lipgloss.NewStyle().Foreground(components.ColorText).Render(project)
 
 	// The refresh note keeps the far right; the status takes whatever is left
 	// between it and the project name. A long status (an API error, typically) must
@@ -65,8 +64,12 @@ func renderContextBar(width int, ctx *views.Context, status string, statusIsErr 
 // room to spare, and a notice there survives every status message. Tabs are
 // numbered by position (1-based). Full width.
 func renderTabs(width int, viewIDs []views.ViewID, active int, titles []string, notice string) string {
-	activeStyle := lipgloss.NewStyle().Bold(true).Foreground(components.ColorPrimary)
-	inactiveStyle := components.MutedStyle
+	// The tab you are on is the accent as a solid chip, not merely bold text in the
+	// accent's colour: a row of six similar labels needs one of them to be obviously
+	// the answer to "where am I". The rest take the light grey, which is a step
+	// brighter than metadata — they are labels you read, not data you scan past.
+	activeStyle := components.AccentChipStyle
+	inactiveStyle := lipgloss.NewStyle().Foreground(components.ColorText)
 
 	var parts []string
 	for i := range viewIDs {
@@ -76,7 +79,10 @@ func renderTabs(width int, viewIDs []views.ViewID, active int, titles []string, 
 		}
 		num := i + 1
 		if i == active {
-			parts = append(parts, activeStyle.Render(sprintTab("[", num, "] ", title)))
+			// The brackets stay inside the chip: with NO_COLOR, or in a terminal that
+			// swallows the background, they are the only thing left saying which tab
+			// you are on.
+			parts = append(parts, activeStyle.Render(sprintTab(" [", num, "] ", title+" ")))
 		} else {
 			parts = append(parts, inactiveStyle.Render(sprintTab(" ", num, " ", title)))
 		}

@@ -39,6 +39,11 @@ type PipelinesView struct {
 	cursor    int // indexes the visible (searched) list, not pipelines
 	scroll    int // first visible row of the pipeline list, kept across frames
 
+	// stages is how far each pipeline got, by pipeline ID: the row of marks GitLab
+	// shows in its own list. Fetched for the whole page in one request once the
+	// pipelines are in hand, so the list is never waiting on it.
+	stages map[int][]gitlab.Stage
+
 	search listSearch
 
 	// jobs is the shared, interactive jobs panel — the same one the commit page
@@ -90,6 +95,10 @@ func (v *PipelinesView) Update(msg tea.Msg) tea.Cmd {
 		}
 		v.pipelines = msg.Pipelines
 		v.clampCursor()
+		return v.loadStages()
+
+	case PipelineStagesLoadedMsg:
+		v.stages = msg.Stages
 		return nil
 
 	case JobsLoadedMsg:
@@ -252,7 +261,7 @@ func (v *PipelinesView) Body(width, height int) string {
 	visible := v.visible()
 	rows := make([]listRow, len(visible))
 	for i, p := range visible {
-		rows[i] = pipelineRow(p)
+		rows[i] = pipelineRow(p, v.stages[p.ID])
 	}
 	rowWidth := width - components.SelectionGutter
 	cols := measureColumns(rows, rowWidth)
@@ -263,9 +272,9 @@ func (v *PipelinesView) Body(width, height int) string {
 		v.cursor, &v.scroll)
 }
 
-// pipelineRow describes one pipeline row: what it built, how it went, on which
-// branch, and when it started.
-func pipelineRow(p gitlab.Pipeline) listRow {
+// pipelineRow describes one pipeline row: what it built, how it went stage by
+// stage, on which branch, and when it started.
+func pipelineRow(p gitlab.Pipeline, stages []gitlab.Stage) listRow {
 	title := p.CommitTitle
 	if title == "" {
 		title = p.Ref
@@ -281,9 +290,26 @@ func pipelineRow(p gitlab.Pipeline) listRow {
 		kind:    kind,
 		icon:    components.StatusIconPadded(status),
 		subject: subject,
+		marks:   stageMarks(stages),
 		extra:   p.Ref,
 		stamp:   commitStamp(p.CreatedAt),
 	}
+}
+
+// stageMarks is one mark per stage, in order, in the status colours the rest of the
+// app uses: the answer to "how far did it get, and where did it stop" without
+// opening the pipeline. Empty until the stages arrive, and empty for a pipeline
+// GitLab reports none for, so the row simply has no marks rather than a row of
+// placeholders pretending to be data.
+func stageMarks(stages []gitlab.Stage) string {
+	if len(stages) == 0 {
+		return ""
+	}
+	marks := make([]string, 0, len(stages))
+	for _, s := range stages {
+		marks = append(marks, components.StatusIcon(s.Status))
+	}
+	return strings.Join(marks, " ")
 }
 
 // ============================================================================
@@ -309,6 +335,20 @@ func (v *PipelinesView) KeyHints() []KeyHint {
 // ============================================================================
 // Commands (async API calls)
 // ============================================================================
+
+// loadStages asks for the stages of every pipeline now on screen — one request for
+// the page, and none at all once every finished pipeline in it is cached.
+func (v *PipelinesView) loadStages() tea.Cmd {
+	if v.ctx == nil || v.ctx.Project == nil || v.ctx.Client == nil || len(v.pipelines) == 0 {
+		return nil
+	}
+	client := v.ctx.Client
+	path := v.ctx.Project.PathWithNamespace
+	pipelines := v.pipelines
+	return func() tea.Msg {
+		return PipelineStagesLoadedMsg{Stages: client.PipelineStages(path, pipelines)}
+	}
+}
 
 func (v *PipelinesView) load() tea.Cmd {
 	if v.ctx == nil || v.ctx.Project == nil || v.ctx.Client == nil {

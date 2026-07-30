@@ -31,6 +31,13 @@ type PipelinesLoadedMsg struct {
 	Err       error
 }
 
+// PipelineStagesLoadedMsg carries the stages of the pipelines on screen, so the
+// list can say how far each one got. It follows the list rather than coming with
+// it: the rows are worth drawing before the marks arrive.
+type PipelineStagesLoadedMsg struct {
+	Stages map[int][]gitlab.Stage
+}
+
 // JobsLoadedMsg is sent when pipeline jobs have been fetched.
 type JobsLoadedMsg struct {
 	Jobs []gitlab.Job
@@ -175,20 +182,21 @@ type CommitDetailLoadedMsg struct {
 // appears to finish, or an error nobody is told about.
 type loadResult interface{ loadErr() error }
 
-func (m ProjectsLoadedMsg) loadErr() error     { return m.Err }
-func (m BranchesLoadedMsg) loadErr() error     { return m.Err }
-func (m PipelinesLoadedMsg) loadErr() error    { return m.Err }
-func (m JobsLoadedMsg) loadErr() error         { return m.Err }
-func (m JobTraceLoadedMsg) loadErr() error     { return m.Err }
-func (m MRsLoadedMsg) loadErr() error          { return m.Err }
-func (m IssuesLoadedMsg) loadErr() error       { return m.Err }
-func (m TodosLoadedMsg) loadErr() error        { return m.Err }
-func (m CommitsLoadedMsg) loadErr() error      { return m.Err }
-func (m CommitDetailLoadedMsg) loadErr() error { return m.Err }
-func (m MRDetailLoadedMsg) loadErr() error     { return m.Err }
-func (m IssueNotesLoadedMsg) loadErr() error   { return m.Err }
-func (m ReadmeLoadedMsg) loadErr() error       { return m.Err }
-func (m ErrorMsg) loadErr() error              { return m.Err }
+func (m ProjectsLoadedMsg) loadErr() error       { return m.Err }
+func (m BranchesLoadedMsg) loadErr() error       { return m.Err }
+func (m PipelinesLoadedMsg) loadErr() error      { return m.Err }
+func (m PipelineStagesLoadedMsg) loadErr() error { return nil }
+func (m JobsLoadedMsg) loadErr() error           { return m.Err }
+func (m JobTraceLoadedMsg) loadErr() error       { return m.Err }
+func (m MRsLoadedMsg) loadErr() error            { return m.Err }
+func (m IssuesLoadedMsg) loadErr() error         { return m.Err }
+func (m TodosLoadedMsg) loadErr() error          { return m.Err }
+func (m CommitsLoadedMsg) loadErr() error        { return m.Err }
+func (m CommitDetailLoadedMsg) loadErr() error   { return m.Err }
+func (m MRDetailLoadedMsg) loadErr() error       { return m.Err }
+func (m IssueNotesLoadedMsg) loadErr() error     { return m.Err }
+func (m ReadmeLoadedMsg) loadErr() error         { return m.Err }
+func (m ErrorMsg) loadErr() error                { return m.Err }
 
 // IsLoadResult reports whether a message is a data load reporting back, whether
 // it succeeded or not. The shell watches for these to know that a refresh it

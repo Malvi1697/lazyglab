@@ -20,8 +20,10 @@ import (
 // saturated things on screen, so they read as information.
 var (
 	ColorPrimary   = lipgloss.Color("13") // accent: focus, headings, selection
+	ColorText      = lipgloss.Color("7")  // light grey: legends and inactive tabs
 	ColorSecondary = lipgloss.Color("8")  // muted text: metadata
 	ColorFaint     = lipgloss.Color("8")  // structure; dimmed further via Faint
+	ColorOnAccent  = lipgloss.Color("0")  // text on top of the accent, always the darkest
 	ColorSuccess   = lipgloss.Color("2")
 	ColorError     = lipgloss.Color("1")
 	ColorWarning   = lipgloss.Color("3")
@@ -50,15 +52,23 @@ var (
 	// sits a step behind metadata even though both use the same palette entry.
 	FaintStyle = lipgloss.NewStyle().Foreground(ColorFaint).Faint(true)
 
-	// SelectedItemStyle is the current row of a list: the theme's grey behind
-	// bold text, rather than a saturated band.
-	SelectedItemStyle = lipgloss.NewStyle().Bold(true).Background(ColorSecondary)
+	// SelectedItemStyle is the current row of a list: the accent as a solid band,
+	// the way lazygit marks its selection. Grey behind bold text was tasteful and
+	// unreadable across a room — where you are should be the first thing you see.
+	SelectedItemStyle = lipgloss.NewStyle().Bold(true).
+				Background(ColorPrimary).Foreground(ColorOnAccent)
+
+	// AccentChipStyle is the accent as a background, for the tab you are on.
+	AccentChipStyle = lipgloss.NewStyle().Bold(true).
+			Background(ColorPrimary).Foreground(ColorOnAccent)
 
 	HelpKeyStyle = lipgloss.NewStyle().Bold(true).Foreground(ColorPrimary)
 
-	HelpDescStyle = lipgloss.NewStyle().Foreground(ColorSecondary)
+	// HelpDescStyle is the word beside a key. The legend is read, not scanned past,
+	// so it takes the light grey rather than the metadata grey.
+	HelpDescStyle = lipgloss.NewStyle().Foreground(ColorText)
 
-	HelpSepStyle = lipgloss.NewStyle().Foreground(ColorFaint).Faint(true)
+	HelpSepStyle = lipgloss.NewStyle().Foreground(ColorFaint)
 
 	ErrorStyle = lipgloss.NewStyle().Foreground(ColorError).Bold(true)
 )

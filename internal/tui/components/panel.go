@@ -26,15 +26,20 @@ func RenderPanel(title string, lines []string, width, height int, focused bool) 
 		height = 2
 	}
 
-	// Headings are bold, not accented. The accent marks one thing — where you are
-	// — and spending it on every heading as well leaves three coloured, bold rows
-	// stacked at the top of the screen, all shouting equally.
+	// The heading of the box that has the keys takes the accent, and its rule with
+	// it, so the page says where you are from across the room. A box that does not
+	// have focus keeps the metadata grey: two greys and one accent, rather than
+	// three bold rows all shouting equally.
 	titleStyle, ruleStyle := MutedTitleStyle, FaintStyle
 	if focused {
-		titleStyle = lipgloss.NewStyle().Bold(true)
+		titleStyle = TitleStyle
+		ruleStyle = lipgloss.NewStyle().Foreground(ColorPrimary)
 	}
 
-	head := titleStyle.Render(title)
+	// The rule runs into the title from the left as well, the way lazygit frames a
+	// panel's name: structure the eye can follow instead of a line that starts
+	// halfway across.
+	head := ruleStyle.Render("──") + " " + titleStyle.Render(title)
 	if fill := width - lipgloss.Width(head) - 1; fill > 0 {
 		head += " " + ruleStyle.Render(strings.Repeat("─", fill))
 	}

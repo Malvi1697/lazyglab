@@ -114,7 +114,7 @@ func TestListRow_EveryListIsLaidOutTheSameWay(t *testing.T) {
 	rows := map[string]listRow{
 		"merge request": mrRow(gitlab.MergeRequest{IID: 42, Title: "feat(cart): promote", Author: "jiri"}),
 		"issue":         issueRow(gitlab.Issue{IID: 7, Title: "fix(api): crash", Author: "alice"}),
-		"pipeline":      pipelineRow(gitlab.Pipeline{ID: 1, Status: "success", CommitTitle: "feat(cart): promote"}),
+		"pipeline":      pipelineRow(gitlab.Pipeline{ID: 1, Status: "success", CommitTitle: "feat(cart): promote"}, nil),
 		"commit":        commitItemRow(gitlab.Commit{ShortID: "abc1234", Title: "feat(cart): promote", AuthorName: "jiri"}),
 		"todo":          todoRow(gitlab.Todo{Reference: "!42", Action: "review_requested", Title: "feat(cart): promote"}),
 	}
