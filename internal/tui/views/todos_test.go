@@ -37,8 +37,8 @@ func TestTodos_RowSaysWhyItIsThereAndWhere(t *testing.T) {
 	v := todosView()
 	row := plain(renderRow(todoRow(v.visible()[0]), 120))
 
-	// The stamp is derived, not hardcoded: a test that says "2h" breaks whenever the
-	// list is laid out in another unit.
+	// The stamp is derived, not hardcoded: a test that says "2h" breaks whenever the list
+	// is laid out in another unit.
 	when := commitStamp(v.visible()[0].CreatedAt)
 	for _, want := range []string{when, "review", "api", "!42", "Fix the cart"} {
 		if !strings.Contains(row, want) {
@@ -133,8 +133,8 @@ func TestTodos_SearchNarrowsAcrossProjects(t *testing.T) {
 }
 
 func TestTodos_NeedsNoProject(t *testing.T) {
-	// Every other view is about the selected project; this one is about the user,
-	// so it must fetch with no project chosen at all.
+	// Every other view is about the selected project; this one is about the user, so it
+	// must fetch with no project chosen at all.
 	v := NewTodosView(&Context{Client: &gitlab.Client{}})
 	if v.Focus() == nil {
 		t.Error("the todo list should load without a project selected")

@@ -31,9 +31,8 @@ type PipelinesLoadedMsg struct {
 	Err       error
 }
 
-// PipelineStagesLoadedMsg carries the stages of the pipelines on screen, so the
-// list can say how far each one got. It follows the list rather than coming with
-// it: the rows are worth drawing before the marks arrive.
+// PipelineStagesLoadedMsg carries the stages of the pipelines on screen, so the list
+// can say how far each one got.
 type PipelineStagesLoadedMsg struct {
 	Stages map[int][]gitlab.Stage
 }
@@ -56,16 +55,15 @@ type TodosLoadedMsg struct {
 	Err   error
 }
 
-// TodoActionDoneMsg is sent after a to-do was cleared, so the list can be
-// refetched: the row is gone on GitLab's side.
+// TodoActionDoneMsg is sent after a to-do was cleared, so the list can be refetched:
+// the row is gone on GitLab's side.
 type TodoActionDoneMsg struct {
 	Text  string
 	IsErr bool
 }
 
-// MRDetailLoadedMsg carries everything the merge-request page shows: the merge
-// request itself, its approvals, its pipeline with that pipeline's jobs, and its
-// changed files.
+// MRDetailLoadedMsg carries everything the merge-request page shows: the merge request
+// itself, its approvals, its pipeline with that pipeline's jobs, and its changed files.
 type MRDetailLoadedMsg struct {
 	IID       int
 	MR        *gitlab.MergeRequest
@@ -77,8 +75,8 @@ type MRDetailLoadedMsg struct {
 	Err       error
 }
 
-// MRActionDoneMsg is sent after approving or merging, so the page can refetch:
-// both change what it says about itself.
+// MRActionDoneMsg is sent after approving or merging, so the page can refetch: both
+// change what it says about itself.
 type MRActionDoneMsg struct {
 	Text  string
 	IsErr bool
@@ -91,15 +89,14 @@ type IssueNotesLoadedMsg struct {
 	Err   error
 }
 
-// IssueActionDoneMsg is sent after commenting on an issue, so the discussion can
-// be refetched.
+// IssueActionDoneMsg is sent after commenting on an issue, so the discussion can be
+// refetched.
 type IssueActionDoneMsg struct {
 	Text  string
 	IsErr bool
 }
 
-// ReadmeLoadedMsg carries a project's README. File is what was asked for, so a
-// reply for a project you have moved off can be told apart.
+// ReadmeLoadedMsg carries a project's README.
 type ReadmeLoadedMsg struct {
 	File   string
 	Source string
@@ -152,15 +149,15 @@ type CommitsLoadedMsg struct {
 	Err     error
 }
 
-// ConfirmMsg asks the shell to show a confirmation dialog for a destructive
-// action; the action command runs only if the user confirms.
+// ConfirmMsg asks the shell to show a confirmation dialog for a destructive action; the
+// action command runs only if the user confirms.
 type ConfirmMsg struct {
 	Prompt string
 	Action tea.Cmd
 }
 
-// CommitDetailLoadedMsg carries a commit's full message and the pipelines run for
-// it (GitLab creates pipelines per ref, so there may be none).
+// CommitDetailLoadedMsg carries a commit's full message and the pipelines run for it
+// (GitLab creates pipelines per ref, so there may be none).
 type CommitDetailLoadedMsg struct {
 	SHA       string
 	Commit    *gitlab.Commit
@@ -172,14 +169,8 @@ type CommitDetailLoadedMsg struct {
 	Err       error
 }
 
-// loadResult is implemented by every message that reports the outcome of a data
-// load, whether it succeeded or not.
-//
-// One method per message rather than an arm in two switch statements: the shell
-// needs both "did this fail" (to offer re-authentication) and "did data arrive"
-// (to stop the spinner and time the refresh note), and a message registered in
-// one list but not the other is a silent lie on screen — a refresh that never
-// appears to finish, or an error nobody is told about.
+// loadResult is implemented by every message that reports the outcome of a data load,
+// whether it succeeded or not.
 type loadResult interface{ loadErr() error }
 
 func (m ProjectsLoadedMsg) loadErr() error       { return m.Err }
@@ -198,19 +189,15 @@ func (m IssueNotesLoadedMsg) loadErr() error     { return m.Err }
 func (m ReadmeLoadedMsg) loadErr() error         { return m.Err }
 func (m ErrorMsg) loadErr() error                { return m.Err }
 
-// IsLoadResult reports whether a message is a data load reporting back, whether
-// it succeeded or not. The shell watches for these to know that a refresh it
-// started has actually produced something.
+// IsLoadResult reports whether a message is a data load reporting back, whether it
+// succeeded or not.
 func IsLoadResult(msg tea.Msg) bool {
 	_, ok := msg.(loadResult)
 	return ok
 }
 
-// LoadErr returns the error carried by any message that reports the outcome of a
-// data load, or nil for messages that carry none. Every such message passes
-// through the shell before being delegated to a view, so this gives the shell a
-// single place to notice failures (e.g. an unusable token) regardless of which
-// view triggered the request.
+// LoadErr returns the error carried by any message that reports the outcome of a data
+// load, or nil for messages that carry none.
 func LoadErr(msg tea.Msg) error {
 	if r, ok := msg.(loadResult); ok {
 		return r.loadErr()

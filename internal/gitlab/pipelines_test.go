@@ -437,9 +437,8 @@ func TestListPipelinesBySHA_none(t *testing.T) {
 }
 
 func TestFillWarnings_marksSuccessWithWarnings(t *testing.T) {
-	// Only the single-pipeline endpoint reports detailed status, so the list has
-	// to be enriched from it — and only for successes, which are the only ones
-	// that can be "passed with warnings".
+	// Only the single-pipeline endpoint reports detailed status, so the list has to be
+	// enriched from it.
 	var mu sync.Mutex
 	asked := []string{}
 	mux := http.NewServeMux()
@@ -484,8 +483,8 @@ func TestFillWarnings_marksSuccessWithWarnings(t *testing.T) {
 }
 
 func TestFillWarnings_cachesTheVerdict(t *testing.T) {
-	// A finished pipeline's verdict cannot change, so auto-refresh must not keep
-	// paying for it.
+	// A finished pipeline's verdict cannot change, so auto-refresh must not keep paying
+	// for it.
 	var mu sync.Mutex
 	requests := 0
 	mux := http.NewServeMux()

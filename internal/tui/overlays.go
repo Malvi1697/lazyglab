@@ -27,8 +27,7 @@ const (
 	overlayFavorites
 )
 
-// confirmAction holds state for a pending confirmation dialog. The action runs
-// only if the user confirms.
+// confirmAction holds state for a pending confirmation dialog.
 type confirmAction struct {
 	prompt string
 	action tea.Cmd
@@ -40,10 +39,8 @@ func (a *App) confirm(prompt string, action tea.Cmd) {
 	a.overlay = overlayConfirm
 }
 
-// mergeOverlay composites a centered overlay box onto the frame within the box's
-// own columns, so the frame stays visible around it. Replacing whole lines (or
-// only non-blank ones) either blanks out everything beside the box or lets the
-// frame show through the box's own gaps.
+// mergeOverlay composites a centered overlay box onto the frame within the box's own
+// columns, so the frame stays visible around it.
 func (a *App) mergeOverlay(frame, box string) string {
 	boxLines := strings.Split(box, "\n")
 
@@ -77,16 +74,12 @@ func (a *App) mergeOverlay(frame, box string) string {
 		}
 		right := ansi.TruncateLeft(bg, x+lipgloss.Width(boxLine), "")
 
-		// Reset between segments: a style left open by the frame must not colour
-		// the box, and vice versa.
+		// Reset between segments: a style left open by the frame must not colour the box, and
+		// vice versa.
 		bgLines[row] = left + "\x1b[0m" + boxLine + "\x1b[0m" + right
 	}
 	return strings.Join(bgLines, "\n")
 }
-
-// ============================================================================
-// Confirm dialog
-// ============================================================================
 
 func (a *App) handleConfirmKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
@@ -131,10 +124,6 @@ func (a *App) renderConfirm() string {
 	return components.RenderBox("Confirm", lines, boxWidth, len(lines)+2, components.ColorWarning, components.ColorWarning)
 }
 
-// ============================================================================
-// Branch picker
-// ============================================================================
-
 func (a *App) handleBranchPickerKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if consumed, changed := a.branchFilter.HandleKey(msg); consumed {
 		if changed {
@@ -176,8 +165,7 @@ func (a *App) handleBranchPickerKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return a, nil
 }
 
-// visibleBranches returns the branches matching the current search, in list
-// order. The picker's cursor indexes this slice, not the full list.
+// visibleBranches returns the branches matching the current search, in list order.
 func (a *App) visibleBranches() []gitlab.Branch {
 	if !a.branchFilter.On() {
 		return a.branches
@@ -231,8 +219,8 @@ func (a *App) renderBranchPicker() string {
 			}
 		}
 	}
-	// The hint follows the search's stage, as the project picker's does: while
-	// typing, Enter applies; once applied, Esc clears before it cancels.
+	// The hint follows the search's stage, as the project picker's does: while typing,
+	// Enter applies; once applied, Esc clears before it cancels.
 	hint := "Enter: select  /: search  Esc: cancel"
 	switch {
 	case a.branchFilter.Active:
@@ -248,10 +236,6 @@ func (a *App) renderBranchPicker() string {
 	}
 	return components.RenderBox(title, lines, boxWidth, boxHeight, components.ColorPrimary, components.ColorPrimary)
 }
-
-// ============================================================================
-// Project picker
-// ============================================================================
 
 func (a *App) handleProjectPickerKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	// While searching, typed characters extend the query rather than act as keys.
@@ -307,9 +291,8 @@ func (a *App) handleProjectPickerKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return a, nil
 }
 
-// visibleProjects returns the projects matching the current search, starred ones
-// first and each group still ordered by recent activity. The picker's cursor
-// indexes this slice, not the full list.
+// visibleProjects returns the projects matching the current search, starred ones first
+// and each group still ordered by recent activity.
 func (a *App) visibleProjects() []gitlab.Project {
 	matching := a.projects
 	if a.projectFilter.On() {
@@ -337,9 +320,7 @@ func (a *App) visibleProjects() []gitlab.Project {
 	return append(starred, rest...)
 }
 
-// favoriteCount returns how many of the visible projects are starred. They are
-// always the leading entries, so this doubles as the index of the first
-// non-favorite — i.e. where the divider goes.
+// favoriteCount returns how many of the visible projects are starred.
 func (a *App) favoriteCount(visible []gitlab.Project) int {
 	n := 0
 	for _, p := range visible {
@@ -388,10 +369,8 @@ func (a *App) renderProjectPicker() string {
 	return components.RenderBox(title, lines, boxWidth, boxHeight, components.ColorPrimary, components.ColorPrimary)
 }
 
-// projectRows renders the visible slice of the project list, with a divider
-// between the starred projects at the top and the rest. The divider occupies a
-// line but is not selectable, so scrolling is computed over rendered rows while
-// the cursor keeps indexing projects.
+// projectRows renders the visible slice of the project list, with a divider between the
+// starred projects at the top and the rest.
 func (a *App) projectRows(visible []gitlab.Project, innerWidth, maxRows int) []string {
 	divider := components.HelpSepStyle.Render(strings.Repeat("─", innerWidth))
 	favCount := a.favoriteCount(visible)
@@ -451,16 +430,11 @@ func (a *App) overlayBoxSize() (int, int) {
 	return boxWidth, boxHeight
 }
 
-// ============================================================================
-// Help overlay
-// ============================================================================
-
-// helpEntry is one row of the help overlay: a section heading when desc is
-// empty, otherwise a key and what it does.
+// helpEntry is one row of the help overlay: a section heading when desc is empty,
+// otherwise a key and what it does.
 type helpEntry struct{ key, desc string }
 
-// helpEntries is the full keymap. Navigation follows lazygit's vocabulary, so
-// the keys below are the same ones muscle memory already knows from there.
+// helpEntries is the full keymap.
 func helpEntries() []helpEntry {
 	return []helpEntry{
 		{"Global", ""},
@@ -600,8 +574,7 @@ func (a *App) handleHelpKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	if act := components.NavFor(key); act != components.NavNone {
 		// The help is scrolled rather than "selected": drive the offset directly, over
-		// rendered rows rather than entries. The blank line before each section is a
-		// row too, and counting entries instead left the last few unreachable.
+		// rendered rows rather than entries.
 		rows, _, boxHeight := a.helpLayout()
 		a.helpScroll = components.ApplyNav(act, a.helpScroll, len(rows), boxHeight-3)
 		return a, nil
@@ -609,9 +582,7 @@ func (a *App) handleHelpKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return a, nil
 }
 
-// helpLayout renders the whole keymap as display rows and sizes the box around
-// it. Both the key handler and the renderer work from this, so what scrolls and
-// what is drawn can never disagree.
+// helpLayout renders the whole keymap as display rows and sizes the box around it.
 func (a *App) helpLayout() (rows []string, boxWidth, boxHeight int) {
 	boxWidth = 60
 	if boxWidth > a.width-2 {

@@ -193,8 +193,8 @@ func TestGetProjectByPath_notFound(t *testing.T) {
 }
 
 func TestListProjects_usesSimpleRepresentation(t *testing.T) {
-	// The simple representation is ~4.5x smaller and ~2.5x faster on a real
-	// instance, and still carries every field we map.
+	// The simple representation is ~4.5x smaller and ~2.5x faster on a real instance, and
+	// still carries every field we map.
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/v4/projects", func(w http.ResponseWriter, r *http.Request) {
 		if got := r.URL.Query().Get("simple"); got != "true" {
@@ -220,8 +220,8 @@ func TestListProjects_usesSimpleRepresentation(t *testing.T) {
 }
 
 func TestListProjects_fetchesAllPagesConcurrentlyInOrder(t *testing.T) {
-	// With a known page count the pages are fetched in parallel, so the result
-	// must still be assembled in page order (the server sorts by activity).
+	// With a known page count the pages are fetched in parallel, so the result must still
+	// be assembled in page order (the server sorts by activity).
 	var mu sync.Mutex
 	requested := map[string]int{}
 	mux := http.NewServeMux()
@@ -304,8 +304,7 @@ func TestListProjects_walksPagesWhenTotalUnknown(t *testing.T) {
 }
 
 func TestListProjects_stopsAtPageCap(t *testing.T) {
-	// A server advertising far more pages than we allow must not be followed
-	// forever.
+	// A server advertising far more pages than we allow must not be followed forever.
 	var mu sync.Mutex
 	requests := 0
 	mux := http.NewServeMux()
@@ -340,8 +339,8 @@ func TestListProjects_pageErrorIsReported(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/v4/projects", func(w http.ResponseWriter, r *http.Request) {
 		if page := r.URL.Query().Get("page"); page == "2" {
-			// 400 rather than 500: the SDK retries 5xx, which would make this test
-			// spend ten seconds proving nothing extra.
+			// 400 rather than 500: the SDK retries 5xx, which would make this test spend ten
+			// seconds proving nothing extra.
 			w.WriteHeader(http.StatusBadRequest)
 			_, _ = w.Write([]byte(`{"message":"400 Bad Request"}`))
 			return

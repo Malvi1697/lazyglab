@@ -36,8 +36,6 @@ func pickerApp(t *testing.T) *App {
 
 func TestProjectPicker_YCopiesTheCloneURLs(t *testing.T) {
 	// Cloning a project you are looking at meant leaving the app to find its URL.
-	// The two copy keys divide it the way they do everywhere else: y is what you
-	// would type into git clone, Y is what you would send someone.
 	a := pickerApp(t)
 
 	if cmd := a.pressKey(tea.KeyPressMsg{Code: 'y', Text: "y"}); cmd == nil {
@@ -84,8 +82,7 @@ func TestProjectPicker_TheCopyKeysDoNotSelectOrClose(t *testing.T) {
 }
 
 func TestProjectPicker_AStaleNoteIsNotShownNextTime(t *testing.T) {
-	// "Copied git@…" left over from the last visit reads as something that just
-	// happened.
+	// "Copied git@…" left over from the last visit reads as something that just happened.
 	a := pickerApp(t)
 	a.pressKey(tea.KeyPressMsg{Code: 'y', Text: "y"})
 	a.overlay = overlayNone
@@ -103,8 +100,8 @@ func (a *App) pressKey(msg tea.KeyPressMsg) tea.Cmd {
 }
 
 func TestProjectPicker_OpensOnTheProjectYouAreIn(t *testing.T) {
-	// It is the row you most often want something from — its clone URL, or just to
-	// see where you are — and it used to mean hunting through a list of hundreds.
+	// It is the row you most often want something from — its clone URL, or just to see
+	// where you are — and it used to mean hunting through a list of hundreds.
 	a := pickerApp(t)
 	a.overlay = overlayNone
 	current := a.projects[1]

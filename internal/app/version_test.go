@@ -34,8 +34,8 @@ func TestIsNewer(t *testing.T) {
 }
 
 func TestVersionNumber_ADevBuildIsStillItsVersion(t *testing.T) {
-	// The version comes from an ldflag, and a local build carries whatever git
-	// describe said. All of these are 0.4.0 as far as comparing goes.
+	// The version comes from an ldflag, and a local build carries whatever git describe
+	// said.
 	for _, v := range []string{"0.4.0", "v0.4.0", "0.4.0-dev", "v0.4.0-2-gabc1234", "0.4.0-dirty", "0.4.0+build5"} {
 		if got := versionNumber(v); got != "0.4.0" {
 			t.Errorf("versionNumber(%q) = %q, want 0.4.0", v, got)
@@ -65,8 +65,8 @@ func TestLatestVersion_OnlyNamesAReleaseWorthInstalling(t *testing.T) {
 		{"same version", `{"tag_name": "v0.1.0"}`, "0.1.0", ""},
 		{"remote is older", `{"tag_name": "v0.0.9"}`, "0.1.0", ""},
 		{"v-prefixed current", `{"tag_name": "v0.2.0"}`, "v0.1.0", "0.2.0"},
-		// A dev build of 0.1.0 is not yet 0.1.0's successor, so 0.2.0 is news and
-		// 0.1.0 is not.
+		// A dev build of 0.1.0 is not yet 0.1.0's successor, so 0.2.0 is news and 0.1.0 is
+		// not.
 		{"dev build, newer release", `{"tag_name": "v0.2.0"}`, "0.1.0-dev", "0.2.0"},
 		{"dev build of the newest", `{"tag_name": "v0.1.0"}`, "0.1.0-dev", ""},
 		{"no tag", `{"tag_name": ""}`, "0.1.0", ""},
@@ -81,8 +81,8 @@ func TestLatestVersion_OnlyNamesAReleaseWorthInstalling(t *testing.T) {
 }
 
 func TestLatestVersion_AFailedCheckIsSilent(t *testing.T) {
-	// Nobody asked for this check, so a GitHub outage, a captive portal or a
-	// mangled answer must not put anything on screen.
+	// Nobody asked for this check, so a GitHub outage, a captive portal or a mangled
+	// answer must not put anything on screen.
 	broken := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 	}))

@@ -7,9 +7,8 @@ import (
 	"github.com/Malvi1697/lazyglab/internal/gitlab"
 )
 
-// NormalizeHost cleans up a user-typed GitLab host: a pasted URL keeps working
-// because the scheme and any trailing slash or path are stripped, so we never
-// build a broken "https://https://gitlab.com" base URL.
+// NormalizeHost cleans up a user-typed GitLab host: a pasted URL keeps working because
+// the scheme and any trailing slash or path are stripped.
 func NormalizeHost(host string) string {
 	host = strings.TrimSpace(host)
 	host = strings.TrimPrefix(host, "https://")
@@ -20,10 +19,8 @@ func NormalizeHost(host string) string {
 	return host
 }
 
-// ReconfigureAuth validates a host/token pair, persists the token to the config
-// and returns a ready client plus the authenticated username. It is what the
-// TUI's re-authentication overlay calls; keeping it here means all config and
-// base-URL handling stays in one place (and the TUI needs no config import).
+// ReconfigureAuth validates a host/token pair, persists the token to the config and
+// returns a ready client plus the authenticated username.
 func ReconfigureAuth(host, token string) (*gitlab.Client, string, error) {
 	host = NormalizeHost(host)
 	token = strings.TrimSpace(token)
@@ -62,10 +59,8 @@ func ReconfigureAuth(host, token string) (*gitlab.Client, string, error) {
 	return client, username, nil
 }
 
-// applyHostToken records token for host, leaving every other host entry, that
-// host's api_host and all settings untouched — re-authenticating must never cost
-// the user the rest of their config. It also adopts the host as the default when
-// none is set yet.
+// applyHostToken records token for host, leaving every other host entry, that host's
+// api_host and all settings untouched.
 func applyHostToken(cfg *Config, host, token string) {
 	if cfg.Hosts == nil {
 		cfg.Hosts = make(map[string]HostConfig)
@@ -78,10 +73,8 @@ func applyHostToken(cfg *Config, host, token string) {
 	}
 }
 
-// loadConfigForUpdate returns the config to modify in place: the existing one
-// when there is a readable file, otherwise a fresh one. A file that exists but
-// cannot be read is an error rather than an empty config, so a bad permission
-// or parse error never silently discards other hosts and settings.
+// loadConfigForUpdate returns the config to modify in place: the existing one when
+// there is a readable file, otherwise a fresh one.
 func loadConfigForUpdate() (*Config, error) {
 	cfg := &Config{}
 	if ConfigExists() {

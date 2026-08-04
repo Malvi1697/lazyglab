@@ -9,9 +9,8 @@ import (
 	"github.com/Malvi1697/lazyglab/internal/util"
 )
 
-// GetProjectByPath returns a single project by its "group/project" path, used to
-// open a favorite that is not among the loaded projects (for instance one capped
-// out by maxProjectPages).
+// GetProjectByPath returns a single project by its "group/project" path, used to open a
+// favorite that is not among the loaded projects.
 func (c *Client) GetProjectByPath(path string) (*Project, error) {
 	p, _, err := c.api.Projects.GetProject(path, nil)
 	if err != nil {
@@ -21,8 +20,8 @@ func (c *Client) GetProjectByPath(path string) (*Project, error) {
 	return &project, nil
 }
 
-// toProject maps an API project into a domain one, for both the list and the
-// by-path lookup.
+// toProject maps an API project into a domain one, for both the list and the by-path
+// lookup.
 func toProject(p *gogitlab.Project) Project {
 	return Project{
 		ID:                int(p.ID),
@@ -37,11 +36,8 @@ func toProject(p *gogitlab.Project) Project {
 	}
 }
 
-// readmeFile is the repository path of a project's README, taken from the URL
-// GitLab sends: ".../-/blob/main/docs/README.md" -> "docs/README.md".
-//
-// Cheaper than looking for it: the project payload already carries this, and a
-// project without one carries an empty string, which is the answer too.
+// readmeFile is the repository path of a project's README, taken from the URL GitLab
+// sends: ".../-/blob/main/docs/README.md" -> "docs/README.md".
 func readmeFile(readmeURL string) string {
 	if readmeURL == "" {
 		return ""
@@ -69,22 +65,15 @@ func afterFirstSlash(s string) string {
 }
 
 const (
-	// maxProjectPages bounds how many pages of projects we fetch, so a member of
-	// an unusually large number of projects cannot stall startup (100 => 2000).
+	// maxProjectPages bounds how many pages of projects we fetch, so a member of an
+	// unusually large number of projects cannot stall startup (100 => 2000).
 	maxProjectPages = 20
-	// projectPageWorkers bounds concurrent page requests. Someone in 800 projects
-	// needs 8 pages; fetching them in parallel turns 8 round trips into ~2.
+	// projectPageWorkers bounds concurrent page requests.
 	projectPageWorkers = 4
 )
 
-// ListProjects returns every project the authenticated user is a member of,
-// most recently active first.
-//
-// All pages are fetched — a single page would hide the rest of the user's
-// projects from the switcher entirely — but cheaply: the simple representation
-// carries every field we map while being far smaller (measured against a real
-// instance: 93 KiB in 1.5s per 100 projects, versus 424 KiB in 3.7s), and pages
-// after the first are requested concurrently.
+// ListProjects returns every project the authenticated user is a member of, most
+// recently active first.
 func (c *Client) ListProjects() ([]Project, error) {
 	first, resp, err := c.projectPage(1)
 	if err != nil {
@@ -95,7 +84,6 @@ func (c *Client) ListProjects() ([]Project, error) {
 	}
 
 	// Prefer the advertised page count so the rest can be fetched in parallel.
-	// GitLab withholds it for very large collections; then walk page by page.
 	switch {
 	case resp.TotalPages > 1:
 		return c.projectPagesConcurrent(first, min(int(resp.TotalPages), maxProjectPages))
@@ -112,8 +100,8 @@ func (c *Client) projectPage(page int) ([]Project, *gogitlab.Response, error) {
 	simple := true
 	opts := &gogitlab.ListProjectsOptions{
 		Membership: &membership,
-		// The simple representation omits permissions, statistics and namespace
-		// details we never render, which is most of the payload.
+		// The simple representation omits permissions, statistics and namespace details we
+		// never render, which is most of the payload.
 		Simple:  &simple,
 		OrderBy: gogitlab.Ptr("last_activity_at"),
 		Sort:    gogitlab.Ptr("desc"),
@@ -135,8 +123,8 @@ func (c *Client) projectPage(page int) ([]Project, *gogitlab.Response, error) {
 	return projects, resp, nil
 }
 
-// projectPagesConcurrent fetches pages 2..totalPages in parallel and appends
-// them to first in page order, preserving the server's activity ordering.
+// projectPagesConcurrent fetches pages 2..totalPages in parallel and appends them to
+// first in page order, preserving the server's activity ordering.
 func (c *Client) projectPagesConcurrent(first []Project, totalPages int) ([]Project, error) {
 	pages := make([][]Project, totalPages+1)
 	sem := make(chan struct{}, projectPageWorkers)
@@ -176,8 +164,8 @@ func (c *Client) projectPagesConcurrent(first []Project, totalPages int) ([]Proj
 	return projects, nil
 }
 
-// projectPagesSequential walks NextPage links, for servers that do not report a
-// total page count.
+// projectPagesSequential walks NextPage links, for servers that do not report a total
+// page count.
 func (c *Client) projectPagesSequential(first []Project, nextPage int) ([]Project, error) {
 	projects := first
 	for fetched := 1; fetched < maxProjectPages && nextPage != 0; fetched++ {

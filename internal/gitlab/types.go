@@ -11,21 +11,16 @@ type Project struct {
 	WebURL            string
 	DefaultBranch     string
 
-	// SSHCloneURL and HTTPCloneURL are what you paste after "git clone". GitLab
-	// sends both with every project, so they cost nothing to carry.
+	// SSHCloneURL and HTTPCloneURL are what you paste after "git clone".
 	SSHCloneURL  string
 	HTTPCloneURL string
 
-	// ReadmeFile is the repository path of the project's README, taken from the
-	// readme_url GitLab already sends with every project. Empty when it has none,
-	// which is how the dashboard knows not to ask.
+	// ReadmeFile is the repository path of the project's README, taken from the readme_url
+	// GitLab already sends with every project.
 	ReadmeFile string
 }
 
 // MergeRequest represents a GitLab merge request.
-//
-// The fields below Pipeline are only filled by GetMergeRequest: a list row does
-// not need them, and the list endpoint does not carry them.
 type MergeRequest struct {
 	IID          int
 	Title        string
@@ -76,9 +71,7 @@ type Pipeline struct {
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 
-	// StatusLabel is GitLab's own wording for the status, e.g. "passed with
-	// warnings" — a success whose allowed-to-fail jobs failed. Only the single
-	// pipeline endpoint reports it, so it is empty for pipelines from a list.
+	// StatusLabel is GitLab's own wording for the status, e.g.
 	StatusLabel string
 	// HasWarnings is true when StatusLabel describes a success with warnings.
 	HasWarnings bool
@@ -92,8 +85,8 @@ type FileDiff struct {
 	New     bool
 	Deleted bool
 	Renamed bool
-	// Withheld is true when GitLab excluded the diff because the change is too
-	// large to send, so an empty Diff is not mistaken for an empty change.
+	// Withheld is true when GitLab excluded the diff because the change is too large to
+	// send, so an empty Diff is not mistaken for an empty change.
 	Withheld bool
 
 	Added   int // counted from the diff text
@@ -126,8 +119,8 @@ type Job struct {
 	StartedAt time.Time
 }
 
-// Stage is one stage of a pipeline and how it went — the row of marks GitLab's
-// own pipeline list shows, which says where a pipeline got to without opening it.
+// Stage is one stage of a pipeline and how it went — the row of marks GitLab's own
+// pipeline list shows, which says where a pipeline got to without opening it.
 type Stage struct {
 	Name   string
 	Status string // derived from the jobs by StageStatus, not taken from GitLab
@@ -171,9 +164,8 @@ type Commit struct {
 	Status     string // CI status, resolved by callers from pipelines by SHA ("" if none)
 }
 
-// Todo is one item on the user's GitLab To-Do list: something waiting on them,
-// in any project. Action says why it is there ("review_requested",
-// "build_failed", "mentioned", …) and Target what kind of thing it points at.
+// Todo is one item on the user's GitLab To-Do list: something waiting on them, in any
+// project.
 type Todo struct {
 	ID          int
 	Action      string
@@ -190,10 +182,6 @@ type Todo struct {
 }
 
 // Note is one comment in a discussion — on a merge request or an issue.
-//
-// System notes are GitLab's own bookkeeping ("added 3 commits", "approved this
-// merge request"): part of the record, but not something a person wrote, so the
-// UI shows them a weight quieter rather than hiding them.
 type Note struct {
 	ID         int
 	Author     string

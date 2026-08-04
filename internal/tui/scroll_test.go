@@ -66,15 +66,13 @@ func stripANSI(s string) string {
 	return b.String()
 }
 
-// TestPickerScroll_CursorMovesInsideWindow is the reported bug: the cursor used
-// to stick to the bottom row, so moving back up dragged the viewport instead of
-// walking the cursor up through it.
+// TestPickerScroll_CursorMovesInsideWindow is the reported bug: the cursor used to
+// stick to the bottom row.
 func TestPickerScroll_CursorMovesInsideWindow(t *testing.T) {
 	a := newLongPickerApp(t)
 	press(a, "P")
 
-	// Walk down well past the first screenful. The offset is recomputed while
-	// rendering, exactly as the runtime does between key presses.
+	// Walk down well past the first screenful.
 	for i := 0; i < 30; i++ {
 		press(a, "j")
 		a.renderProjectPicker()

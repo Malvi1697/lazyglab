@@ -11,13 +11,8 @@ import (
 	"github.com/Malvi1697/lazyglab/internal/tui/components"
 )
 
-// changesBox is a set of changed files and the reader for one of them: the
-// "Changes" list, plus the full-screen unified diff behind Enter.
-//
-// A commit and a merge request are different things with the same body of work
-// attached, so this is embedded in both pages rather than written twice. The
-// fields are promoted, so a page says d.diffs and d.reading as if they were its
-// own — which, as far as the page is concerned, they are.
+// changesBox is a set of changed files and the reader for one of them: the "Changes"
+// list, plus the full-screen unified diff behind Enter.
 type changesBox struct {
 	diffs      []gitlab.FileDiff
 	fileCursor int
@@ -26,13 +21,13 @@ type changesBox struct {
 	diffScroll int
 	diffCache  diffRender
 
-	// diffScrollable is learned while rendering, so the footer offers j/k only
-	// where they would move something.
+	// diffScrollable is learned while rendering, so the footer offers j/k only where they
+	// would move something.
 	diffScrollable bool
 }
 
-// diffRender is a file's diff as display lines, kept so scrolling does not
-// re-tokenise it on every frame.
+// diffRender is a file's diff as display lines, kept so scrolling does not re-tokenise
+// it on every frame.
 type diffRender struct {
 	path  string
 	width int
@@ -48,8 +43,8 @@ func (b *changesBox) setDiffs(diffs []gitlab.FileDiff) {
 	b.diffCache = diffRender{}
 }
 
-// resetFiles forgets everything: a different commit or merge request is opening,
-// and two of them can touch the same path, so the rendered diff has to go too.
+// resetFiles forgets everything: a different commit or merge request is opening, and
+// two of them can touch the same path, so the rendered diff has to go too.
 func (b *changesBox) resetFiles() {
 	b.diffs = nil
 	b.fileCursor, b.fileScroll = 0, 0
@@ -76,8 +71,6 @@ func (b *changesBox) stepFile(step int) {
 }
 
 // filesKey drives the list of changed files and reports whether it took the key.
-// Enter opens the highlighted file; Esc is left to the page, which has somewhere
-// to go back to.
 func (b *changesBox) filesKey(key string, height int) bool {
 	if key == keyEnter {
 		if b.selectedFile() != nil {
@@ -95,8 +88,7 @@ func (b *changesBox) filesKey(key string, height int) bool {
 
 // readerKey drives an open diff: the arrows step files, the rest scrolls.
 func (b *changesBox) readerKey(key string, height int) bool {
-	// The arrows step within what you are looking at. Stepping to another commit
-	// from inside a diff would swap the file under you for one from elsewhere.
+	// The arrows step within what you are looking at.
 	if step, ok := stepKey(key); ok {
 		b.stepFile(step)
 		return true
@@ -119,8 +111,8 @@ func (b *changesBox) filesTitle() string {
 	return fmt.Sprintf("Changes (%d)", len(b.diffs))
 }
 
-// readerTitle names the open diff: which file, and which of how many, the same
-// way a page says which commit.
+// readerTitle names the open diff: which file, and which of how many, the same way a
+// page says which commit.
 func (b *changesBox) readerTitle() string {
 	f := b.selectedFile()
 	if f == nil {
@@ -135,8 +127,8 @@ func (b *changesBox) fileRow(i int) string {
 	return fmt.Sprintf("%s %s%s", fileMark(f), f.Path(), diffStat(f))
 }
 
-// emptyFilesRow is what the box says when there is nothing to list: still loading,
-// or a change with no files reported.
+// emptyFilesRow is what the box says when there is nothing to list: still loading, or a
+// change with no files reported.
 func (b *changesBox) emptyFilesRow(loading bool) []string {
 	if loading {
 		return []string{components.HelpDescStyle.Render("Loading…")}
@@ -185,10 +177,8 @@ func (b *changesBox) diffView(width, height int) string {
 	return strings.Join(lines[b.diffScroll:end], "\n")
 }
 
-// diffLines renders a file's unified diff into display lines, syntax highlighted
-// and wrapped to width. The result is cached per file and width: scrolling
-// re-renders the whole diff each frame, and a thousand-line file would be
-// tokenised again on every keypress.
+// diffLines renders a file's unified diff into display lines, syntax highlighted and
+// wrapped to width.
 func (b *changesBox) diffLines(f *gitlab.FileDiff, width int) []string {
 	path := f.Path()
 	if b.diffCache.path == path && b.diffCache.width == width {
@@ -214,11 +204,6 @@ func (b *changesBox) readerHints(copyDesc string) []KeyHint {
 }
 
 // styleDiffLine renders one line of a unified diff, wrapped to width.
-//
-// The marker column carries the meaning — added, removed, context — so the code
-// beside it is free to be syntax highlighted and read like the file it came from.
-// A wrapped line keeps its marker column empty on the continuation rows, which
-// keeps the code aligned and does not claim the marker twice.
 func styleDiffLine(path, line string, width int) []string {
 	switch {
 	case strings.HasPrefix(line, "@@"):
@@ -315,8 +300,8 @@ func scrollBy(act components.NavAction, offset, rows int) int {
 	return offset
 }
 
-// cursorWhen returns the cursor only for a focused list, so an unfocused one has
-// no highlighted row.
+// cursorWhen returns the cursor only for a focused list, so an unfocused one has no
+// highlighted row.
 func cursorWhen(focused bool, cursor int) int {
 	if focused {
 		return cursor

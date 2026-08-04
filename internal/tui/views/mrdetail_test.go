@@ -65,8 +65,8 @@ func TestMRPage_EnterOpensItInPlace(t *testing.T) {
 }
 
 func TestMRPage_SaysWhatStandsBetweenItAndBeingMerged(t *testing.T) {
-	// The whole point of the page: branch, CI, mergeability, approvals — before
-	// the description, which can be long.
+	// The whole point of the page: branch, CI, mergeability, approvals — before the
+	// description, which can be long.
 	v := mrsWithPage(t)
 	v.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	loadedPage(v)
@@ -244,8 +244,8 @@ func TestMRPage_NoPipelineSaysSoRatherThanNothing(t *testing.T) {
 }
 
 func TestMRList_ColumnsSayWhoFromWhereAndWhen(t *testing.T) {
-	// The reference is GitLab's own list: the number, what it is, and then who,
-	// from which branch, and when it last moved.
+	// The reference is GitLab's own list: the number, what it is, and then who, from which
+	// branch, and when it last moved.
 	mr := gitlab.MergeRequest{
 		IID: 42, Title: "feat(cart): capacity-aware promotion", Author: "jiri.kucera",
 		SourceBranch: "registered_waiting_list", TargetBranch: "develop",
@@ -268,8 +268,8 @@ func TestMRList_ColumnsSayWhoFromWhereAndWhen(t *testing.T) {
 }
 
 func TestMRList_NarrowTerminalKeepsTheTitle(t *testing.T) {
-	// What it is matters more than who wrote it, and a branch cut to eight
-	// characters says nothing — so the extra columns go, widest first.
+	// What it is matters more than who wrote it, and a branch cut to eight characters says
+	// nothing — so the extra columns go, widest first.
 	mr := gitlab.MergeRequest{
 		IID: 42, Title: "feat(cart): capacity-aware promotion", Author: "jiri.kucera",
 		SourceBranch: "registered_waiting_list", UpdatedAt: time.Now(),

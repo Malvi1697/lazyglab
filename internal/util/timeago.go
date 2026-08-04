@@ -6,9 +6,8 @@ import (
 	"time"
 )
 
-// TimeAgoShort returns a compact relative time string padded to a fixed width
-// of 4 (right-aligned) so it forms an aligned column, e.g. " <1m", " 26m",
-// "  3h", "  5d", " 3mo".
+// TimeAgoShort returns a compact relative time string padded to a fixed width of 4
+// (right-aligned) so it forms an aligned column, e.g.
 func TimeAgoShort(t time.Time) string {
 	d := time.Since(t)
 
@@ -62,14 +61,8 @@ func TimeAgo(t time.Time) string {
 	}
 }
 
-// CommitTime formats a commit's timestamp for a list column, padded to a fixed
-// width so the column stays a column.
-//
-// A relative age is the wrong unit here: a day's work shows as "1d" on every row,
-// which says nothing about order or when anything happened. So today's commits get
-// the clock — that is what tells them apart — and older ones the date, which is
-// what tells those apart. Neither ever needs both, so the column is eight columns
-// wide rather than twelve.
+// CommitTime formats a commit's timestamp for a list column, padded to a fixed width so
+// the column stays a column.
 func CommitTime(t time.Time) string { return commitTimeAt(t, time.Now()) }
 
 // commitStampWidth is the width of the column: "30.12.25" at its longest.

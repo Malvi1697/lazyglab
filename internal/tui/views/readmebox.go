@@ -8,14 +8,8 @@ import (
 	"github.com/Malvi1697/lazyglab/internal/tui/components"
 )
 
-// readmeBox is a project's README, rendered as terminal text and scrolled like a
-// diff or a log.
-//
-// The markdown is styled rather than converted: headings take the accent, list
-// bullets and quotes their marker, fenced code goes grey. That is deliberately
-// less than a markdown renderer would do — a full one means another dependency
-// with its own palette to fight, and what a dashboard needs is for the README to
-// be readable and to look like the rest of the app.
+// readmeBox is a project's README, rendered as terminal text and scrolled like a diff
+// or a log.
 type readmeBox struct {
 	file   string // the repository path, so a different project refetches
 	source string
@@ -27,8 +21,7 @@ type readmeBox struct {
 	scrollable bool
 }
 
-// setReadme takes a fetched README. An empty body from a project that has none is
-// still "loaded": there is nothing more to ask for.
+// setReadme takes a fetched README.
 func (b *readmeBox) setReadme(file, source string) {
 	b.file, b.source, b.loaded = file, source, true
 	b.offset, b.lines = 0, nil
@@ -40,8 +33,8 @@ func (b *readmeBox) resetReadme() {
 	b.offset, b.lines = 0, nil
 }
 
-// wants reports whether this README still needs fetching: the project has one and
-// we do not hold it yet.
+// wants reports whether this README still needs fetching: the project has one and we do
+// not hold it yet.
 func (b *readmeBox) wants(file string) bool {
 	return file != "" && (!b.loaded || b.file != file)
 }
@@ -96,9 +89,8 @@ func (b *readmeBox) readmePanel(width, height int, focused bool) string {
 	return components.RenderPanel(b.readmeTitle(), body, width, height, focused)
 }
 
-// render styles the README and wraps it to width, remembering the result: a
-// keypress redraws the body, and re-wrapping a thousand lines each time is the
-// same waste a job log used to be.
+// render styles the README and wraps it to width, remembering the result: a keypress
+// redraws the body.
 func (b *readmeBox) render(width int) []string {
 	if b.lines != nil && b.width == width {
 		return b.lines
@@ -152,8 +144,8 @@ func styleMarkdownLine(line string, width int) []string {
 		return wrapStyled("│ "+text, width, components.MutedStyle)
 	}
 
-	// A list keeps its indentation and gets a bullet that is one character wide in
-	// every terminal.
+	// A list keeps its indentation and gets a bullet that is one character wide in every
+	// terminal.
 	indent := line[:len(line)-len(strings.TrimLeft(line, " \t"))]
 	if marker, rest, ok := listItem(trimmed); ok {
 		prefix := indent + components.MutedStyle.Render(marker) + " "
@@ -182,7 +174,7 @@ func wrapStyled(text string, width int, style lipgloss.Style) []string {
 	return out
 }
 
-// listItem splits "- text", "* text", "1. text" into a bullet and the rest.
+// listItem splits "- text", "* text", "1.
 func listItem(trimmed string) (marker, rest string, ok bool) {
 	for _, m := range []string{"- ", "* ", "+ "} {
 		if strings.HasPrefix(trimmed, m) {

@@ -11,12 +11,11 @@ import (
 	"github.com/Malvi1697/lazyglab/internal/tui/views"
 )
 
-// SaveFavoritesFunc persists the starred project paths of a host. The app
-// package injects it, because config handling lives there.
+// SaveFavoritesFunc persists the starred project paths of a host.
 type SaveFavoritesFunc func(host string, favorites []string) error
 
-// SaveLastProjectFunc persists the project last selected on a host, so the next
-// launch resumes there. Injected by the app package for the same reason.
+// SaveLastProjectFunc persists the project last selected on a host, so the next launch
+// resumes there.
 type SaveLastProjectFunc func(host, path string) error
 
 // favoritesSavedMsg reports the outcome of writing favorites to the config.
@@ -55,7 +54,6 @@ func (a *App) toggleFavorite(path string) tea.Cmd {
 type lastProjectSavedMsg struct{ err error }
 
 // rememberProject records the active project so the next launch resumes it.
-// Unchanged selections write nothing.
 func (a *App) rememberProject(path string) tea.Cmd {
 	if path == "" || path == a.lastProject || a.saveLastProject == nil {
 		return nil
@@ -118,10 +116,7 @@ func (a *App) selectedFavorite() string {
 	return a.favorites[a.favoriteCursor]
 }
 
-// selectProjectByPath activates a project identified by path. Already-loaded
-// projects are used directly; anything else is fetched by path, which covers a
-// favorite beyond the page cap and a remembered project restored at startup
-// before the list has arrived.
+// selectProjectByPath activates a project identified by path.
 func (a *App) selectProjectByPath(path string) tea.Cmd {
 	for _, p := range a.projects {
 		if strings.EqualFold(p.PathWithNamespace, path) {
@@ -182,8 +177,8 @@ func (a *App) renderFavorites() string {
 	return components.RenderBox("Favorites", lines, boxWidth, boxHeight, components.ColorPrimary, components.ColorPrimary)
 }
 
-// favoriteLabel shows the friendly project name when it is already loaded,
-// falling back to the stored path.
+// favoriteLabel shows the friendly project name when it is already loaded, falling back
+// to the stored path.
 func (a *App) favoriteLabel(path string) string {
 	for _, p := range a.projects {
 		if strings.EqualFold(p.PathWithNamespace, path) {

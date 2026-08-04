@@ -27,8 +27,8 @@ func TestDiffLine_MarkerColumnCarriesTheMeaning(t *testing.T) {
 }
 
 func TestDiffLine_WrappedRowsStayAligned(t *testing.T) {
-	// A wrapped line used to lose its colour entirely on the continuation rows;
-	// now the gutter stays a gutter, so the code column lines up down the screen.
+	// A wrapped line used to lose its colour entirely on the continuation rows; now the
+	// gutter stays a gutter, so the code column lines up down the screen.
 	long := "+" + strings.Repeat("word ", 20)
 	rows := styleDiffLine("notes.txt", long, 30)
 	if len(rows) < 2 {

@@ -8,11 +8,6 @@ import (
 )
 
 // copyToClipboard puts text on the system clipboard.
-//
-// OSC 52 is the portable route — it works over SSH and inside tmux, needs no
-// external binary — but not every terminal honours it, so a local clipboard
-// command is also used when one exists. Copying twice is harmless; reporting a
-// copy that silently did nothing would not be.
 func copyToClipboard(text string) tea.Cmd {
 	cmds := []tea.Cmd{tea.SetClipboard(text)}
 
@@ -37,15 +32,12 @@ func copyToClipboard(text string) tea.Cmd {
 	return tea.Batch(cmds...)
 }
 
-// CopyToClipboard is copyToClipboard for the shell, which has copying of its own
-// to do: the clone URLs in the project picker, which is shell-level state.
+// CopyToClipboard is copyToClipboard for the shell, which has copying of its own to do:
+// the clone URLs in the project picker, which is shell-level state.
 func CopyToClipboard(text string) tea.Cmd { return copyToClipboard(text) }
 
-// copyRef and copyLink are the two halves of one rule, kept together so every
-// view spells it the same way: lowercase y copies the identifier — the thing you
-// would type into a commit message or a chat — and uppercase Y copies the link
-// you would send someone. What was copied is said in the status bar, because a
-// clipboard write is otherwise entirely invisible.
+// copyRef and copyLink are the two halves of one rule, kept together so every view
+// spells it the same way: lowercase y copies the identifier.
 func copyRef(ref string) tea.Cmd {
 	if ref == "" {
 		return statusCmd("Nothing to copy here", true)

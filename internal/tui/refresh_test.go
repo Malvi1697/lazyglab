@@ -12,8 +12,8 @@ import (
 	"github.com/Malvi1697/lazyglab/internal/tui/views"
 )
 
-// refreshApp is a shell with one view and a pinned clock, so the note's wording
-// can be asserted at an exact moment.
+// refreshApp is a shell with one view and a pinned clock, so the note's wording can be
+// asserted at an exact moment.
 func refreshApp(t *testing.T, at time.Time) *App {
 	t.Helper()
 	a := NewApp(Options{
@@ -25,8 +25,8 @@ func refreshApp(t *testing.T, at time.Time) *App {
 	})
 	a.width, a.height = 120, 40
 	a.now = func() time.Time { return at }
-	// A project and a client, so the view has something to fetch and Focus returns
-	// a command. The command itself is never run here.
+	// A project and a client, so the view has something to fetch and Focus returns a
+	// command.
 	a.ctx.Project = &gitlab.Project{ID: 1, PathWithNamespace: "g/p"}
 	a.ctx.Client = &gitlab.Client{}
 	return a
@@ -59,8 +59,8 @@ func TestRefresh_PressingRSpins(t *testing.T) {
 }
 
 func TestRefresh_ClaimsNothingWhenThereIsNothingToFetch(t *testing.T) {
-	// Without a project the view has no request to make; a spinner would turn
-	// forever with nothing coming back to stop it.
+	// Without a project the view has no request to make; a spinner would turn forever with
+	// nothing coming back to stop it.
 	now := time.Date(2026, 7, 25, 12, 0, 0, 0, time.UTC)
 	a := refreshApp(t, now)
 	a.ctx.Project = nil
@@ -152,8 +152,8 @@ func TestRefresh_SpinnerStopsWhenTheRefreshDoes(t *testing.T) {
 }
 
 func TestRefresh_NoteSharesTheBarWithALongStatus(t *testing.T) {
-	// An API error in the status must not push the note off the row, and neither
-	// may the row wrap onto the tabs beneath it.
+	// An API error in the status must not push the note off the row, and neither may the
+	// row wrap onto the tabs beneath it.
 	now := time.Date(2026, 7, 25, 12, 0, 0, 0, time.UTC)
 	a := refreshApp(t, now)
 	a.lastRefresh = now
@@ -171,16 +171,16 @@ func TestRefresh_NoteSharesTheBarWithALongStatus(t *testing.T) {
 }
 
 func TestRefresh_PausesWhileTheTerminalIsUnfocused(t *testing.T) {
-	// Polling GitLab every thirty seconds for a window nobody is looking at is
-	// pure waste, and the note must not promise a countdown it will not honour.
+	// Polling GitLab every thirty seconds for a window nobody is looking at is pure waste,
+	// and the note must not promise a countdown it will not honour.
 	now := time.Date(2026, 7, 25, 12, 0, 0, 0, time.UTC)
 	a := refreshApp(t, now)
 	a.lastRefresh = now.Add(-time.Minute)
 
 	a.Update(tea.BlurMsg{})
 	if _, cmd := a.Update(tickMsg{}); cmd != nil {
-		// The tick still re-arms itself, so a command is expected — but it must not
-		// be a refresh.
+		// The tick still re-arms itself, so a command is expected — but it must not be a
+		// refresh.
 		if a.refreshing {
 			t.Error("the tick refreshed while the terminal was in the background")
 		}
@@ -210,8 +210,8 @@ func TestRefresh_FocusWithFreshDataDoesNotRefetch(t *testing.T) {
 }
 
 func TestRefresh_ClockStopsWhileUnfocusedAndRestartsAfter(t *testing.T) {
-	// The countdown is the only reason to redraw once a second, and nobody is
-	// reading a countdown they cannot see.
+	// The countdown is the only reason to redraw once a second, and nobody is reading a
+	// countdown they cannot see.
 	now := time.Date(2026, 7, 25, 12, 0, 0, 0, time.UTC)
 	a := refreshApp(t, now)
 	a.clockRunning = true

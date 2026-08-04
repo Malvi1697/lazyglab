@@ -8,8 +8,8 @@ import (
 	"github.com/Malvi1697/lazyglab/internal/util"
 )
 
-// GetCommit returns one commit by SHA, including its full message, which the
-// list endpoint does not carry.
+// GetCommit returns one commit by SHA, including its full message, which the list
+// endpoint does not carry.
 func (c *Client) GetCommit(projectID int, sha string) (*Commit, error) {
 	cm, _, err := c.api.Commits.GetCommit(projectID, sha, nil)
 	if err != nil {
@@ -30,9 +30,8 @@ func (c *Client) GetCommit(projectID int, sha string) (*Commit, error) {
 	return commit, nil
 }
 
-// ListCommits returns recent commits for a project on the given ref
-// (empty ref = default branch). CI status is left empty; callers map it from
-// pipelines by SHA.
+// ListCommits returns recent commits for a project on the given ref (empty ref =
+// default branch).
 func (c *Client) ListCommits(projectID int, ref string) ([]Commit, error) {
 	opts := &gogitlab.ListCommitsOptions{
 		ListOptions: gogitlab.ListOptions{PerPage: 50},
@@ -58,8 +57,8 @@ func (c *Client) ListCommits(projectID int, ref string) ([]Commit, error) {
 		if cm.CreatedAt != nil {
 			commits[i].CreatedAt = *cm.CreatedAt
 		}
-		// The pipeline list will want these same titles by SHA, and this is the
-		// cheapest place they will ever be: already fetched, already parsed.
+		// The pipeline list will want these same titles by SHA, and this is the cheapest
+		// place they will ever be: already fetched, already parsed.
 		if commits[i].ID != "" && commits[i].Title != "" {
 			c.titleCache.Store(commits[i].ID, commits[i].Title)
 		}
@@ -110,9 +109,7 @@ func (c *Client) ListCommitMergeRequests(projectID int, sha string) ([]MergeRequ
 	return mrs, nil
 }
 
-// maxDiffFiles bounds how many files of a commit we ask for. GitLab applies its
-// own limits on top; a commit touching more files than this is rare and a TUI
-// cannot show them all at once anyway.
+// maxDiffFiles bounds how many files of a commit we ask for.
 const maxDiffFiles = 100
 
 // GetCommitDiff returns a commit's changes, one unified diff per file.
@@ -143,8 +140,8 @@ func (c *Client) GetCommitDiff(projectID int, sha string) ([]FileDiff, error) {
 	return diffs, nil
 }
 
-// countDiffLines counts added and removed lines in a unified diff, ignoring the
-// +++/--- file headers.
+// countDiffLines counts added and removed lines in a unified diff, ignoring the +++/---
+// file headers.
 func countDiffLines(diff string) (added, removed int) {
 	for _, line := range strings.Split(diff, "\n") {
 		switch {

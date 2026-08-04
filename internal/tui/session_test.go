@@ -137,8 +137,7 @@ func producesProjectSelection(cmd tea.Cmd, path string) bool {
 }
 
 func TestShell_TabDoesNotSwitchViews(t *testing.T) {
-	// Tab belongs to the focused view, for moving between its own boxes. The
-	// numbers, h/l and [/] switch views.
+	// Tab belongs to the focused view, for moving between its own boxes.
 	a := NewApp(Options{
 		Clients:      map[string]*gitlab.Client{"h": nil},
 		HostNames:    []string{"h"},

@@ -46,8 +46,8 @@ const twoPipelineStages = `{"data":{"project":{"pipelines":{"nodes":[
 		{"name":"test","jobs":{"nodes":[{"status":"FAILED"},{"status":"SUCCESS"}]}}]}}
 ]}}}}`
 
-// The pipeline that started all this: stage 5 to 7 hold nothing but canceled jobs,
-// and GitLab's own CiStage.status calls every one of them a success.
+// The pipeline that started all this: stage 5 to 7 hold nothing but canceled jobs, and
+// GitLab's own CiStage.status calls every one of them a success.
 const canceledPipelineStages = `{"data":{"project":{"pipelines":{"nodes":[
 	{"id":"gid://gitlab/Ci::Pipeline/724403","stages":{"nodes":[
 		{"name":"lint","status":"success","jobs":{"nodes":[{"status":"SUCCESS"},{"status":"SUCCESS"}]}},
@@ -59,8 +59,8 @@ const canceledPipelineStages = `{"data":{"project":{"pipelines":{"nodes":[
 ]}}}}`
 
 func TestPipelineStages_OneRequestForTheWholePage(t *testing.T) {
-	// The whole point: the REST list has no stages, and asking per pipeline would be
-	// one request per row on every refresh.
+	// The whole point: the REST list has no stages, and asking per pipeline would be one
+	// request per row on every refresh.
 	h := &stagesHandler{body: twoPipelineStages}
 	client, srv := setupTestClient(t, h)
 	defer srv.Close()
@@ -88,10 +88,8 @@ func TestPipelineStages_OneRequestForTheWholePage(t *testing.T) {
 }
 
 func TestPipelineStages_ACanceledStageIsNotGreen(t *testing.T) {
-	// The bug this replaced: the row showed three green marks for a pipeline whose
-	// last three stages were nothing but canceled jobs, because that is what
-	// GitLab's CiStage.status said. The mark is derived from the jobs instead, so the
-	// row cannot disagree with what Enter shows.
+	// The bug this replaced: the row showed three green marks for a pipeline whose last
+	// three stages held nothing but canceled jobs, which is what CiStage.status claimed.
 	h := &stagesHandler{body: canceledPipelineStages}
 	client, srv := setupTestClient(t, h)
 	defer srv.Close()
@@ -137,8 +135,8 @@ func TestStageStatus_TheWorstThingThatHappened(t *testing.T) {
 }
 
 func TestPipelineStages_AFinishedPipelineIsAskedAboutOnce(t *testing.T) {
-	// A finished pipeline's stages are as immutable as its verdict, so the
-	// thirty-second refresh must not ask again.
+	// A finished pipeline's stages are as immutable as its verdict, so the thirty-second
+	// refresh must not ask again.
 	h := &stagesHandler{body: twoPipelineStages}
 	client, srv := setupTestClient(t, h)
 	defer srv.Close()
@@ -171,8 +169,8 @@ func TestPipelineStages_ARunningPipelineIsAskedAgain(t *testing.T) {
 }
 
 func TestPipelineStages_AFailedQueryCostsOnlyTheMarks(t *testing.T) {
-	// GraphQL answers HTTP 200 with an errors array, and an instance may not offer it
-	// at all. Either way the list itself must still draw.
+	// GraphQL answers HTTP 200 with an errors array, and an instance may not offer it at
+	// all.
 	h := &stagesHandler{body: `{"errors":[{"message":"Field 'stages' doesn't exist"}]}`}
 	client, srv := setupTestClient(t, h)
 	defer srv.Close()

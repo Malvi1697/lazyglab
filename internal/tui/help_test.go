@@ -24,8 +24,7 @@ func helpApp(width, height int) *App {
 }
 
 func TestHelp_ScrollsAllTheWayToTheEnd(t *testing.T) {
-	// The blank line before each section is a rendered row too. Scrolling by
-	// entries left the last sections unreachable however far down you pressed.
+	// The blank line before each section is a rendered row too.
 	a := helpApp(120, 30)
 
 	for i := 0; i < 200; i++ {

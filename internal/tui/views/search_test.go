@@ -52,8 +52,7 @@ func TestSearch_NarrowsTheListAndResetsTheCursor(t *testing.T) {
 }
 
 func TestSearch_TypedLettersAreNotCommands(t *testing.T) {
-	// "c" closes an issue and "o" opens a browser. Inside a search they are
-	// letters, or searching for "close" would fire two actions on the way.
+	// "c" closes an issue and "o" opens a browser.
 	v := searchIssues()
 	typeKeys(v, "/csv")
 
@@ -128,8 +127,8 @@ func TestSearch_PastedTextExtendsTheQuery(t *testing.T) {
 }
 
 func TestSearch_CommitPageStepsWithinTheSearchResults(t *testing.T) {
-	// The page was opened from the narrowed list, so → walks that list rather than
-	// jumping to a commit the search excluded.
+	// The page was opened from the narrowed list, so → walks that list rather than jumping
+	// to a commit the search excluded.
 	v := NewDashboardView(&Context{})
 	v.height = 20
 	v.items = []gitlab.Commit{

@@ -17,8 +17,8 @@ import (
 	"testing"
 )
 
-// tarGz builds a release archive: the binary plus the README and licence
-// GoReleaser ships beside it, so the extraction has to pick the right one.
+// tarGz builds a release archive: the binary plus the README and licence GoReleaser
+// ships beside it, so the extraction has to pick the right one.
 func tarGz(t *testing.T, binary string) []byte {
 	t.Helper()
 	var buf bytes.Buffer
@@ -70,9 +70,8 @@ func zipArchive(t *testing.T, binary string) []byte {
 	return buf.Bytes()
 }
 
-// fakeRelease serves a release of the given version whose archive contains the
-// given binary, with a checksums.txt to match. corrupt breaks the archive after
-// the checksums were computed, the way a damaged download would.
+// fakeRelease serves a release of the given version whose archive contains the given
+// binary, with a checksums.txt to match.
 func fakeRelease(t *testing.T, version, binary string, corrupt bool) string {
 	t.Helper()
 	name := assetName(version, runtime.GOOS, runtime.GOARCH)
@@ -134,8 +133,8 @@ func TestSelfUpdate_ReplacesTheBinaryInPlace(t *testing.T) {
 	if string(got) != "new binary" {
 		t.Errorf("binary = %q, want the one from the release", got)
 	}
-	// It has to stay executable, or the next launch fails with a permission error
-	// that says nothing about what happened.
+	// It has to stay executable, or the next launch fails with a permission error that
+	// says nothing about what happened.
 	info, err := os.Stat(exe)
 	if err != nil {
 		t.Fatalf("stat: %v", err)
@@ -150,8 +149,8 @@ func TestSelfUpdate_ReplacesTheBinaryInPlace(t *testing.T) {
 		t.Errorf("output = %q, want the verification said out loud", out.String())
 	}
 
-	// Nothing left behind: a leftover .old or a temp file in a directory on PATH is
-	// litter at best and a stale binary someone runs at worst.
+	// Nothing left behind: a leftover .old or a temp file in a directory on PATH is litter
+	// at best and a stale binary someone runs at worst.
 	entries, err := os.ReadDir(filepath.Dir(exe))
 	if err != nil {
 		t.Fatalf("reading the install dir: %v", err)
@@ -166,8 +165,8 @@ func TestSelfUpdate_ReplacesTheBinaryInPlace(t *testing.T) {
 }
 
 func TestSelfUpdate_ABadChecksumLeavesTheOldBinaryAlone(t *testing.T) {
-	// The whole point of verifying: a damaged or substituted download must never
-	// end up being the thing we execute next.
+	// The whole point of verifying: a damaged or substituted download must never end up
+	// being the thing we execute next.
 	exe := installedBinary(t, "old binary")
 	url := fakeRelease(t, "0.5.0", "new binary", true)
 
@@ -200,8 +199,8 @@ func TestSelfUpdate_UpToDateDoesNothing(t *testing.T) {
 }
 
 func TestSelfUpdate_ADevBuildOfTheNewestIsUpToDate(t *testing.T) {
-	// Running a locally built v0.4.0-dev and being told to download v0.4.0 would
-	// silently replace the build under test.
+	// Running a locally built v0.4.0-dev and being told to download v0.4.0 would silently
+	// replace the build under test.
 	exe := installedBinary(t, "dev binary")
 	url := fakeRelease(t, "0.4.0", "release binary", false)
 
@@ -234,8 +233,8 @@ func TestSelfUpdate_NoBuildForThisPlatform(t *testing.T) {
 }
 
 func TestSelfUpdate_RefusesWithoutChecksums(t *testing.T) {
-	// A release with no checksums.txt cannot be verified, and downloading a binary
-	// we cannot verify is worse than not updating.
+	// A release with no checksums.txt cannot be verified, and downloading a binary we
+	// cannot verify is worse than not updating.
 	exe := installedBinary(t, "old binary")
 	name := assetName("0.5.0", runtime.GOOS, runtime.GOARCH)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -252,8 +251,8 @@ func TestSelfUpdate_RefusesWithoutChecksums(t *testing.T) {
 }
 
 func TestAssetName_MatchesWhatGoReleaserPublishes(t *testing.T) {
-	// These are the names on the v0.4.0 release; getting one wrong means the update
-	// fails only on the platform nobody tested.
+	// These are the names on the v0.4.0 release; getting one wrong means the update fails
+	// only on the platform nobody tested.
 	tests := map[string]string{
 		"darwin/arm64":  "lazyglab_0.4.0_darwin_arm64.tar.gz",
 		"linux/amd64":   "lazyglab_0.4.0_linux_amd64.tar.gz",
@@ -307,8 +306,8 @@ func TestExtractBinary_PicksTheExecutableNotTheReadme(t *testing.T) {
 }
 
 func TestManagedBy_LeavesPackageManagersAlone(t *testing.T) {
-	// Overwriting a packaged file makes the package manager lie about what is
-	// installed, and its next upgrade would undo us.
+	// Overwriting a packaged file makes the package manager lie about what is installed,
+	// and its next upgrade would undo us.
 	tests := map[string]string{
 		"/opt/homebrew/Cellar/lazyglab/0.4.0/bin/lazyglab": "Homebrew",
 		"/usr/bin/lazyglab":                          "a system package",

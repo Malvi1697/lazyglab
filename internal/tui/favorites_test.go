@@ -299,8 +299,7 @@ func TestFavorites_NoSaveFuncKeepsStarsInSession(t *testing.T) {
 }
 
 func TestViewSwitching_VimKeys(t *testing.T) {
-	// H/L move between the views — the big tabs. Lowercase h/l is left to move
-	// within whatever is open, such as between a commit's files.
+	// H/L move between the views — the big tabs.
 	var saved savedFavorites
 	a := newFavApp(t, nil, &saved) // 3 views, starting at index 0
 
@@ -325,8 +324,8 @@ func TestViewSwitching_VimKeys(t *testing.T) {
 		t.Errorf("after H, active = %d, want 1", a.active)
 	}
 
-	// Lowercase must not move the tabs any more, or the commit page could never
-	// use it to step between commits.
+	// Lowercase must not move the tabs any more, or the commit page could never use it to
+	// step between commits.
 	a.active = 1
 	press(a, "l")
 	press(a, "h")

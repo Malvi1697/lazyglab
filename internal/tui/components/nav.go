@@ -1,13 +1,6 @@
 package components
 
-// NavAction is a cursor movement requested by a key press. Keeping the mapping
-// and the arithmetic here means every list — the views, the job list and the
-// modal pickers — answers to the same keys instead of each re-implementing them.
-//
-// The vocabulary follows lazygit's list-panel navigation: j/k (and the arrows)
-// move one row, "," and "." move a page, "<"/Home and ">"/End jump to the ends,
-// and Ctrl+d/Ctrl+u move half a page. g/G are kept as vim-style aliases for the
-// ends.
+// NavAction is a cursor movement requested by a key press.
 type NavAction int
 
 const (
@@ -45,8 +38,8 @@ func NavFor(key string) NavAction {
 	return NavNone
 }
 
-// ApplyNav returns the new cursor position for an action over a list of total
-// items displayed in windowRows rows, clamped to the list.
+// ApplyNav returns the new cursor position for an action over a list of total items
+// displayed in windowRows rows, clamped to the list.
 func ApplyNav(act NavAction, cursor, total, windowRows int) int {
 	if total <= 0 {
 		return 0

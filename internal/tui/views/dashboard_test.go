@@ -29,8 +29,8 @@ func TestCommitStatus(t *testing.T) {
 	}
 }
 
-// TestDashboard_Navigation covers the gap that made j/k feel broken: the dashboard
-// is the default view, and it used to handle no keys at all.
+// TestDashboard_Navigation covers the gap that made j/k feel broken: the dashboard is
+// the default view, and it used to handle no keys at all.
 func TestDashboard_Navigation(t *testing.T) {
 	v := NewDashboardView(&Context{})
 	v.height = 20
@@ -100,8 +100,8 @@ func TestDashboard_EmptyListNavigationIsSafe(t *testing.T) {
 func TestDashboard_ShowClockOrDateNotAnAge(t *testing.T) {
 	// Every row reading "1d" told you nothing; a clock time or a date does.
 	v := NewDashboardView(&Context{})
-	// Noon today, not "two hours ago": run this a little after midnight and two
-	// hours ago is yesterday, which is a date rather than a clock.
+	// Noon today, not "two hours ago": run this a little after midnight and two hours ago
+	// is yesterday, which is a date rather than a clock.
 	now := time.Now()
 	noon := time.Date(now.Year(), now.Month(), now.Day(), 12, 0, 0, 0, now.Location())
 	v.items = []gitlab.Commit{{
@@ -118,8 +118,8 @@ func TestDashboard_ShowClockOrDateNotAnAge(t *testing.T) {
 }
 
 func TestDashboard_CommitsAboveTheReadme(t *testing.T) {
-	// GitLab's own front page: what has been happening, and what the project says
-	// about itself. Both halves scroll, so both get real room.
+	// GitLab's own front page: what has been happening, and what the project says about
+	// itself.
 	v := NewDashboardView(&Context{})
 	for i := 0; i < 40; i++ {
 		v.items = append(v.items, gitlab.Commit{ShortID: "c", Title: "commit", AuthorName: "A"})
@@ -195,8 +195,8 @@ func TestDashboard_TabMovesBetweenTheHalves(t *testing.T) {
 }
 
 func TestDashboard_ReadmeIsFetchedOncePerProject(t *testing.T) {
-	// It is the one thing on this page that does not change while you watch, and it
-	// is a whole file: asking for it every thirty seconds would be waste.
+	// It is the one thing on this page that does not change while you watch, and it is a
+	// whole file: asking for it every thirty seconds would be waste.
 	v := NewDashboardView(&Context{})
 	if !v.wants("README.md") {
 		t.Error("a project with a README should want it fetched")
@@ -223,8 +223,8 @@ func TestDashboard_MissingReadmeSaysSoRatherThanSpinning(t *testing.T) {
 }
 
 func TestDashboard_AnotherProjectDoesNotKeepTheLastReadme(t *testing.T) {
-	// Switching to a project without a README would otherwise leave the previous
-	// project's words sitting under the new project's commits.
+	// Switching to a project without a README would otherwise leave the previous project's
+	// words sitting under the new project's commits.
 	ctx := &Context{Client: &gitlab.Client{}, Project: &gitlab.Project{ID: 1, ReadmeFile: "README.md"}}
 	v := NewDashboardView(ctx)
 	v.syncReadme()
@@ -248,8 +248,8 @@ func TestDashboard_AnotherProjectDoesNotKeepTheLastReadme(t *testing.T) {
 }
 
 func TestDashboard_CommitColumnsLineUp(t *testing.T) {
-	// The kind was inline, so every subject started somewhere else and the eye had
-	// nothing to follow down the list.
+	// The kind was inline, so every subject started somewhere else and the eye had nothing
+	// to follow down the list.
 	v := NewDashboardView(&Context{})
 	now := time.Now()
 	v.items = []gitlab.Commit{
@@ -260,8 +260,8 @@ func TestDashboard_CommitColumnsLineUp(t *testing.T) {
 
 	rows := strings.Split(ansi.Strip(v.commitsBox(120, 6)), "\n")[1:4]
 
-	// Every subject starts at the same column — measured in display columns, not
-	// bytes: the selection gutter and the author names are multibyte.
+	// Every subject starts at the same column — measured in display columns, not bytes:
+	// the selection gutter and the author names are multibyte.
 	at := func(row, text string) int {
 		i := strings.Index(row, text)
 		if i < 0 {
@@ -279,8 +279,8 @@ func TestDashboard_CommitColumnsLineUp(t *testing.T) {
 		t.Errorf("subjects start at %d, %d and %d:\n%s", first, second, third, strings.Join(rows, "\n"))
 	}
 
-	// And the order is kind, subject, author, when — the timestamp last, past the
-	// author, because it is looked up rather than scanned.
+	// And the order is kind, subject, author, when — the timestamp last, past the author,
+	// because it is looked up rather than scanned.
 	row := rows[0]
 	if at(row, "fix:") >= first || first >= at(row, "Jan Všetíček") {
 		t.Errorf("row = %q, want kind, subject, then the author", row)
@@ -291,9 +291,7 @@ func TestDashboard_CommitColumnsLineUp(t *testing.T) {
 }
 
 func TestDashboard_TheTimestampSitsAtTheRight(t *testing.T) {
-	// Nineteen columns of metadata went past before the message started. The when
-	// moved to the far right — past the author, where it is looked up rather than
-	// scanned — and carries the date and the time together.
+	// Nineteen columns of metadata went past before the message started.
 	v := NewDashboardView(&Context{})
 	now := time.Now()
 	lastWeek := now.AddDate(0, 0, -7)
@@ -304,8 +302,7 @@ func TestDashboard_TheTimestampSitsAtTheRight(t *testing.T) {
 
 	rows := strings.Split(ansi.Strip(v.commitsBox(120, 5)), "\n")[1:3]
 
-	// Nothing before the CI mark and the kind: the row opens with what it is. In
-	// display columns, since the selection gutter is multibyte.
+	// Nothing before the CI mark and the kind: the row opens with what it is.
 	for i, row := range rows {
 		if strings.TrimSpace(row) == "" {
 			t.Fatalf("row %d is blank", i)
@@ -331,8 +328,8 @@ func TestDashboard_TheTimestampSitsAtTheRight(t *testing.T) {
 }
 
 func TestDashboard_NarrowRowsKeepTheMessage(t *testing.T) {
-	// The author and the timestamp come along only if they fit beside the message,
-	// never instead of it.
+	// The author and the timestamp come along only if they fit beside the message, never
+	// instead of it.
 	v := NewDashboardView(&Context{})
 	v.items = []gitlab.Commit{{
 		ShortID: "a", Title: "feat: a reasonably long subject line here",

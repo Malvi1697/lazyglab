@@ -79,8 +79,8 @@ func TestApplyHostToken_KeepsExistingDefaultHost(t *testing.T) {
 	}
 }
 
-// TestApplyHostToken_RoundTrip checks the whole save/load cycle keeps the file
-// readable by LoadConfig, which rejects group/world readable token files.
+// TestApplyHostToken_RoundTrip checks the whole save/load cycle keeps the file readable
+// by LoadConfig, which rejects group/world readable token files.
 func TestApplyHostToken_RoundTrip(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.yml")
 	t.Setenv("LAZYGLAB_CONFIG", path)
@@ -129,9 +129,8 @@ func TestLoadConfigForUpdate_MissingFileStartsFresh(t *testing.T) {
 	}
 }
 
-// TestLoadConfigForUpdate_UnreadableFileErrors guards the important case: a
-// config that exists but cannot be parsed must not be silently replaced by an
-// empty one, which would drop the user's other hosts and settings.
+// TestLoadConfigForUpdate_UnreadableFileErrors guards the important case: a config that
+// exists but cannot be parsed must not be silently replaced by an empty one.
 func TestLoadConfigForUpdate_UnreadableFileErrors(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.yml")
 	if err := os.WriteFile(path, []byte("this: is: not: valid: yaml:\n"), 0600); err != nil {

@@ -10,13 +10,8 @@ import (
 	"github.com/Malvi1697/lazyglab/internal/tui/components"
 )
 
-// DashboardView is the project's front page, the way GitLab's own is: what has
-// been happening, and what the project says about itself.
-//
-// The recent commits scroll at the top with their CI status; the README fills the
-// space below. Tab moves between them, so both scroll with j/k. The summaries of
-// pipelines, merge requests and issues that used to sit here are gone — each has
-// a tab of its own, and the README is what you actually want on a front page.
+// DashboardView is the project's front page, the way GitLab's own is: what has been
+// happening, and what the project says about itself.
 type DashboardView struct {
 	ctx           *Context
 	width, height int // last body size, tracked from tea.WindowSizeMsg / Body
@@ -26,8 +21,7 @@ type DashboardView struct {
 	// pipelines give the commits their CI status, matched by SHA.
 	pipelines []gitlab.Pipeline
 
-	// readmeBox is the project's own words, below the commits. It belongs to a
-	// project and a ref, so switching either has to drop it.
+	// readmeBox is the project's own words, below the commits.
 	readmeBox
 	readmeProject int
 	readmeRef     string
@@ -35,12 +29,12 @@ type DashboardView struct {
 	// focus says whether the keys drive the commit list or the README.
 	focus pageFocus
 
-	// readmeFold starts folded: the commits are what the page is opened for, and half
-	// the rows spent on prose you have read once is half the commits you cannot see.
+	// readmeFold starts folded: the commits are what the page is opened for, and half the
+	// rows spent on prose you have read once is half the commits you cannot see.
 	readmeFold foldBox
 
-	// detail is the in-place commit page, opened with Enter — the same one the
-	// Commits view uses, so drilling in never moves you to another tab.
+	// detail is the in-place commit page, opened with Enter — the same one the Commits
+	// view uses, so drilling in never moves you to another tab.
 	detail commitDetail
 }
 
@@ -58,8 +52,8 @@ func (v *DashboardView) Title() string { return "Dashboard" }
 // Focus implements View: loads commits, pipelines, merge requests, and issues
 // concurrently for the active project/branch.
 func (v *DashboardView) Focus() tea.Cmd {
-	// With a commit page open, the page is what is on screen — refreshing the lists
-	// behind it left its pipeline frozen at whatever it said when you opened it.
+	// With a commit page open, the page is what is on screen — refreshing the lists behind
+	// it left its pipeline frozen at whatever it said when you opened it.
 	if v.detail.active {
 		if v.detail.readingBody() {
 			return nil
@@ -67,16 +61,12 @@ func (v *DashboardView) Focus() tea.Cmd {
 		return v.detail.reload()
 	}
 
-	// The commits and the pipelines that give them their CI status are what moves;
-	// the README is fetched once per project, since it is the one thing here that
-	// does not change while you watch.
+	// The commits and the pipelines that give them their CI status are what moves.
 	return tea.Batch(v.loadCommits(), v.loadPipelines(), v.syncReadme())
 }
 
-// syncReadme fetches the README when it is missing and drops it when it belongs to
-// a project or ref you have left — otherwise the last project's words would sit
-// under the new project's commits, and a project without a README would keep
-// showing someone else's.
+// syncReadme fetches the README when it is missing and drops it when it belongs to a
+// project or ref you have left.
 func (v *DashboardView) syncReadme() tea.Cmd {
 	if v.ctx == nil || v.ctx.Project == nil {
 		return nil
@@ -99,12 +89,8 @@ func (v *DashboardView) syncReadme() tea.Cmd {
 	return nil
 }
 
-// ============================================================================
-// Update
-// ============================================================================
-
-// Update implements View: navigates the recent-commits list and opens the
-// selected commit in a browser. View switching stays with the shell.
+// Update implements View: navigates the recent-commits list and opens the selected
+// commit in a browser.
 func (v *DashboardView) Update(msg tea.Msg) tea.Cmd {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
@@ -129,8 +115,8 @@ func (v *DashboardView) Update(msg tea.Msg) tea.Cmd {
 
 	case ReadmeLoadedMsg:
 		if msg.Err != nil {
-			// A project can deny a raw file (or have moved it) without the dashboard
-			// being broken; say so once and stop asking.
+			// A project can deny a raw file (or have moved it) without the dashboard being
+			// broken; say so once and stop asking.
 			v.setReadme(msg.File, "")
 			return statusCmd(fmt.Sprintf("Could not read %s: %v", msg.File, msg.Err), true)
 		}
@@ -148,15 +134,13 @@ func (v *DashboardView) Update(msg tea.Msg) tea.Cmd {
 	return v.detail.update(msg)
 }
 
-// handleKey navigates the recent-commits list. The same keys work here as in
-// every other view, so j/k are never dead — this is the default view.
+// handleKey navigates the recent-commits list.
 func (v *DashboardView) handleKey(msg tea.KeyMsg) tea.Cmd {
 	key := msg.String()
 
 	if v.detail.active {
-		// Stepping to the neighbouring commit belongs to the list's owner, since
-		// the page itself does not know what comes next — but not while a diff or a
-		// job log is open, where the arrows belong to what you are reading.
+		// Stepping to the neighbouring commit belongs to the list's owner, since the page
+		// itself does not know what comes next.
 		if step, ok := stepKey(key); ok && !v.detail.readingBody() {
 			return v.stepCommit(step)
 		}
@@ -210,12 +194,12 @@ func (v *DashboardView) handleKey(msg tea.KeyMsg) tea.Cmd {
 	return nil
 }
 
-// CapturingText implements TextCapturer: while the search is being typed, the
-// shell must not read the letters as its own commands.
+// CapturingText implements TextCapturer: while the search is being typed, the shell
+// must not read the letters as its own commands.
 func (v *DashboardView) CapturingText() bool { return !v.detail.active && v.capturing() }
 
-// copyHash copies the selected commit's full SHA to the clipboard, since the
-// list shows the author rather than the hash.
+// copyHash copies the selected commit's full SHA to the clipboard, since the list shows
+// the author rather than the hash.
 func (v *DashboardView) copyHash() tea.Cmd {
 	selected := v.selected()
 	if selected == nil {
@@ -232,9 +216,7 @@ func (v *DashboardView) copyHash() tea.Cmd {
 	)
 }
 
-// stepCommit moves to the neighbouring commit, keeping the page open. It steps
-// within the search results when one is applied: the page was opened from that
-// list, so those are the commits you are working through.
+// stepCommit moves to the neighbouring commit, keeping the page open.
 func (v *DashboardView) stepCommit(step int) tea.Cmd {
 	visible := v.visible()
 	next := v.cursor + step
@@ -263,10 +245,6 @@ func (v *DashboardView) openCommitInBrowser() tea.Cmd {
 	}
 }
 
-// ============================================================================
-// Body / rendering
-// ============================================================================
-
 // Body implements View: the recent commits above, the README below.
 func (v *DashboardView) Body(width, height int) string {
 	v.width = width
@@ -292,8 +270,8 @@ func (v *DashboardView) commitsBox(width, height int) string {
 	return v.box(width, height, "Recent Commits", v.commitRow, v.focus == focusPage)
 }
 
-// commitRow describes one recent-commits row, mapping the commit's CI status from
-// the loaded pipelines by SHA.
+// commitRow describes one recent-commits row, mapping the commit's CI status from the
+// loaded pipelines by SHA.
 func (v *DashboardView) commitRow(c gitlab.Commit) listRow {
 	kind, subject := splitConventional(c.Title)
 	return listRow{
@@ -305,8 +283,8 @@ func (v *DashboardView) commitRow(c gitlab.Commit) listRow {
 	}
 }
 
-// commitStatusIcon renders a commit's CI state, or a faint dot when no pipeline
-// ran for it — a blank would break the column that the eye follows down.
+// commitStatusIcon renders a commit's CI state, or a faint dot when no pipeline ran for
+// it — a blank would break the column that the eye follows down.
 func commitStatusIcon(status string) string {
 	if status == "" {
 		return components.FaintStyle.Render("·") + " "
@@ -314,10 +292,8 @@ func commitStatusIcon(status string) string {
 	return components.StatusIconPadded(status)
 }
 
-// commitStatus maps a commit to its CI status by matching a pipeline SHA that
-// starts with the commit's ShortID. A success with warnings reports the warning
-// pseudo-status, so a failed allowed-to-fail job is not hidden behind a green
-// tick — GitLab flags those in its own commit list. Returns "" if none.
+// commitStatus maps a commit to its CI status by matching a pipeline SHA that starts
+// with the commit's ShortID.
 func commitStatus(shortID string, pipelines []gitlab.Pipeline) string {
 	for _, p := range pipelines {
 		if shortID != "" && strings.HasPrefix(p.SHA, shortID) {
@@ -329,10 +305,6 @@ func commitStatus(shortID string, pipelines []gitlab.Pipeline) string {
 	}
 	return ""
 }
-
-// ============================================================================
-// KeyHints
-// ============================================================================
 
 // KeyHints implements View.
 func (v *DashboardView) KeyHints() []KeyHint {
@@ -357,10 +329,6 @@ func (v *DashboardView) KeyHints() []KeyHint {
 		v.search.hint(),
 	)
 }
-
-// ============================================================================
-// Commands (async API calls)
-// ============================================================================
 
 func (v *DashboardView) ref() string {
 	if v.ctx == nil || v.ctx.Branch == nil {

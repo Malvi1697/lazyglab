@@ -8,8 +8,7 @@ import (
 )
 
 func TestScrollHint_OnlyOfferedWhenSomethingCanScroll(t *testing.T) {
-	// j/k scrolling a message that already fits looks like a broken key. The
-	// footer now only names them where they would move something.
+	// j/k scrolling a message that already fits looks like a broken key.
 	page := newCommitDetail(&Context{})
 	d := &page
 	d.openAt(&gitlab.Commit{ID: "abc1234", ShortID: "abc1234", Title: "short"}, 0, 2)
@@ -50,7 +49,7 @@ func TestScrollHint_DiffSaysSoOnlyWhenItOverflows(t *testing.T) {
 }
 
 func TestJobLog_EmptyLogSaysSoInsteadOfNothing(t *testing.T) {
-	// A manual job has written nothing. Enter on one used to look like a dead key.
+	// A manual job has written nothing.
 	page := newCommitDetail(&Context{})
 	d := &page
 	d.jobs.adopt(9, []gitlab.Job{{ID: 1, Name: "deploy", Status: "manual"}})

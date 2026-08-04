@@ -22,8 +22,8 @@ func RunSetup() (*Config, error) {
 	// Host
 	fmt.Print("  GitLab host [gitlab.com]: ")
 	host, _ := reader.ReadString('\n')
-	// Accept a pasted URL gracefully — the scheme and any trailing path are
-	// stripped so we don't build a broken "https://https://gitlab.com" base URL.
+	// Accept a pasted URL gracefully — the scheme and any trailing path are stripped so we
+	// don't build a broken "https://https://gitlab.com" base URL.
 	host = NormalizeHost(host)
 	if host == "" {
 		host = "gitlab.com"
@@ -75,7 +75,6 @@ func RunSetup() (*Config, error) {
 }
 
 // OfferGlabImport checks for glab config and offers to import it.
-// Returns the imported Config, or nil if user declines or glab not found.
 func OfferGlabImport() (*Config, error) {
 	glabPath := findGlabConfig()
 	if glabPath == "" {

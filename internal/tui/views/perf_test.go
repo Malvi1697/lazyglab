@@ -9,8 +9,7 @@ import (
 	"github.com/Malvi1697/lazyglab/internal/gitlab"
 )
 
-// What one frame costs. Every keypress redraws the whole body, so anything that
-// re-derives its content from scratch here is paid again on every single key.
+// What one frame costs.
 
 // benchCommits is one page of commits: what a real list holds.
 func benchCommits() []gitlab.Commit {
@@ -83,8 +82,7 @@ func BenchmarkJobsPanelBody(b *testing.B) {
 }
 
 func BenchmarkJobLogScroll(b *testing.B) {
-	// A CI log of a few thousand lines, scrolled one row at a time. Every frame
-	// re-derives the whole thing unless something remembers it.
+	// A CI log of a few thousand lines, scrolled one row at a time.
 	var log strings.Builder
 	for i := 0; i < 4000; i++ {
 		fmt.Fprintf(&log, "\x1b[32m[%04d]\x1b[0m running step %d of the build with some detail\n", i, i)

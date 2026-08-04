@@ -171,8 +171,8 @@ func TestCommitTime(t *testing.T) {
 		when time.Time
 		want string
 	}{
-		// Today the clock tells the rows apart; on any other day the date does, and
-		// neither needs both — that is what keeps the column narrow.
+		// Today the clock tells the rows apart; on any other day the date does, and neither
+		// needs both — that is what keeps the column narrow.
 		{"this morning", now.Add(-2 * time.Hour), "07:30"},
 		{"later today", time.Date(2026, time.July, 25, 17, 21, 0, 0, time.UTC), "17:21"},
 		{"yesterday, not an age", now.Add(-24 * time.Hour), "24.7."},

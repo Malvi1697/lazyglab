@@ -21,21 +21,20 @@ const (
 	binaryName      = "lazyglab"
 	checksumsFile   = "checksums.txt"
 	downloadTimeout = 2 * time.Minute
-	// The archive is a few megabytes; the cap is there so a wrong URL cannot make
-	// us read forever into memory.
+	// The archive is a few megabytes; the cap is there so a wrong URL cannot make us read
+	// forever into memory.
 	maxArchiveBytes = 100 << 20
 )
 
 // SelfUpdate replaces the running binary with the newest release, verifying its
-// checksum first. It is what `lazyglab update` does.
+// checksum first.
 func SelfUpdate(currentVersion string, out io.Writer) error {
 	exe, err := os.Executable()
 	if err != nil {
 		return fmt.Errorf("finding the running binary: %w", err)
 	}
 	// Installers often leave a symlink behind (Homebrew, /usr/local/bin pointing
-	// elsewhere). Replacing the link with a file would strand whatever it pointed
-	// at, so we follow it and replace the real thing.
+	// elsewhere).
 	if resolved, err := filepath.EvalSymlinks(exe); err == nil {
 		exe = resolved
 	}
@@ -59,8 +58,7 @@ func selfUpdate(apiURL, currentVersion, exe string, out io.Writer) error {
 	}
 
 	// Say who owns this copy before downloading anything: replacing a file behind a
-	// package manager's back leaves it lying about what is installed, and the next
-	// upgrade would silently undo ours.
+	// package manager's back leaves it lying about what is installed.
 	if by := managedBy(exe); by != "" {
 		return fmt.Errorf("this copy of lazyglab was installed with %s, so it should be updated the same way:\n  %s",
 			by, upgradeHint(by))
@@ -96,7 +94,6 @@ func selfUpdate(apiURL, currentVersion, exe string, out io.Writer) error {
 	got := hex.EncodeToString(sha256Sum(archive))
 	if got != want {
 		// Either the download is damaged or it is not the file the release signed.
-		// Both mean we do not run it.
 		return fmt.Errorf("checksum mismatch for %s:\n  expected %s\n  got      %s", name, want, got)
 	}
 	_, _ = fmt.Fprintln(out, "Checksum verified.")
@@ -114,7 +111,7 @@ func selfUpdate(apiURL, currentVersion, exe string, out io.Writer) error {
 }
 
 // assetName is the release file for a platform, matching the name template in
-// .goreleaser.yaml. Keep the two in step.
+// .goreleaser.yaml.
 func assetName(version, goos, goarch string) string {
 	ext := "tar.gz"
 	if goos == "windows" {
@@ -123,8 +120,7 @@ func assetName(version, goos, goarch string) string {
 	return fmt.Sprintf("%s_%s_%s_%s.%s", binaryName, version, goos, goarch, ext)
 }
 
-// download reads a release asset into memory. The archives are a few megabytes,
-// so this saves a temporary file and the cleanup that goes with it.
+// download reads a release asset into memory.
 func download(url string) ([]byte, error) {
 	client := &http.Client{Timeout: downloadTimeout}
 	resp, err := client.Get(url)
@@ -148,8 +144,8 @@ func sha256Sum(b []byte) []byte {
 	return sum[:]
 }
 
-// checksumFor finds a file's expected hash in a checksums.txt ("<sha256>  <name>"
-// per line).
+// checksumFor finds a file's expected hash in a checksums.txt ("<sha256> <name>" per
+// line).
 func checksumFor(checksums, name string) (string, error) {
 	for _, line := range strings.Split(checksums, "\n") {
 		fields := strings.Fields(line)
@@ -168,8 +164,8 @@ func extractBinary(assetName string, archive []byte) ([]byte, error) {
 	return binaryFromTarGz(archive)
 }
 
-// isBinaryEntry reports whether an archive entry is the executable itself rather
-// than the README and licence shipped beside it.
+// isBinaryEntry reports whether an archive entry is the executable itself rather than
+// the README and licence shipped beside it.
 func isBinaryEntry(path string) bool {
 	base := filepath.Base(filepath.ToSlash(path))
 	return base == binaryName || base == binaryName+".exe"
@@ -226,9 +222,7 @@ func binaryFromZip(archive []byte) ([]byte, error) {
 	return nil, fmt.Errorf("the archive contains no %s executable", binaryName)
 }
 
-// replaceExecutable swaps a new binary in for the running one. The new file is
-// written beside the old one so the rename stays on one filesystem and is atomic:
-// at no point is there a half-written lazyglab on the path.
+// replaceExecutable swaps a new binary in for the running one.
 func replaceExecutable(exe string, bin []byte) error {
 	mode := os.FileMode(0o755)
 	if info, err := os.Stat(exe); err == nil {
@@ -257,9 +251,8 @@ func replaceExecutable(exe string, bin []byte) error {
 		return fmt.Errorf("making the new binary executable: %w", err)
 	}
 
-	// The old binary is moved aside rather than deleted: on Windows the running
-	// image cannot be removed, and everywhere else it is the thing we put back if
-	// the swap fails halfway.
+	// The old binary is moved aside rather than deleted: on Windows the running image
+	// cannot be removed.
 	old := exe + ".old"
 	_ = os.Remove(old)
 	if err := os.Rename(exe, old); err != nil {
@@ -276,8 +269,8 @@ func replaceExecutable(exe string, bin []byte) error {
 	return nil
 }
 
-// ensureWritable checks we can create a file beside the binary, which is what the
-// swap needs — the binary's own mode says nothing about the directory.
+// ensureWritable checks we can create a file beside the binary, which is what the swap
+// needs — the binary's own mode says nothing about the directory.
 func ensureWritable(exe string) error {
 	dir := filepath.Dir(exe)
 	probe, err := os.CreateTemp(dir, "."+binaryName+"-check-*")
@@ -290,8 +283,8 @@ func ensureWritable(exe string) error {
 	return nil
 }
 
-// managedBy names the package manager that owns this copy of the binary, or ""
-// when we installed it ourselves and are free to replace it.
+// managedBy names the package manager that owns this copy of the binary, or "" when we
+// installed it ourselves and are free to replace it.
 func managedBy(exe string) string {
 	path := filepath.ToSlash(exe)
 	switch {

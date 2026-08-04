@@ -9,8 +9,8 @@ import (
 	"github.com/Malvi1697/lazyglab/internal/gitlab"
 )
 
-// Local key constant specific to the Issues view (see pipelines.go for the
-// shared subset).
+// Local key constant specific to the Issues view (see pipelines.go for the shared
+// subset).
 const keyClose = "c"
 
 // IssuesView is the self-contained cockpit view for issues.
@@ -20,8 +20,8 @@ type IssuesView struct {
 
 	rowList[gitlab.Issue]
 
-	// detail is the in-place issue page, opened with Enter: the issue and its
-	// discussion, which is the one thing the list row does not carry.
+	// detail is the in-place issue page, opened with Enter: the issue and its discussion,
+	// which is the one thing the list row does not carry.
 	detail issueDetail
 }
 
@@ -48,10 +48,6 @@ func (v *IssuesView) Focus() tea.Cmd {
 	}
 	return v.load()
 }
-
-// ============================================================================
-// Update
-// ============================================================================
 
 // Update implements View.
 func (v *IssuesView) Update(msg tea.Msg) tea.Cmd {
@@ -82,8 +78,8 @@ func (v *IssuesView) Update(msg tea.Msg) tea.Cmd {
 	return v.detail.update(msg)
 }
 
-// CapturingText implements TextCapturer: while the search is being typed, the
-// shell must not read the letters as its own commands.
+// CapturingText implements TextCapturer: while the search is being typed, the shell
+// must not read the letters as its own commands.
 func (v *IssuesView) CapturingText() bool { return !v.detail.active && v.capturing() }
 
 // stepIssue moves to the neighbouring issue, keeping the page open.
@@ -101,8 +97,8 @@ func (v *IssuesView) handleKey(msg tea.KeyMsg) tea.Cmd {
 	key := msg.String()
 
 	if v.detail.active {
-		// Stepping to the neighbouring issue belongs to the list's owner — but not
-		// while the thread is open, where the arrows belong to what you are reading.
+		// Stepping to the neighbouring issue belongs to the list's owner — but not while the
+		// thread is open, where the arrows belong to what you are reading.
 		if step, ok := stepKey(key); ok && !v.detail.readingBody() {
 			return v.stepIssue(step)
 		}
@@ -138,14 +134,7 @@ func (v *IssuesView) handleKey(msg tea.KeyMsg) tea.Cmd {
 	return nil
 }
 
-// ============================================================================
-// Body / rendering
-// ============================================================================
-
-// Body implements View: the issues, full width, in the columns every other list
-// uses. Enter opens the issue page and its discussion, which is where the
-// description belongs — it used to be crammed into a panel beside the list, at the
-// cost of the width the titles needed.
+// Body implements View: the issues, full width, in the columns every other list uses.
 func (v *IssuesView) Body(width, height int) string {
 	v.width = width
 	v.height = height
@@ -158,8 +147,7 @@ func (v *IssuesView) Body(width, height int) string {
 	return v.box(width, height, "Issues", issueRow, true)
 }
 
-// issueRow describes one issue row. There is no CI on an issue, so the mark column
-// is left out entirely rather than filled with a placeholder.
+// issueRow describes one issue row.
 func issueRow(issue gitlab.Issue) listRow {
 	kind, subject := splitConventional(issue.Title)
 	return listRow{
@@ -171,10 +159,6 @@ func issueRow(issue gitlab.Issue) listRow {
 		stamp:   commitStamp(issue.UpdatedAt),
 	}
 }
-
-// ============================================================================
-// KeyHints
-// ============================================================================
 
 // KeyHints implements View.
 func (v *IssuesView) KeyHints() []KeyHint {
@@ -189,10 +173,6 @@ func (v *IssuesView) KeyHints() []KeyHint {
 		v.search.hint(),
 	}
 }
-
-// ============================================================================
-// Commands (async API calls)
-// ============================================================================
 
 func (v *IssuesView) load() tea.Cmd {
 	if v.ctx == nil || v.ctx.Project == nil || v.ctx.Client == nil {

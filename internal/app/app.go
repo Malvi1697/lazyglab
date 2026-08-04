@@ -13,8 +13,7 @@ import (
 	"github.com/Malvi1697/lazyglab/internal/util"
 )
 
-// Run initializes the application and starts the TUI. version is the running
-// build, which the shell needs to tell the user when a newer one exists.
+// Run initializes the application and starts the TUI.
 func Run(version string) error {
 	cfg, err := resolveConfig()
 	if err != nil {
@@ -69,9 +68,7 @@ func Run(version string) error {
 		Reconfigure:      ReconfigureAuth,
 		SaveFavorites:    SaveFavorites,
 		SaveLastProject:  SaveLastProject,
-		// Asked once, in the background, and only reported if there is something to
-		// report. Printing it here instead would put the notice on the screen the alt
-		// buffer is about to replace, where nobody ever saw it.
+		// Asked once, in the background, and only reported if there is something to report.
 		CheckUpdate: func() string { return LatestVersion(version) },
 	})
 	p := tea.NewProgram(model)
@@ -90,12 +87,12 @@ func Setup() error {
 
 // resolveConfig loads config with priority: own config > glab import > wizard.
 func resolveConfig() (*Config, error) {
-	// 1. Own config exists — use it
+	// 1.
 	if ConfigExists() {
 		return LoadConfig()
 	}
 
-	// 2. glab config exists — offer import
+	// 2.
 	cfg, err := OfferGlabImport()
 	if err != nil {
 		return nil, err
@@ -104,7 +101,7 @@ func resolveConfig() (*Config, error) {
 		return cfg, nil
 	}
 
-	// 3. Run setup wizard
+	// 3.
 	return RunSetup()
 }
 

@@ -78,8 +78,8 @@ func TestListTodos_success(t *testing.T) {
 		t.Errorf("issue reference = %q, want #7", got)
 	}
 
-	// A commit has no number GitLab would write, and no target title either — the
-	// body is all there is to show, so the row must fall back to it.
+	// A commit has no number GitLab would write, and no target title either — the body is
+	// all there is to show, so the row must fall back to it.
 	commit := todos[2]
 	if commit.Reference != "" {
 		t.Errorf("commit reference = %q, want none", commit.Reference)

@@ -141,8 +141,7 @@ func TestProjectFilter_EnterAppliesThenSelects(t *testing.T) {
 }
 
 // TestProjectFilter_StarAfterApplying covers the flow that matters: search for a
-// project, then star it. While typing, "f" has to be a character (branch names
-// like "feature/x" need it), so applying the search is what frees the key again.
+// project, then star it.
 func TestProjectFilter_StarAfterApplying(t *testing.T) {
 	a := newPickerApp(t)
 	press(a, "P")

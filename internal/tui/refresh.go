@@ -12,15 +12,12 @@ import (
 // spinnerFrames is the braille spinner shown while a refresh is in flight.
 var spinnerFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
 
-// justRefreshed is how long a finished refresh is called out in the success
-// colour. It answers the question "did pressing r do anything?" even when the
-// data came back identical, which is the usual case and used to look like nothing
-// had happened at all.
+// justRefreshed is how long a finished refresh is called out in the success colour.
 const justRefreshed = 3 * time.Second
 
-// refreshNote is the note at the far right of the context bar: the spinner while
-// data is being fetched, a tick just after it lands, then how stale the data is
-// and how long until the next automatic fetch.
+// refreshNote is the note at the far right of the context bar: the spinner while data
+// is being fetched, a tick just after it lands, then how stale the data is and how
+// long the data has been on screen.
 func (a *App) refreshNote(now time.Time) string {
 	if a.refreshing {
 		frame := spinnerFrames[a.spinFrame%len(spinnerFrames)]
@@ -49,8 +46,8 @@ func (a *App) refreshNote(now time.Time) string {
 	return components.MutedStyle.Render(note)
 }
 
-// shortDuration renders a duration in one unit, rounded down, for a note that has
-// to stay the same width as it counts.
+// shortDuration renders a duration in one unit, rounded down, for a note that has to
+// stay the same width as it counts.
 func shortDuration(d time.Duration) string {
 	if d < 0 {
 		d = 0

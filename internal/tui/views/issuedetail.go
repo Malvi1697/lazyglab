@@ -15,10 +15,6 @@ import (
 
 // issueDetail is the full-screen issue page: what it says, who it is on, and the
 // conversation about it.
-//
-// It is the smallest of the three pages, because an issue is mostly words. The
-// list row already carries everything but the discussion, so opening one costs a
-// single request.
 type issueDetail struct {
 	ctx *Context
 
@@ -94,8 +90,8 @@ func (d *issueDetail) close() {
 	d.iid, d.requested, d.scroll = 0, 0, 0
 }
 
-// reload refetches the open issue's discussion: a new comment is the one thing
-// about an issue that arrives while you are looking at it.
+// reload refetches the open issue's discussion: a new comment is the one thing about an
+// issue that arrives while you are looking at it.
 func (d *issueDetail) reload() tea.Cmd {
 	if !d.active || d.iid == 0 {
 		return nil
@@ -104,8 +100,8 @@ func (d *issueDetail) reload() tea.Cmd {
 	return d.load(d.iid)
 }
 
-// readingBody reports whether the thread has the screen, so the host knows the
-// arrows are not its to act on.
+// readingBody reports whether the thread has the screen, so the host knows the arrows
+// are not its to act on.
 func (d *issueDetail) readingBody() bool { return d.threadOpen }
 
 // load fetches the issue's discussion — the one thing the list row does not carry.
@@ -181,10 +177,6 @@ func (d *issueDetail) remember(iid int, notes []gitlab.Note) {
 	}
 	d.pages[iid] = notes
 }
-
-// ============================================================================
-// Keys
-// ============================================================================
 
 func (d *issueDetail) handleKey(key string, height int) tea.Cmd {
 	if d.threadOpen {
@@ -287,10 +279,6 @@ func (d *issueDetail) postComment(body string) tea.Cmd {
 		return IssueActionDoneMsg{Text: fmt.Sprintf("Commented on #%d", iid)}
 	}
 }
-
-// ============================================================================
-// Rendering
-// ============================================================================
 
 func (d *issueDetail) body(width, height int) string {
 	if d.threadOpen {
@@ -424,10 +412,6 @@ func issueState(state string) string {
 	}
 	return components.MutedStyle.Render(state)
 }
-
-// ============================================================================
-// KeyHints
-// ============================================================================
 
 func (d *issueDetail) keyHints() []KeyHint {
 	if d.threadOpen {

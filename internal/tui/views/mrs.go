@@ -9,8 +9,8 @@ import (
 	"github.com/Malvi1697/lazyglab/internal/tui/components"
 )
 
-// Local key constants specific to the MRs view (see pipelines.go for the
-// shared subset).
+// Local key constants specific to the MRs view (see pipelines.go for the shared
+// subset).
 const (
 	keyApprove = "a"
 	keyMerge   = "m"
@@ -23,8 +23,8 @@ type MRsView struct {
 
 	rowList[gitlab.MergeRequest]
 
-	// detail is the in-place merge-request page, opened with Enter — the same shape
-	// as the commit page, so drilling in never moves you to another tab.
+	// detail is the in-place merge-request page, opened with Enter — the same shape as the
+	// commit page, so drilling in never moves you to another tab.
 	detail mrDetail
 }
 
@@ -40,12 +40,7 @@ func NewMRsView(ctx *Context) *MRsView {
 // Title implements View.
 func (v *MRsView) Title() string { return "Merge Requests" }
 
-// Focus implements View: refreshes what is on screen. With a merge request open,
-// that is the page — its pipeline, its jobs, its approvals — and not the list
-// behind it, which was the reason a page you sat watching never changed.
-//
-// Anything long-form being read (a diff, a log, a thread) is left alone: a refetch
-// would move what someone is halfway through.
+// Focus implements View: refreshes what is on screen.
 func (v *MRsView) Focus() tea.Cmd {
 	if v.detail.active {
 		if v.detail.readingBody() {
@@ -55,10 +50,6 @@ func (v *MRsView) Focus() tea.Cmd {
 	}
 	return v.load()
 }
-
-// ============================================================================
-// Update
-// ============================================================================
 
 // Update implements View.
 func (v *MRsView) Update(msg tea.Msg) tea.Cmd {
@@ -89,13 +80,11 @@ func (v *MRsView) Update(msg tea.Msg) tea.Cmd {
 	return v.detail.update(msg)
 }
 
-// CapturingText implements TextCapturer: while the search is being typed, the
-// shell must not read the letters as its own commands.
+// CapturingText implements TextCapturer: while the search is being typed, the shell
+// must not read the letters as its own commands.
 func (v *MRsView) CapturingText() bool { return !v.detail.active && v.capturing() }
 
-// stepMR moves to the neighbouring merge request, keeping the page open. It steps
-// within the search results when one is applied: the page was opened from that
-// list, so those are the ones you are working through.
+// stepMR moves to the neighbouring merge request, keeping the page open.
 func (v *MRsView) stepMR(step int) tea.Cmd {
 	visible := v.visible()
 	next := v.cursor + step
@@ -110,9 +99,8 @@ func (v *MRsView) handleKey(msg tea.KeyMsg) tea.Cmd {
 	key := msg.String()
 
 	if v.detail.active {
-		// Stepping to the neighbouring merge request belongs to the list's owner,
-		// since the page does not know what comes next — but not while a diff or a
-		// job log is open, where the arrows belong to what you are reading.
+		// Stepping to the neighbouring merge request belongs to the list's owner, since the
+		// page does not know what comes next.
 		if step, ok := stepKey(key); ok && !v.detail.readingBody() {
 			return v.stepMR(step)
 		}
@@ -146,16 +134,8 @@ func (v *MRsView) handleKey(msg tea.KeyMsg) tea.Cmd {
 	return nil
 }
 
-// ============================================================================
-// Body / rendering
-// ============================================================================
-
-// Body implements View: the merge requests, full width, in the same columns every
-// other list uses.
-//
-// The preview panel beside the list is gone: Enter opens the merge-request page
-// itself, which says everything the preview did and more, and the width it took
-// was coming out of the titles — the one thing on the row that cannot be guessed.
+// Body implements View: the merge requests, full width, in the same columns every other
+// list uses.
 func (v *MRsView) Body(width, height int) string {
 	v.width = width
 	v.height = height
@@ -168,9 +148,8 @@ func (v *MRsView) Body(width, height int) string {
 	return v.box(width, height, "Merge Requests", mrRow, true)
 }
 
-// mrRow describes one merge-request row: its number, its CI, what it is, then who
-// wrote it, where it comes from, and when it last moved — the same shape GitLab's
-// own list has.
+// mrRow describes one merge-request row: its number, its CI, what it is, then who wrote
+// it, where it comes from, and when it last moved.
 func mrRow(mr gitlab.MergeRequest) listRow {
 	title := mr.Title
 	if mr.Draft {
@@ -194,10 +173,6 @@ func mrRow(mr gitlab.MergeRequest) listRow {
 	}
 }
 
-// ============================================================================
-// KeyHints
-// ============================================================================
-
 // KeyHints implements View.
 func (v *MRsView) KeyHints() []KeyHint {
 	if v.detail.active {
@@ -212,10 +187,6 @@ func (v *MRsView) KeyHints() []KeyHint {
 		v.search.hint(),
 	}
 }
-
-// ============================================================================
-// Commands (async API calls)
-// ============================================================================
 
 func (v *MRsView) load() tea.Cmd {
 	if v.ctx == nil || v.ctx.Project == nil || v.ctx.Client == nil {

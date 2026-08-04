@@ -127,8 +127,8 @@ func TestParseGitLabRemote_CustomHost(t *testing.T) {
 }
 
 func TestParseGitLabRemote_SSHURLWithPort(t *testing.T) {
-	// ssh:// URLs with a custom port are common for self-hosted GitLab; the
-	// port must be stripped from the host so it matches config/client keys.
+	// ssh:// URLs with a custom port are common for self-hosted GitLab; the port must be
+	// stripped from the host so it matches config/client keys.
 	host, path := ParseGitLabRemote("ssh://git@gitlab.example.com:2222/owner/project.git")
 	if host != "gitlab.example.com" {
 		t.Errorf("expected host=gitlab.example.com (port stripped), got %q", host)

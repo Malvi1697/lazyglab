@@ -8,8 +8,8 @@ import (
 	"testing"
 )
 
-// countingHandler answers a pipeline list and the lookups it provokes, counting
-// each kind of request.
+// countingHandler answers a pipeline list and the lookups it provokes, counting each
+// kind of request.
 type countingHandler struct {
 	mu      sync.Mutex
 	list    int
@@ -63,10 +63,7 @@ func (h *countingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func TestListPipelines_CommitTitlesAreResolvedInBulkAndCached(t *testing.T) {
-	// The list endpoint carries no commit title, so every row needs one. Asking
-	// per row cost thirty requests per refresh on a real project; a title cannot
-	// change, so it is worth exactly one request ever — and a page of commits
-	// answers a whole list at once.
+	// The list endpoint carries no commit title, so every row needs one.
 	h := &countingHandler{}
 	client, srv := setupTestClient(t, h)
 	defer srv.Close()
@@ -93,8 +90,8 @@ func TestListPipelines_CommitTitlesAreResolvedInBulkAndCached(t *testing.T) {
 		t.Errorf("%d per-SHA title lookups, want none once the page answered them all", titles)
 	}
 
-	// An auto-refresh of an unchanged list must cost the list request and nothing
-	// else at all.
+	// An auto-refresh of an unchanged list must cost the list request and nothing else at
+	// all.
 	if _, err := client.ListPipelines(42); err != nil {
 		t.Fatalf("unexpected error on refresh: %v", err)
 	}
@@ -109,8 +106,8 @@ func TestListPipelines_CommitTitlesAreResolvedInBulkAndCached(t *testing.T) {
 }
 
 func TestListCommits_SeedsTheTitlesThePipelineListNeeds(t *testing.T) {
-	// Overview loads both lists; the commits it already has must spare the
-	// pipelines any lookup at all.
+	// Overview loads both lists; the commits it already has must spare the pipelines any
+	// lookup at all.
 	h := &countingHandler{}
 	client, srv := setupTestClient(t, h)
 	defer srv.Close()

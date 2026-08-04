@@ -41,8 +41,7 @@ func (c *Client) ListPipelines(projectID int) ([]Pipeline, error) {
 	return pipelines, nil
 }
 
-// toPipelines maps a page of API pipelines into domain ones. Every list endpoint
-// returns the same shape, so they all come through here.
+// toPipelines maps a page of API pipelines into domain ones.
 func toPipelines(apiPipelines []*gogitlab.PipelineInfo) []Pipeline {
 	pipelines := make([]Pipeline, len(apiPipelines))
 	for i, p := range apiPipelines {
@@ -64,13 +63,8 @@ func toPipelines(apiPipelines []*gogitlab.PipelineInfo) []Pipeline {
 }
 
 // fillCommitTitles gives each pipeline the title of the commit it built.
-//
-// The list endpoint carries only the SHA, so this is a lookup per distinct SHA —
-// but only the first time that SHA is seen. A commit's title is immutable, so the
-// cache means an auto-refresh of an unchanged list costs nothing at all, and a
-// new pipeline costs one request.
 func (c *Client) fillCommitTitles(projectID int, pipelines []Pipeline) {
-	// The SHAs we have never resolved. Anything cached is filled in as we go.
+	// The SHAs we have never resolved.
 	missing := make(map[string]struct{})
 	for i, p := range pipelines {
 		if p.SHA == "" {
@@ -87,9 +81,7 @@ func (c *Client) fillCommitTitles(projectID int, pipelines []Pipeline) {
 	}
 
 	// One page of commits answers up to fifty SHAs for a single request, so it beats
-	// asking per SHA the moment more than a couple are missing — which is exactly the
-	// cold start this list used to pay thirty requests for. It only covers the
-	// default branch, so whatever is left is still asked for individually below.
+	// asking per SHA the moment more than a couple are missing.
 	if len(missing) > 2 {
 		if _, err := c.ListCommits(projectID, ""); err == nil {
 			for sha := range missing {
@@ -100,8 +92,8 @@ func (c *Client) fillCommitTitles(projectID int, pipelines []Pipeline) {
 		}
 	}
 
-	// Fetch concurrently, but bounded, so a page of new pipelines doesn't fan out
-	// into dozens of simultaneous requests and trip GitLab's rate limiting.
+	// Fetch concurrently, but bounded, so a page of new pipelines doesn't fan out into
+	// dozens of simultaneous requests and trip GitLab's rate limiting.
 	var wg sync.WaitGroup
 	sem := make(chan struct{}, 6)
 	for sha := range missing {
@@ -223,9 +215,7 @@ func (c *Client) GetJobTrace(projectID, jobID int) (string, error) {
 	return buf.String(), nil
 }
 
-// ListPipelinesBySHA returns the pipelines run for one commit. GitLab creates
-// pipelines for refs, so a commit can have several (re-runs, or the same commit
-// on more than one branch) or none at all.
+// ListPipelinesBySHA returns the pipelines run for one commit.
 func (c *Client) ListPipelinesBySHA(projectID int, sha string) ([]Pipeline, error) {
 	opts := &gogitlab.ListProjectPipelinesOptions{
 		SHA:         gogitlab.Ptr(sha),
@@ -243,9 +233,7 @@ func (c *Client) ListPipelinesBySHA(projectID int, sha string) ([]Pipeline, erro
 	return pipelines, nil
 }
 
-// GetPipeline returns one pipeline including GitLab's detailed status, which is
-// how "passed with warnings" (a success with failed allowed-to-fail jobs) is
-// distinguished from a plain success. The list endpoints do not carry it.
+// GetPipeline returns one pipeline including GitLab's detailed status.
 func (c *Client) GetPipeline(projectID, pipelineID int) (*Pipeline, error) {
 	p, _, err := c.api.Pipelines.GetPipeline(projectID, int64(pipelineID))
 	if err != nil {
@@ -267,8 +255,8 @@ func (c *Client) GetPipeline(projectID, pipelineID int) (*Pipeline, error) {
 	}
 	if d := p.DetailedStatus; d != nil {
 		pipeline.StatusLabel = util.StripANSI(d.Label)
-		// GitLab groups this as "success-with-warnings"; match loosely so a
-		// wording change does not silently drop the distinction.
+		// GitLab groups this as "success-with-warnings"; match loosely so a wording change
+		// does not silently drop the distinction.
 		pipeline.HasWarnings = strings.Contains(d.Group, "warning") ||
 			strings.Contains(strings.ToLower(d.Label), "warning")
 	}
@@ -276,18 +264,13 @@ func (c *Client) GetPipeline(projectID, pipelineID int) (*Pipeline, error) {
 }
 
 // fillWarnings marks the pipelines that succeeded with warnings.
-//
-// Only the single-pipeline endpoint reports GitLab's detailed status, so this
-// costs one request per successful pipeline the first time it is seen. Results
-// are cached on the client: a finished pipeline's verdict cannot change, so
-// auto-refreshes reuse them. Requests are bounded like the commit-title fan-out.
 func (c *Client) fillWarnings(projectID int, pipelines []Pipeline) {
 	var wg sync.WaitGroup
 	sem := make(chan struct{}, 6)
 
 	for i := range pipelines {
-		// Only a success can be a success-with-warnings, and an unfinished one
-		// would have to be asked again anyway.
+		// Only a success can be a success-with-warnings, and an unfinished one would have to
+		// be asked again anyway.
 		if pipelines[i].Status != "success" {
 			continue
 		}

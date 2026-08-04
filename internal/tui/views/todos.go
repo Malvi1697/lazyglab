@@ -12,8 +12,8 @@ import (
 	"github.com/Malvi1697/lazyglab/internal/util"
 )
 
-// Local key constants specific to the Todos view (see pipelines.go for the
-// shared subset).
+// Local key constants specific to the Todos view (see pipelines.go for the shared
+// subset).
 const (
 	keyDone    = "d"
 	keyDoneAll = "D"
@@ -21,10 +21,6 @@ const (
 
 // TodosView is the user's GitLab To-Do list: reviews asked of them, mentions,
 // assignments and failed pipelines they own.
-//
-// It is the one view that ignores the selected project. Every other view answers
-// "what is happening here"; this one answers "what is waiting on me", which is
-// the question you have before you have picked a project at all.
 type TodosView struct {
 	ctx           *Context
 	width, height int // last body size, tracked from tea.WindowSizeMsg / Body
@@ -32,8 +28,8 @@ type TodosView struct {
 	rowList[gitlab.Todo]
 	loaded bool // a reply has arrived, so an empty list really is empty
 
-	// detailBox says why the highlighted to-do exists; Enter here leads to a browser,
-	// so this is the only place that can say it.
+	// detailBox says why the highlighted to-do exists; Enter here leads to a browser, so
+	// this is the only place that can say it.
 	detailBox foldBox
 }
 
@@ -50,12 +46,8 @@ func NewTodosView(ctx *Context) *TodosView {
 // Title implements View.
 func (v *TodosView) Title() string { return "Todos" }
 
-// Focus implements View: loads the to-do list. No project needed.
+// Focus implements View: loads the to-do list.
 func (v *TodosView) Focus() tea.Cmd { return v.load() }
-
-// ============================================================================
-// Update
-// ============================================================================
 
 // Update implements View.
 func (v *TodosView) Update(msg tea.Msg) tea.Cmd {
@@ -74,8 +66,8 @@ func (v *TodosView) Update(msg tea.Msg) tea.Cmd {
 		return nil
 
 	case TodoActionDoneMsg:
-		// Clearing a to-do removes it from the list, so the list has to be refetched
-		// for the screen to match what GitLab now thinks.
+		// Clearing a to-do removes it from the list, so the list has to be refetched for the
+		// screen to match what GitLab now thinks.
 		if msg.IsErr {
 			return statusCmd(msg.Text, true)
 		}
@@ -91,8 +83,8 @@ func (v *TodosView) Update(msg tea.Msg) tea.Cmd {
 	return nil
 }
 
-// CapturingText implements TextCapturer: while the search is being typed, the
-// shell must not read the letters as its own commands.
+// CapturingText implements TextCapturer: while the search is being typed, the shell
+// must not read the letters as its own commands.
 func (v *TodosView) CapturingText() bool { return v.capturing() }
 
 func (v *TodosView) handleKey(msg tea.KeyMsg) tea.Cmd {
@@ -123,15 +115,14 @@ func (v *TodosView) handleKey(msg tea.KeyMsg) tea.Cmd {
 	case keyDone:
 		return confirmCmd(fmt.Sprintf("Mark done: %s?", todoLabel(*todo)), v.markDone(*todo))
 	case keyCopy:
-		// A to-do's identifier is its target's: what you would type is "!42", never
-		// the to-do's own row number, which means nothing outside your own list.
+		// A to-do's identifier is its target's: what you would type is "!42", never the
+		// to-do's own row number, which means nothing outside your own list.
 		return copyRef(todo.Reference)
 	case keyCopyLink:
 		return copyLink(todoLabel(*todo), todo.WebURL)
 	case keyEnter, keyOpenBrowse:
-		// A to-do is a pointer at something on the web: an MR to review, an issue you
-		// were named in. There is no deeper screen for it inside lazyglab, so Enter
-		// means the same as o rather than nothing at all.
+		// A to-do is a pointer at something on the web: an MR to review, an issue you were
+		// named in.
 		if cmd := openBrowserCmd(todo.WebURL); cmd != nil {
 			return execBrowser(cmd)
 		}
@@ -139,16 +130,7 @@ func (v *TodosView) handleKey(msg tea.KeyMsg) tea.Cmd {
 	return nil
 }
 
-// ============================================================================
-// Body / rendering
-// ============================================================================
-
 // Body implements View: the list, full width, with the highlighted to-do below it.
-//
-// Below rather than beside, like the dashboard's README: the list is the same
-// table every other view shows, and the detail is the only thing on this page that
-// Enter cannot open — Enter leads to a browser, so the reason a to-do exists has
-// nowhere else to be said. "t" folds it away when the rows matter more.
 func (v *TodosView) Body(width, height int) string {
 	v.width = width
 	v.height = height
@@ -172,12 +154,8 @@ func (v *TodosView) detailTitle() string {
 	return "Todo"
 }
 
-// todoRow describes one to-do row: why it is there, what it points at, which
-// project it is in, and when it arrived.
-//
-// Why it is there takes the column the other lists give the kind of change, because
-// it is the thing you triage on — a conflict is not a mention. That leaves the
-// title's own "feat:" prefix to be dimmed inline instead of aligned.
+// todoRow describes one to-do row: why it is there, what it points at, which project it
+// is in, and when it arrived.
 func todoRow(t gitlab.Todo) listRow {
 	project := t.ProjectPath
 	if i := strings.LastIndex(project, "/"); i >= 0 {
@@ -196,8 +174,8 @@ func todoRow(t gitlab.Todo) listRow {
 
 func (v *TodosView) todoDetail() string {
 	if len(v.items) == 0 {
-		// Before the first reply an empty list means "not yet", not "nothing" — and
-		// telling someone their plate is clear when it is not is the worse mistake.
+		// Before the first reply an empty list means "not yet", not "nothing" — and telling
+		// someone their plate is clear when it is not is the worse mistake.
 		if !v.loaded {
 			return components.HelpDescStyle.Render("Loading…")
 		}
@@ -236,8 +214,8 @@ func (v *TodosView) todoDetail() string {
 	return strings.Join(lines, "\n")
 }
 
-// todoLabel is the to-do's reference and title as one string, for a prompt or a
-// status line: plain text, no styling.
+// todoLabel is the to-do's reference and title as one string, for a prompt or a status
+// line: plain text, no styling.
 func todoLabel(t gitlab.Todo) string {
 	if t.Reference == "" {
 		return t.Title
@@ -245,10 +223,7 @@ func todoLabel(t gitlab.Todo) string {
 	return t.Reference + " " + t.Title
 }
 
-// todoActionColor colours the column that says why a to-do exists. Only the ones
-// that mean something is broken or blocked take a colour; the rest stay the same
-// weight as the other metadata, or the list would be a wall of colour. nil is that
-// default grey.
+// todoActionColor colours the column that says why a to-do exists.
 func todoActionColor(action string) color.Color {
 	switch action {
 	case "build_failed", "unmergeable", "merge_train_removed":
@@ -317,10 +292,6 @@ func todoActionWord(action string) string {
 	}
 }
 
-// ============================================================================
-// KeyHints
-// ============================================================================
-
 // KeyHints implements View.
 func (v *TodosView) KeyHints() []KeyHint {
 	return []KeyHint{
@@ -332,10 +303,6 @@ func (v *TodosView) KeyHints() []KeyHint {
 		v.search.hint(),
 	}
 }
-
-// ============================================================================
-// Commands (async API calls)
-// ============================================================================
 
 func (v *TodosView) load() tea.Cmd {
 	if v.ctx == nil || v.ctx.Client == nil {

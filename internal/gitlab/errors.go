@@ -8,10 +8,8 @@ import (
 	gogitlab "gitlab.com/gitlab-org/api/client-go"
 )
 
-// IsAuthError reports whether err means the stored token itself is unusable —
-// missing, expired, revoked or lacking the required scope — so the user has to
-// re-authenticate. A per-project permission problem is deliberately not an auth
-// error: it must not trigger a re-authentication prompt.
+// IsAuthError reports whether err means the stored token itself is unusable — missing,
+// expired, revoked or lacking the required scope — so the user has to re-authenticate.
 func IsAuthError(err error) bool {
 	if err == nil {
 		return false
@@ -26,15 +24,15 @@ func IsAuthError(err error) bool {
 		case http.StatusUnauthorized:
 			return true
 		case http.StatusForbidden:
-			// 403 is usually "you may not touch this project"; treat it as an auth
-			// failure only when GitLab blames the token itself (e.g. missing scope).
+			// 403 is usually "you may not touch this project"; treat it as an auth failure only
+			// when GitLab blames the token itself (e.g.
 			return blamesToken(resp.Message) || blamesToken(string(resp.Body))
 		default:
 			return false
 		}
 	}
 
-	// Errors raised outside the API client, e.g. our own ValidateToken.
+	// Errors raised outside the API client, e.g.
 	return blamesToken(err.Error())
 }
 

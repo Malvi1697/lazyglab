@@ -8,8 +8,8 @@ import (
 	gogitlab "gitlab.com/gitlab-org/api/client-go"
 )
 
-// setupTestClient creates an httptest server with the given handler and returns
-// a Client pointing at that server. The caller must call srv.Close() when done.
+// setupTestClient creates an httptest server with the given handler and returns a
+// Client pointing at that server.
 func setupTestClient(t *testing.T, handler http.Handler) (*Client, *httptest.Server) {
 	t.Helper()
 	srv := httptest.NewServer(handler)
@@ -18,8 +18,8 @@ func setupTestClient(t *testing.T, handler http.Handler) (*Client, *httptest.Ser
 		srv.Close()
 		t.Fatalf("creating test gitlab client: %v", err)
 	}
-	// token and baseURL as well, so the GraphQL query reaches the same test server
-	// the REST calls do.
+	// token and baseURL as well, so the GraphQL query reaches the same test server the
+	// REST calls do.
 	return &Client{
 		api:      apiClient,
 		hostname: "test.gitlab.com",

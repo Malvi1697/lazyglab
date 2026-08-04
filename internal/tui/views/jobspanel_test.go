@@ -61,8 +61,8 @@ func TestJobsPanel_NavigationSkipsHeaders(t *testing.T) {
 }
 
 func TestJobsPanel_OpenLogTakesTheNavigationKeys(t *testing.T) {
-	// While reading a log, j/k scroll it rather than jumping between jobs; Esc
-	// (handled by the host) closes it and hands the keys back to the list.
+	// While reading a log, j/k scroll it rather than jumping between jobs; Esc (handled by
+	// the host) closes it and hands the keys back to the list.
 	p := samplePanel()
 	p.setTrace(strings.Repeat("a log line\n", 50))
 
@@ -145,7 +145,7 @@ func TestJobsPanel_PlayOnlyAppliesToManualJobs(t *testing.T) {
 }
 
 func TestJobsPanel_UnknownKeysFallThrough(t *testing.T) {
-	// The host view must keep its own bindings, e.g. b for the branch picker.
+	// The host view must keep its own bindings, e.g.
 	p := samplePanel()
 	if _, consumed := p.handleKey("b", 20); consumed {
 		t.Error("the panel must not swallow keys it has no use for")
@@ -254,8 +254,8 @@ func TestCommitPage_RoutesJobMessagesToThePanel(t *testing.T) {
 		Update(tea.Msg) tea.Cmd
 	}{}
 
-	// A real (unused) client and project, so the reload after an action has
-	// something to return. No command is executed here.
+	// A real (unused) client and project, so the reload after an action has something to
+	// return.
 	ctx := testContext(t)
 
 	commits := NewCommitsView(ctx)

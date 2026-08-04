@@ -11,8 +11,8 @@ func TestScrollOffset_ShortListNeverScrolls(t *testing.T) {
 }
 
 func TestScrollOffset_TopOfListStaysPinned(t *testing.T) {
-	// Moving down inside the first window must not scroll while the cursor is
-	// still more than a margin away from the bottom edge.
+	// Moving down inside the first window must not scroll while the cursor is still more
+	// than a margin away from the bottom edge.
 	height, total := 10, 50
 	for cursor := 0; cursor <= height-1-ScrollMargin; cursor++ {
 		if got := ScrollOffset(0, cursor, total, height); got != 0 {
@@ -32,15 +32,15 @@ func TestScrollOffset_ScrollsBeforeReachingTheEdge(t *testing.T) {
 	}
 }
 
-// TestScrollOffset_CursorIsNotPinnedToTheEdge is the reported bug: after
-// scrolling down, moving back up walked the whole viewport instead of moving the
-// cursor inside it.
+// TestScrollOffset_CursorIsNotPinnedToTheEdge is the reported bug: after scrolling
+// down, moving back up walked the whole viewport instead of moving the cursor inside
+// it.
 func TestScrollOffset_CursorIsNotPinnedToTheEdge(t *testing.T) {
 	height, total := 10, 50
 	offset := 20 // rows 20..29 visible, cursor at 26: a margin clear of the edges
 
-	// Moving up walks the cursor through the window; the viewport only follows
-	// once the cursor comes within a margin of the top edge.
+	// Moving up walks the cursor through the window; the viewport only follows once the
+	// cursor comes within a margin of the top edge.
 	for _, step := range []struct{ cursor, wantOffset int }{
 		{25, 20},
 		{24, 20},
@@ -55,9 +55,8 @@ func TestScrollOffset_CursorIsNotPinnedToTheEdge(t *testing.T) {
 	}
 }
 
-// TestScrollOffset_CursorKeepsContextAhead walks the whole list down one row at a
-// time and checks the cursor never lands on the last visible row — the symptom
-// of the old cursor-derived offset — until the list itself ends.
+// TestScrollOffset_CursorKeepsContextAhead walks the whole list down one row at a time
+// and checks the cursor never lands on the last visible row.
 func TestScrollOffset_CursorKeepsContextAhead(t *testing.T) {
 	height, total := 10, 50
 	offset := 0

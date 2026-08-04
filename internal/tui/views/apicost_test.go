@@ -16,13 +16,9 @@ import (
 )
 
 // The API budget of each user action, measured rather than guessed.
-//
-// A cockpit that refreshes itself every 30 seconds is only welcome on someone
-// else's GitLab if a refresh is cheap, so these tests count the requests one
-// action really makes and fail when that count grows.
 
-// apiRecorder is a stand-in GitLab that answers plausibly and counts what was
-// asked of it, by shape of path rather than by exact id.
+// apiRecorder is a stand-in GitLab that answers plausibly and counts what was asked of
+// it, by shape of path rather than by exact id.
 type apiRecorder struct {
 	mu     sync.Mutex
 	counts map[string]int
@@ -127,9 +123,7 @@ func bodyFor(path string) string {
 		return "[" + strings.Join(items, ",") + "]"
 
 	case "/api/graphql":
-		// The stages query, answered for whichever pipelines were asked about. The
-		// fixture always returns the same three stages; what the test cares about is
-		// how often it is asked.
+		// The stages query, answered for whichever pipelines were asked about.
 		var nodes []string
 		for i := range costSHAs {
 			nodes = append(nodes, fmt.Sprintf(
@@ -153,8 +147,8 @@ func bodyFor(path string) string {
 			{"id":1012,"iid":12,"title":"Another MR","author":{"username":"b"},"source_branch":"g","target_branch":"main","state":"opened","web_url":"https://gl/mr/12"}]`
 
 	case "/projects/:id/issues":
-		// The id matters: client-go's Issue unmarshaller reflects on it and panics
-		// when it is missing.
+		// The id matters: client-go's Issue unmarshaller reflects on it and panics when it is
+		// missing.
 		return `[{"id":1007,"iid":7,"title":"Issue","author":{"username":"a"},"state":"opened","web_url":"https://gl/i/7"}]`
 
 	case "/projects/:id/merge_requests/:id":
@@ -195,9 +189,8 @@ func costHarness(t *testing.T) (*apiRecorder, *Context, func()) {
 	return rec, ctx, srv.Close
 }
 
-// drain runs a command and everything it batches, feeding each resulting message
-// back into the view — which is what the shell does, and what makes follow-up
-// requests happen.
+// drain runs a command and everything it batches, feeding each resulting message back
+// into the view.
 func drain(v View, cmd tea.Cmd) {
 	if cmd == nil {
 		return
@@ -238,8 +231,8 @@ func TestAPICost_OverviewRefresh(t *testing.T) {
 	if first < 4 {
 		t.Fatalf("first load = %d requests, expected at least the four lists", first)
 	}
-	// Nothing about the three commits changed, so a refresh must not pay for their
-	// titles and verdicts all over again.
+	// Nothing about the three commits changed, so a refresh must not pay for their titles
+	// and verdicts all over again.
 	if second > 5 {
 		t.Errorf("a refresh costs %d requests, want no more than the 4 lists plus a margin;\n"+
 			"immutable per-commit data is being refetched every 30 seconds", second)
@@ -256,23 +249,23 @@ func TestAPICost_PipelineListDoesNotFanOutPerRow(t *testing.T) {
 	first := cost(t, rec, "Pipelines: first load", func() { drain(v, v.Focus()) })
 	second := cost(t, rec, "Pipelines: auto-refresh (30s)", func() { drain(v, v.Focus()) })
 
-	// Three pipelines here stand in for the thirty a real project has: what matters
-	// is that the cost does not scale with the number of rows on every refresh.
+	// Three pipelines here stand in for the thirty a real project has: what matters is
+	// that the cost does not scale with the number of rows on every refresh.
 	if second > 2 {
 		t.Errorf("refreshing 3 pipelines costs %d requests (first load %d); with 30 rows that is "+
 			"a per-row fan-out on every tick", second, first)
 	}
 
-	// The list is one request and the stage marks are one more for the whole page —
-	// the reason they come from GraphQL rather than from a jobs call per row.
+	// The list is one request and the stage marks are one more for the whole page — the
+	// reason they come from GraphQL rather than from a jobs call per row.
 	if got := rec.counts["/api/graphql"]; got > 1 {
 		t.Errorf("the stages cost %d requests for one refresh, want at most 1", got)
 	}
 }
 
 func TestAPICost_FinishedPipelinesStagesAreAskedForOnce(t *testing.T) {
-	// A finished pipeline's stages cannot change, so the thirty-second refresh should
-	// stop asking about them entirely.
+	// A finished pipeline's stages cannot change, so the thirty-second refresh should stop
+	// asking about them entirely.
 	rec, ctx, done := costHarness(t)
 	defer done()
 
@@ -313,8 +306,8 @@ func TestAPICost_OpeningAndSteppingCommits(t *testing.T) {
 	if step > open {
 		t.Errorf("stepping costs %d requests, more than opening (%d)", step, open)
 	}
-	// Stepping back lands on a commit whose page was fetched a keypress ago;
-	// walking a list of commits is exactly the thing people do twice.
+	// Stepping back lands on a commit whose page was fetched a keypress ago; walking a
+	// list of commits is exactly the thing people do twice.
 	if back != 0 {
 		t.Errorf("stepping back to an already-fetched commit costs %d requests, want none", back)
 	}
@@ -340,8 +333,7 @@ func TestAPICost_TodosAndOtherListsAreOneRequest(t *testing.T) {
 }
 
 func TestAPICost_HoldingTheStepKeyFetchesOnlyWhereYouStop(t *testing.T) {
-	// A page is six requests and a held key steps faster than any of them can
-	// answer. Walking through three commits must cost one page, not three.
+	// A page is six requests and a held key steps faster than any of them can answer.
 	rec, ctx, done := costHarness(t)
 	defer done()
 
@@ -398,9 +390,8 @@ func TestAPICost_OpeningIsNotDelayed(t *testing.T) {
 }
 
 func TestAPICost_MergeRequestPage(t *testing.T) {
-	// The page is four calls: the merge request, its approvals, its diffs and its
-	// pipeline (which brings a fifth for that pipeline's jobs). Stepping back to one
-	// already read costs nothing, as on the commit page.
+	// The page is four calls: the merge request, its approvals, its diffs and its pipeline
+	// (which brings a fifth for that pipeline's jobs).
 	rec, ctx, done := costHarness(t)
 	defer done()
 
@@ -431,9 +422,8 @@ func TestAPICost_MergeRequestPage(t *testing.T) {
 }
 
 func TestAPICost_RefreshFollowsWhatIsOnScreen(t *testing.T) {
-	// The tick used to reload the list behind whatever you had open, so a pipeline
-	// you sat watching never changed — and on the Pipelines view it threw you out
-	// of the jobs panel every thirty seconds.
+	// The tick used to reload the list behind whatever you had open, so a pipeline you sat
+	// watching never changed.
 	rec, ctx, done := costHarness(t)
 	defer done()
 
@@ -503,8 +493,8 @@ func TestAPICost_RefreshFollowsWhatIsOnScreen(t *testing.T) {
 }
 
 func TestAPICost_NothingIsRefetchedUnderSomeoneReading(t *testing.T) {
-	// A refetch would move what someone is halfway through: the diff's scroll, the
-	// log's, the thread's.
+	// A refetch would move what someone is halfway through: the diff's scroll, the log's,
+	// the thread's.
 	rec, ctx, done := costHarness(t)
 	defer done()
 

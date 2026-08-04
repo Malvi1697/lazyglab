@@ -34,9 +34,8 @@ func tabsRow(a *App) string {
 }
 
 func TestUpdateNotice_AppearsBesideTheTabsAndNamesTheCommand(t *testing.T) {
-	// The notice used to be printed to stderr just before the alt screen replaced
-	// it, so nobody ever read it. It has to be somewhere that survives, and it has
-	// to say what to type — "update available" alone sends people searching.
+	// The notice used to be printed to stderr just before the alt screen replaced it, so
+	// nobody ever read it.
 	a := updateApp(100, func() string { return "0.5.0" })
 	a.Update(updateFoundMsg{version: "0.5.0"})
 
@@ -82,9 +81,8 @@ func TestUpdateNotice_ANarrowTerminalKeepsTheTabs(t *testing.T) {
 }
 
 func TestUpdateCheck_RunsOnceAndOnlyWhenThereIsSomethingToAsk(t *testing.T) {
-	// The check is a network call, so it belongs in a command rather than on the
-	// render path, and one per session is enough — a release that lands while the
-	// app is open can wait for the next launch.
+	// The check is a network call, so it belongs in a command rather than on the render
+	// path, and one per session is enough.
 	calls := 0
 	a := updateApp(100, func() string { calls++; return "0.5.0" })
 
@@ -110,8 +108,8 @@ func TestUpdateCheck_RunsOnceAndOnlyWhenThereIsSomethingToAsk(t *testing.T) {
 }
 
 func TestUpdateFound_IsNotHandedToTheView(t *testing.T) {
-	// Every unrecognised message falls through to the active view; this one is the
-	// shell's own and would otherwise reach a view that cannot make sense of it.
+	// Every unrecognised message falls through to the active view; this one is the shell's
+	// own and would otherwise reach a view that cannot make sense of it.
 	a := updateApp(100, func() string { return "0.5.0" })
 	if cmd := a.updateCheckCmd(); cmd != nil {
 		a.Update(cmd())

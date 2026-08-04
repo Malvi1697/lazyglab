@@ -12,8 +12,8 @@ import (
 	"github.com/Malvi1697/lazyglab/internal/tui/components"
 )
 
-// Local key constants (the tui package's key table can't be imported here
-// without a cycle, so the relevant subset is duplicated).
+// Local key constants (the tui package's key table can't be imported here without a
+// cycle, so the relevant subset is duplicated).
 const (
 	keyEnter      = "enter"
 	keyEscape     = "esc"
@@ -30,23 +30,22 @@ const (
 	keyShiftTab   = "shift+tab"
 )
 
-// PipelinesView is the self-contained cockpit view for pipelines, their jobs,
-// and job logs.
+// PipelinesView is the self-contained cockpit view for pipelines, their jobs, and job
+// logs.
 type PipelinesView struct {
 	ctx           *Context
 	width, height int // last body size, tracked from tea.WindowSizeMsg / Body
 
 	rowList[gitlab.Pipeline]
 
-	// stages is how far each pipeline got, by pipeline ID: the row of marks GitLab
-	// shows in its own list. Fetched for the whole page in one request once the
-	// pipelines are in hand, so the list is never waiting on it.
+	// stages is how far each pipeline got, by pipeline ID: the row of marks GitLab shows
+	// in its own list.
 	stages map[int][]gitlab.Stage
 	// stagesBox names the stages behind the marks, and starts folded.
 	stagesBox foldBox
 
-	// jobs is the shared, interactive jobs panel — the same one the commit page
-	// uses, so a pipeline is driven identically wherever it is shown.
+	// jobs is the shared, interactive jobs panel — the same one the commit page uses, so a
+	// pipeline is driven identically wherever it is shown.
 	viewingJobs bool
 	jobs        jobsPanel
 }
@@ -66,11 +65,6 @@ func (v *PipelinesView) Title() string { return "Pipelines" }
 
 // Focus implements View: refreshes whatever is on screen, which is not always the
 // pipeline list.
-//
-// Drilled into a pipeline's jobs, the jobs are what you are watching, so they are
-// what gets refetched — reloading the list instead used to throw you back out of
-// the panel every thirty seconds. An open log is left alone entirely: refetching
-// it would yank the scroll back to the top of a file someone is reading.
 func (v *PipelinesView) Focus() tea.Cmd {
 	if v.viewingJobs {
 		if v.jobs.showingTrace() {
@@ -80,10 +74,6 @@ func (v *PipelinesView) Focus() tea.Cmd {
 	}
 	return v.load()
 }
-
-// ============================================================================
-// Update
-// ============================================================================
 
 // Update implements View.
 func (v *PipelinesView) Update(msg tea.Msg) tea.Cmd {
@@ -116,8 +106,8 @@ func (v *PipelinesView) Update(msg tea.Msg) tea.Cmd {
 		if msg.Err != nil {
 			return statusCmd(fmt.Sprintf("Error loading log: %v", msg.Err), true)
 		}
-		// A manual or pending job has nothing written yet; Enter on one used to look
-		// like a key that did not work.
+		// A manual or pending job has nothing written yet; Enter on one used to look like a
+		// key that did not work.
 		if strings.TrimSpace(msg.Trace) == "" {
 			return statusCmd("This job has not written a log yet", true)
 		}
@@ -148,15 +138,14 @@ func (v *PipelinesView) Update(msg tea.Msg) tea.Cmd {
 	return nil
 }
 
-// CapturingText implements TextCapturer: while the search is being typed, the
-// shell must not read the letters as its own commands.
+// CapturingText implements TextCapturer: while the search is being typed, the shell
+// must not read the letters as its own commands.
 func (v *PipelinesView) CapturingText() bool { return !v.viewingJobs && v.capturing() }
 
 func (v *PipelinesView) handleKey(msg tea.KeyMsg) tea.Cmd {
 	key := msg.String()
 
-	// The search owns the keys while it is open, so Esc clears it before it means
-	// "back". Inside the jobs panel there is no list of ours to narrow.
+	// The search owns the keys while it is open, so Esc clears it before it means "back".
 	if !v.viewingJobs && v.search.handleKey(msg, &v.cursor) {
 		return nil
 	}
@@ -227,18 +216,8 @@ func (v *PipelinesView) handleKey(msg tea.KeyMsg) tea.Cmd {
 	return nil
 }
 
-// ============================================================================
-// Body / rendering
-// ============================================================================
-
-// Body implements View: the pipeline list, full width, laid out like every other
-// list in the app.
-//
-// The preview panel that used to sit beside it is gone. Every fact it held — the
-// status, the branch, the commit, when it ran — is a column of the list now, and
-// what it did not hold is the jobs, which is what Enter opens. Half the width
-// spent restating the highlighted row was the reason a commit message did not fit
-// on the row that carried it.
+// Body implements View: the pipeline list, full width, laid out like every other list
+// in the app.
 func (v *PipelinesView) Body(width, height int) string {
 	v.width = width
 	v.height = height
@@ -248,8 +227,8 @@ func (v *PipelinesView) Body(width, height int) string {
 		return v.jobs.body(width, height)
 	}
 
-	// The marks say how far each pipeline got, but not which mark is which stage; the
-	// box below names them for the highlighted row, out of the stages already in hand.
+	// The marks say how far each pipeline got, but not which mark is which stage; the box
+	// below names them for the highlighted row, out of the stages already in hand.
 	if v.stagesBox.folded {
 		return v.listBox(width, height)
 	}
@@ -279,8 +258,8 @@ func (v *PipelinesView) stagesTitle() string {
 	return "Stages"
 }
 
-// stageLines names the highlighted pipeline's stages, in the order it ran them —
-// the same order as the marks on its row, and as the groups Enter opens.
+// stageLines names the highlighted pipeline's stages, in the order it ran them — the
+// same order as the marks on its row, and as the groups Enter opens.
 func (v *PipelinesView) stageLines() []string {
 	stages := v.stages[v.selectedID()]
 	if len(stages) == 0 {
@@ -311,8 +290,8 @@ func (v *PipelinesView) stageLines() []string {
 	return lines
 }
 
-// pipelineRow describes one pipeline row: what it built, how it went stage by
-// stage, on which branch, and when it started.
+// pipelineRow describes one pipeline row: what it built, how it went stage by stage, on
+// which branch, and when it started.
 func pipelineRow(p gitlab.Pipeline, stages []gitlab.Stage) listRow {
 	title := p.CommitTitle
 	if title == "" {
@@ -321,8 +300,8 @@ func pipelineRow(p gitlab.Pipeline, stages []gitlab.Stage) listRow {
 	kind, subject := splitConventional(title)
 	status := p.Status
 	if p.HasWarnings {
-		// A failed allowed-to-fail job is not a plain success, the same way the
-		// dashboard's commit list says so.
+		// A failed allowed-to-fail job is not a plain success, the same way the dashboard's
+		// commit list says so.
 		status = components.StatusWarning
 	}
 	return listRow{
@@ -335,11 +314,8 @@ func pipelineRow(p gitlab.Pipeline, stages []gitlab.Stage) listRow {
 	}
 }
 
-// stageMarks is one mark per stage, in order, in the status colours the rest of the
-// app uses: the answer to "how far did it get, and where did it stop" without
-// opening the pipeline. Empty until the stages arrive, and empty for a pipeline
-// GitLab reports none for, so the row simply has no marks rather than a row of
-// placeholders pretending to be data.
+// stageMarks is one mark per stage, in order, in the status colours the rest of the app
+// uses: the answer to "how far did it get.
 func stageMarks(stages []gitlab.Stage) string {
 	if len(stages) == 0 {
 		return ""
@@ -350,10 +326,6 @@ func stageMarks(stages []gitlab.Stage) string {
 	}
 	return strings.Join(marks, " ")
 }
-
-// ============================================================================
-// KeyHints
-// ============================================================================
 
 // KeyHints implements View.
 func (v *PipelinesView) KeyHints() []KeyHint {
@@ -372,12 +344,8 @@ func (v *PipelinesView) KeyHints() []KeyHint {
 	}
 }
 
-// ============================================================================
-// Commands (async API calls)
-// ============================================================================
-
-// loadStages asks for the stages of every pipeline now on screen — one request for
-// the page, and none at all once every finished pipeline in it is cached.
+// loadStages asks for the stages of every pipeline now on screen — one request for the
+// page, and none at all once every finished pipeline in it is cached.
 func (v *PipelinesView) loadStages() tea.Cmd {
 	if v.ctx == nil || v.ctx.Project == nil || v.ctx.Client == nil || len(v.items) == 0 {
 		return nil
@@ -441,8 +409,8 @@ func (v *PipelinesView) cancelPipeline() tea.Cmd {
 	}
 }
 
-// runRef returns the ref a new pipeline would run on (selected branch or the
-// project default), or "" when unavailable.
+// runRef returns the ref a new pipeline would run on (selected branch or the project
+// default), or "" when unavailable.
 func (v *PipelinesView) runRef() string {
 	if v.ctx == nil || v.ctx.Project == nil {
 		return ""
@@ -481,8 +449,8 @@ func (v *PipelinesView) openPipelineInBrowser() tea.Cmd {
 	return execBrowser(cmd)
 }
 
-// confirmCmd returns a command that asks the shell to confirm a destructive
-// action before running it.
+// confirmCmd returns a command that asks the shell to confirm a destructive action
+// before running it.
 func confirmCmd(prompt string, action tea.Cmd) tea.Cmd {
 	return func() tea.Msg {
 		return ConfirmMsg{Prompt: prompt, Action: action}
@@ -499,8 +467,7 @@ func execBrowser(cmd *exec.Cmd) tea.Cmd {
 	})
 }
 
-// listRows is how many list rows a view of the given height shows, i.e. the box
-// height minus its borders. It is the page size for navigation.
+// listRows is how many list rows a view of the given height shows, i.e.
 func listRows(height int) int {
 	rows := height - 2
 	if rows < 1 {

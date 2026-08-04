@@ -6,12 +6,11 @@ import (
 	"github.com/Malvi1697/lazyglab/internal/util"
 )
 
-// maxNotes bounds a discussion. A thread longer than this is being read on the
-// web anyway, and the oldest hundred are rarely what you came for.
+// maxNotes bounds a discussion.
 const maxNotes = 100
 
-// ListMergeRequestNotes returns a merge request's discussion, oldest first —
-// which is how a conversation reads.
+// ListMergeRequestNotes returns a merge request's discussion, oldest first — which is
+// how a conversation reads.
 func (c *Client) ListMergeRequestNotes(projectID, mrIID int) ([]Note, error) {
 	opts := &gogitlab.ListMergeRequestNotesOptions{
 		OrderBy:     gogitlab.Ptr("created_at"),
@@ -74,8 +73,8 @@ func mapNotes(apiNotes []*gogitlab.Note) []Note {
 		if n.CreatedAt != nil {
 			note.CreatedAt = *n.CreatedAt
 		}
-		// A comment on a line of code is worth saying so, since the line itself is
-		// not in the thread.
+		// A comment on a line of code is worth saying so, since the line itself is not in the
+		// thread.
 		if n.Position != nil {
 			note.OnPath = util.StripANSI(n.Position.NewPath)
 			if note.OnPath == "" {

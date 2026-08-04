@@ -11,22 +11,17 @@ import (
 // keySearch starts the incremental search, as in lazygit.
 const keySearch = "/"
 
-// TextCapturer is implemented by views that may be receiving typed text — a "/"
-// search in progress. The shell asks before acting on its own single-letter keys,
-// so "q" types a letter instead of quitting the app.
+// TextCapturer is implemented by views that may be receiving typed text — a "/" search
+// in progress.
 type TextCapturer interface{ CapturingText() bool }
 
-// listSearch is the "/" search a list view owns: the shared filter plus the
-// cursor bookkeeping every view repeats around it. Narrowing the list always
-// returns the cursor to the top, since the row it pointed at may be gone.
+// listSearch is the "/" search a list view owns: the shared filter plus the cursor
+// bookkeeping every view repeats around it.
 type listSearch struct {
 	filter components.Filter
 }
 
-// handleKey applies a key press to the search and reports whether it was
-// consumed. It covers all three stages: "/" opens (or resumes) the search, typed
-// characters extend it, and Esc drops an applied query — leaving Enter, the
-// arrows and every action key to the view.
+// handleKey applies a key press to the search and reports whether it was consumed.
 func (s *listSearch) handleKey(msg tea.KeyMsg, cursor *int) bool {
 	if consumed, changed := s.filter.HandleKey(msg); consumed {
 		if changed {
@@ -54,9 +49,7 @@ func (s *listSearch) handleKey(msg tea.KeyMsg, cursor *int) bool {
 	return false
 }
 
-// paste takes pasted text into an open search, as the pickers do. With bracketed
-// paste the content arrives as its own message, so a pasted branch name or ID
-// would otherwise never reach the query.
+// paste takes pasted text into an open search, as the pickers do.
 func (s *listSearch) paste(content string, cursor *int) {
 	if s.filter.Paste(content) {
 		*cursor = 0
@@ -70,8 +63,7 @@ func (s listSearch) capturing() bool { return s.filter.Active }
 func (s listSearch) on() bool { return s.filter.On() }
 
 // title composes a list heading: the item count, the matched-of-total count while
-// searching, and the query itself so it is visible where the narrowing happens
-// rather than only in the footer.
+// searching.
 func (s listSearch) title(name string, visible, total int) string {
 	if !s.filter.On() {
 		return fmt.Sprintf("%s (%d)", name, total)
@@ -80,8 +72,8 @@ func (s listSearch) title(name string, visible, total int) string {
 		components.TitleStyle.Render(s.filter.Hint()))
 }
 
-// hint is the footer hint for the search, wording it by stage so the footer says
-// what Esc will do next.
+// hint is the footer hint for the search, wording it by stage so the footer says what
+// Esc will do next.
 func (s listSearch) hint() KeyHint {
 	if s.filter.Applied() {
 		return KeyHint{"Esc", "Clear search"}
@@ -90,7 +82,6 @@ func (s listSearch) hint() KeyHint {
 }
 
 // filtered returns the entries whose label matches the search, in list order.
-// A view's cursor indexes this slice, never the full list.
 func filtered[T any](items []T, f components.Filter, label func(T) string) []T {
 	if !f.On() {
 		return items

@@ -106,8 +106,8 @@ func (c *Client) GetMergeRequest(projectID, mrIID int) (*MergeRequest, error) {
 	return result, nil
 }
 
-// GetMergeRequestDiff returns a merge request's changes, one unified diff per
-// file — the same shape as a commit's, so the same reader displays both.
+// GetMergeRequestDiff returns a merge request's changes, one unified diff per file —
+// the same shape as a commit's, so the same reader displays both.
 func (c *Client) GetMergeRequestDiff(projectID, mrIID int) ([]FileDiff, error) {
 	opts := &gogitlab.ListMergeRequestDiffsOptions{
 		ListOptions: gogitlab.ListOptions{PerPage: maxDiffFiles},
@@ -135,9 +135,8 @@ func (c *Client) GetMergeRequestDiff(projectID, mrIID int) ([]FileDiff, error) {
 	return diffs, nil
 }
 
-// GetMergeRequestApprovals returns who has approved a merge request and what it
-// still needs. Approvals are a paid feature on gitlab.com, so a failure here is
-// not a failure of the page — callers treat it as "nothing to say".
+// GetMergeRequestApprovals returns who has approved a merge request and what it still
+// needs.
 func (c *Client) GetMergeRequestApprovals(projectID, mrIID int) (*MRApprovals, error) {
 	a, _, err := c.api.MergeRequestApprovals.GetConfiguration(projectID, int64(mrIID))
 	if err != nil {

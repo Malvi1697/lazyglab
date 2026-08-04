@@ -6,23 +6,14 @@ import (
 	tea "charm.land/bubbletea/v2"
 )
 
-// Filter is the incremental "/" search shared by every list in the app — the
-// modal pickers and the list views alike. It has two stages, following lazygit:
-//
-//   - typing (Active): printable keys extend the query, so "j" searches rather
-//     than moving the cursor and "f" is a character rather than a command;
-//   - applied (Query set, not Active): the list stays narrowed but every normal
-//     key works again, so a searched-for item can be acted on.
-//
-// Enter moves from typing to applied, which is what makes "search, then star it"
-// (or "search, then open it") possible at all.
+// Filter is the incremental "/" search shared by every list in the app — the modal
+// pickers and the list views alike.
 type Filter struct {
 	Active bool
 	Query  string
 }
 
-// Matches reports whether a candidate satisfies the query (case-insensitive
-// substring). An empty query matches everything.
+// Matches reports whether a candidate satisfies the query (case-insensitive substring).
 func (f Filter) Matches(s string) bool {
 	if f.Query == "" {
 		return true
@@ -33,8 +24,8 @@ func (f Filter) Matches(s string) bool {
 // On reports whether filtering is currently narrowing the list.
 func (f Filter) On() bool { return f.Active || f.Query != "" }
 
-// Applied reports whether a query is narrowing the list while text entry is off,
-// so the list's normal keys (select, star, drill in) are available again.
+// Applied reports whether a query is narrowing the list while text entry is off, so the
+// list's normal keys (select, star, drill in) are available again.
 func (f Filter) Applied() bool { return !f.Active && f.Query != "" }
 
 // Reset clears the query and leaves filter mode.
@@ -43,11 +34,7 @@ func (f *Filter) Reset() {
 	f.Query = ""
 }
 
-// HandleKey applies a key press to the filter while it is active. It reports
-// whether the key was consumed, and whether the query changed (so the caller can
-// re-clamp its cursor). Enter, the arrow keys and half-page scrolling are
-// deliberately not consumed: selecting and navigating keep working while
-// filtering. Esc leaves the search, so backspace is the way to edit the query.
+// HandleKey applies a key press to the filter while it is active.
 func (f *Filter) HandleKey(msg tea.KeyMsg) (consumed, changed bool) {
 	if !f.Active {
 		return false, false
@@ -55,8 +42,8 @@ func (f *Filter) HandleKey(msg tea.KeyMsg) (consumed, changed bool) {
 
 	switch msg.String() {
 	case "enter":
-		// Stop typing but keep the list narrowed, so the list's own keys (star,
-		// navigate, select) apply to the search result.
+		// Stop typing but keep the list narrowed, so the list's own keys (star, navigate,
+		// select) apply to the search result.
 		f.Active = false
 		return true, false
 	case "up", "down", "ctrl+d", "ctrl+u":
@@ -78,8 +65,7 @@ func (f *Filter) HandleKey(msg tea.KeyMsg) (consumed, changed bool) {
 }
 
 // Paste appends pasted text to the query, since with bracketed paste the content
-// arrives as its own message rather than as key presses. It reports whether the
-// paste was taken.
+// arrives as its own message rather than as key presses.
 func (f *Filter) Paste(content string) bool {
 	if !f.Active {
 		return false

@@ -7,14 +7,10 @@ import (
 	"github.com/Malvi1697/lazyglab/internal/tui/components"
 )
 
-// updateFoundMsg carries the result of the startup version check. An empty
-// version means there is nothing newer, which is the usual answer.
+// updateFoundMsg carries the result of the startup version check.
 type updateFoundMsg struct{ version string }
 
-// updateCheckCmd asks GitHub for the newest release, off the render path. It runs
-// once per session: a release that appears while the app is open can wait for the
-// next launch, and a request per refresh tick to learn the same thing would be
-// waste of exactly the kind the refresh budget exists to prevent.
+// updateCheckCmd asks GitHub for the newest release, off the render path.
 func (a *App) updateCheckCmd() tea.Cmd {
 	if a.checkUpdate == nil {
 		return nil
@@ -23,9 +19,8 @@ func (a *App) updateCheckCmd() tea.Cmd {
 	return func() tea.Msg { return updateFoundMsg{version: check()} }
 }
 
-// updateNote is the notice at the right of the tabs row: which version is out and
-// the command that installs it. It names the command because a notice that only
-// says "update available" leaves the reader to go looking.
+// updateNote is the notice at the right of the tabs row: which version is out and the
+// command that installs it.
 func (a *App) updateNote() string {
 	if a.updateVersion == "" {
 		return ""

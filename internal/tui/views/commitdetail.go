@@ -12,12 +12,8 @@ import (
 	"github.com/Malvi1697/lazyglab/internal/tui/components"
 )
 
-// commitDetail is the full-screen commit page: the message, what the commit
-// belongs to, and the pipelines it triggered with their jobs — the same things
-// GitLab's own commit page shows.
-//
-// It is a drill-down opened in place by whichever view holds a commit list, so
-// pressing Enter never moves you to another tab.
+// commitDetail is the full-screen commit page: the message, what the commit belongs to,
+// and the pipelines it triggered with their jobs.
 type commitDetail struct {
 	ctx *Context
 
@@ -29,16 +25,15 @@ type commitDetail struct {
 	mrs       []gitlab.MergeRequest
 
 	// changesBox is the commit's changed files and the reader for one of them; the
-	// merge-request page embeds the same thing. Its fields read as ours: d.diffs,
-	// d.reading, d.fileCursor.
+	// merge-request page embeds the same thing.
 	changesBox
 
-	// pageFrame is our place in the list we were opened from: the counter in the
-	// heading and the ‹ › arrows in the margins.
+	// pageFrame is our place in the list we were opened from: the counter in the heading
+	// and the ‹ › arrows in the margins.
 	pageFrame
 
-	// messageScrollable is learned while rendering, so the footer offers j/k for
-	// the message only where it would move something.
+	// messageScrollable is learned while rendering, so the footer offers j/k for the
+	// message only where it would move something.
 	messageScrollable bool
 
 	sha       string // the commit on screen; replies for anything else are stale
@@ -46,17 +41,14 @@ type commitDetail struct {
 	loading   bool
 	scroll    int
 
-	// jobs is the same interactive panel the Pipelines view uses. Its rows are
-	// rendered inline in the page, and Enter moves the focus into them rather than
-	// swapping the screen for a panel — the jobs are already in front of you.
+	// jobs is the same interactive panel the Pipelines view uses.
 	jobs jobsPanel
 
 	// focus says whether the keys drive the page, its files or its jobs.
 	focus pageFocus
 
-	// pages remembers the last few commits fetched, keyed by SHA, so stepping back
-	// and forth with h/l is free after the first pass. Each page is six requests,
-	// and walking a list of commits is exactly the thing you do twice.
+	// pages remembers the last few commits fetched, keyed by SHA, so stepping back and
+	// forth with h/l is free after the first pass.
 	pages map[string]commitPage
 	order []string // insertion order, for evicting the oldest
 }
@@ -71,36 +63,28 @@ type commitPage struct {
 	diffs     []gitlab.FileDiff
 }
 
-// commitPagesKept bounds the cache. A page holds its diffs, which can be large,
-// so this is a handful rather than a history.
+// commitPagesKept bounds the cache.
 const commitPagesKept = 6
 
-// newCommitDetail builds the page, wiring the shared context into the nested
-// jobs panel too — forgetting that leaves a panel that silently cannot load.
+// newCommitDetail builds the page, wiring the shared context into the nested jobs panel
+// too — forgetting that leaves a panel that silently cannot load.
 func newCommitDetail(ctx *Context) commitDetail {
 	return commitDetail{ctx: ctx, jobs: jobsPanel{ctx: ctx}, pages: map[string]commitPage{}}
 }
 
-// openAt drills into a commit, remembering its place in the list so the page can
-// step to the neighbouring commits. Enter means "show me this one", so it fetches
-// at once.
+// openAt drills into a commit, remembering its place in the list so the page can step
+// to the neighbouring commits.
 func (d *commitDetail) openAt(c *gitlab.Commit, index, total int) tea.Cmd {
 	return d.showAt(c, index, total, 0)
 }
 
-// stepAt is openAt for a step to a neighbour, which waits a moment before asking
-// GitLab anything.
-//
-// A page is six requests, and holding h or l walks through commits faster than
-// any of them could answer — sixty requests to look at the tenth one. The title
-// and author are already in hand from the list, so they appear immediately; the
-// rest is fetched once you stop moving.
+// stepAt is openAt for a step to a neighbour, which waits a moment before asking GitLab
+// anything.
 func (d *commitDetail) stepAt(c *gitlab.Commit, index, total int) tea.Cmd {
 	return d.showAt(c, index, total, stepSettleDelay)
 }
 
-// stepSettleDelay is how long a step waits for the next one before fetching. Long
-// enough to swallow a key repeat, short enough that a single press feels immediate.
+// stepSettleDelay is how long a step waits for the next one before fetching.
 const stepSettleDelay = 120 * time.Millisecond
 
 // commitFetchMsg asks the page to fetch a commit, if it is still the one shown.
@@ -135,8 +119,8 @@ func (d *commitDetail) showAt(c *gitlab.Commit, index, total int, delay time.Dur
 	if delay <= 0 {
 		return d.load(c)
 	}
-	// Ask again once the dust settles; if another step has happened by then, the
-	// commit on screen will have changed and this fetch is dropped.
+	// Ask again once the dust settles; if another step has happened by then, the commit on
+	// screen will have changed and this fetch is dropped.
 	return tea.Tick(delay, func(time.Time) tea.Msg { return commitFetchMsg{sha: sha} })
 }
 
@@ -193,8 +177,8 @@ func (d *commitDetail) close() {
 	d.scroll = 0
 }
 
-// load fetches the commit, its pipelines (with their jobs), the refs containing
-// it and the merge requests it belongs to, in one command.
+// load fetches the commit, its pipelines (with their jobs), the refs containing it and
+// the merge requests it belongs to, in one command.
 func (d *commitDetail) load(c *gitlab.Commit) tea.Cmd {
 	if d.ctx == nil || d.ctx.Project == nil || d.ctx.Client == nil {
 		return nil
@@ -214,8 +198,8 @@ func (d *commitDetail) load(c *gitlab.Commit) tea.Cmd {
 			return CommitDetailLoadedMsg{SHA: sha, Err: err}
 		}
 
-		// The client resolves "passed with warnings" for these, which the list
-		// endpoint alone cannot report.
+		// The client resolves "passed with warnings" for these, which the list endpoint alone
+		// cannot report.
 		pipelines, err := client.ListPipelinesBySHA(projectID, sha)
 		if err != nil {
 			return CommitDetailLoadedMsg{SHA: sha, Commit: commit, Err: err}
@@ -227,8 +211,8 @@ func (d *commitDetail) load(c *gitlab.Commit) tea.Cmd {
 			jobs, _ = client.ListPipelineJobs(projectID, pipelines[0].ID)
 		}
 
-		// Branches, tags, merge requests and the changed files round out the page;
-		// a failure in any of them must not lose the rest.
+		// Branches, tags, merge requests and the changed files round out the page; a failure
+		// in any of them must not lose the rest.
 		refs, _ := client.GetCommitRefs(projectID, sha)
 		mrs, _ := client.ListCommitMergeRequests(projectID, sha)
 		diffs, _ := client.GetCommitDiff(projectID, sha)
@@ -242,17 +226,11 @@ func (d *commitDetail) load(c *gitlab.Commit) tea.Cmd {
 
 // update absorbs every message the page and its jobs panel care about and returns
 // whatever follows from it, including anything the user needs told.
-//
-// Routing lives here rather than in each host: the panel needs its job list,
-// logs and action results forwarded, and duplicating that wiring per view is how
-// a host ends up silently showing "No jobs". It reports through StatusMsg rather
-// than returning a string, because a returned string is exactly what one host
-// quietly threw away — every error and note on this page was invisible.
 func (d *commitDetail) update(msg tea.Msg) tea.Cmd {
 	switch m := msg.(type) {
 	case commitFetchMsg:
-		// The step that asked for this may have been followed by others; only the
-		// commit still on screen, still unfetched, is worth a request.
+		// The step that asked for this may have been followed by others; only the commit
+		// still on screen, still unfetched, is worth a request.
 		if !d.active || m.sha != d.sha || d.requested == d.sha || d.commit == nil {
 			return nil
 		}
@@ -278,8 +256,8 @@ func (d *commitDetail) update(msg tea.Msg) tea.Cmd {
 			commit: m.Commit, pipelines: m.Pipelines, refs: m.Refs,
 			mrs: m.MRs, jobs: m.Jobs, diffs: m.Diffs,
 		})
-		// The panel takes the jobs we already have, so the rows on the page and the
-		// rows you act on are the same list.
+		// The panel takes the jobs we already have, so the rows on the page and the rows you
+		// act on are the same list.
 		if p := d.pipeline(); p != nil {
 			d.jobs.adopt(p.ID, m.Jobs)
 		}
@@ -300,8 +278,7 @@ func (d *commitDetail) update(msg tea.Msg) tea.Cmd {
 		if m.Err != nil {
 			return statusCmd(fmt.Sprintf("Error loading log: %v", m.Err), true)
 		}
-		// A manual or pending job has nothing written yet. Swapping the screen for an
-		// empty panel — or doing nothing at all, as this used to — says neither.
+		// A manual or pending job has nothing written yet.
 		if strings.TrimSpace(m.Trace) == "" {
 			return statusCmd("This job has not written a log yet", true)
 		}
@@ -319,15 +296,15 @@ func (d *commitDetail) update(msg tea.Msg) tea.Cmd {
 		if m.IsErr || d.commit == nil {
 			return statusCmd(m.Text, m.IsErr)
 		}
-		// Retrying or starting a pipeline changes what this commit shows, so the
-		// cached copy of it is void.
+		// Retrying or starting a pipeline changes what this commit shows, so the cached copy
+		// of it is void.
 		d.forget(d.sha)
 		return tea.Batch(d.load(d.commit), statusCmd(m.Text, false))
 	}
 	return nil
 }
 
-// handleKey drives the detail. Esc unwinds log -> jobs -> page -> list.
+// handleKey drives the detail.
 func (d *commitDetail) handleKey(key string, height int) tea.Cmd {
 	// A diff being read owns the body; navigation scrolls it.
 	if d.reading {
@@ -341,8 +318,8 @@ func (d *commitDetail) handleKey(key string, height int) tea.Cmd {
 		return d.copyKeys(key)
 	}
 
-	// Tab moves the focus between the page's boxes in every state except while
-	// reading, so it does not have to be repeated in each branch below.
+	// Tab moves the focus between the page's boxes in every state except while reading, so
+	// it does not have to be repeated in each branch below.
 	switch key {
 	case keyTab:
 		return d.cycleFocus(1)
@@ -374,8 +351,8 @@ func (d *commitDetail) handleKey(key string, height int) tea.Cmd {
 		return nil
 	}
 
-	// Focus inside the jobs listed on the page: the rows in front of you are the
-	// ones the keys act on, and the page keeps its context above them.
+	// Focus inside the jobs listed on the page: the rows in front of you are the ones the
+	// keys act on, and the page keeps its context above them.
 	if d.focus == focusJobs {
 		if key == keyEscape {
 			d.focus = focusPage
@@ -408,8 +385,7 @@ func (d *commitDetail) handleKey(key string, height int) tea.Cmd {
 		}
 		return nil
 	case keyEnter:
-		// Step into the sections already on the page rather than replacing it. The
-		// changes are what a commit is, so they come first; the jobs are one Tab on.
+		// Step into the sections already on the page rather than replacing it.
 		if len(d.diffs) > 0 {
 			d.focus = focusFiles
 			return nil
@@ -432,9 +408,8 @@ func (d *commitDetail) cycleFocus(step int) tea.Cmd {
 	return nil
 }
 
-// reload refetches the commit on screen, so a pipeline you are watching changes as
-// it runs. The cached copy of the page is dropped first, or the refetch would be
-// answered from it.
+// reload refetches the commit on screen, so a pipeline you are watching changes as it
+// runs.
 func (d *commitDetail) reload() tea.Cmd {
 	if !d.active || d.commit == nil {
 		return nil
@@ -443,10 +418,8 @@ func (d *commitDetail) reload() tea.Cmd {
 	return d.load(d.commit)
 }
 
-// readingBody reports whether something long-form has the screen — a file's diff
-// or a job's log — so the view hosting the page knows the arrows are not its to
-// act on. Stepping to another commit from inside either would swap what you are
-// reading for something from a different commit.
+// readingBody reports whether something long-form has the screen — a file's diff or a
+// job's log — so the view hosting the page knows the arrows are not its to act on.
 func (d *commitDetail) readingBody() bool { return d.reading || d.jobs.showingTrace() }
 
 // focusJobs hands the keys to the jobs listed on the page.
@@ -464,9 +437,8 @@ func (d *commitDetail) focusJobs() tea.Cmd {
 	return nil
 }
 
-// copyKeys serves y and Y wherever the commit itself has the focus: the SHA you
-// would type, the link you would send. In the jobs box they belong to the job, so
-// this is not reached from there.
+// copyKeys serves y and Y wherever the commit itself has the focus: the SHA you would
+// type, the link you would send.
 func (d *commitDetail) copyKeys(key string) tea.Cmd {
 	switch key {
 	case keyCopy:
@@ -524,10 +496,6 @@ func (d *commitDetail) retryPipeline() tea.Cmd {
 }
 
 // runOnRef starts a pipeline on the active branch.
-//
-// GitLab creates pipelines for a ref, never for an arbitrary commit, so this
-// builds the branch's current head — only this commit if it happens to be the
-// tip. The confirmation says so rather than implying otherwise.
 func (d *commitDetail) runOnRef() tea.Cmd {
 	if d.ctx == nil || d.ctx.Project == nil || d.ctx.Client == nil {
 		return nil
@@ -556,11 +524,6 @@ func (d *commitDetail) runOnRef() tea.Cmd {
 }
 
 // keyHints are the detail's footer hints.
-//
-// Each state says what the arrows do there, because it differs: on the page they
-// step commits, in a diff they step that commit's files, and while a log is open
-// they do nothing at all. A footer that only ever named "←/→" left the h/l pair
-// undocumented and the difference unsaid.
 func (d *commitDetail) keyHints() []KeyHint {
 	if d.reading {
 		return d.readerHints("Copy SHA/link")
@@ -590,8 +553,8 @@ func (d *commitDetail) keyHints() []KeyHint {
 		{"Enter", "Step in"},
 		{"Tab", "Changes/Jobs"},
 	}
-	// Only worth saying when the message does not fit; otherwise j/k are inert here
-	// and the footer would be promising movement that cannot happen.
+	// Only worth saying when the message does not fit; otherwise j/k are inert here and
+	// the footer would be promising movement that cannot happen.
 	if d.messageScrollable {
 		hints = append(hints, KeyHint{"j/k", "Scroll"})
 	}
@@ -604,18 +567,14 @@ func (d *commitDetail) keyHints() []KeyHint {
 	)
 }
 
-// ============================================================================
-// Rendering
-// ============================================================================
-
-// body renders the detail as the view's whole body, between two margins that
-// carry the arrows for stepping to the neighbouring commits.
+// body renders the detail as the view's whole body, between two margins that carry the
+// arrows for stepping to the neighbouring commits.
 func (d *commitDetail) body(width, height int) string {
 	// A diff needs the room, like a log does.
 	if d.reading {
 		if d.selectedFile() != nil {
-			// withArrows pads to pageWidth, which the page normally sets; a diff has
-			// to set it too or the right arrow lands against the text.
+			// withArrows pads to pageWidth, which the page normally sets; a diff has to set it
+			// too or the right arrow lands against the text.
 			d.pageWidth = width - 2*arrowGutter
 			return d.withArrows(components.RenderPanel(d.readerTitle(),
 				splitLines(d.diffView(d.pageWidth, height)), d.pageWidth, height, true),
@@ -641,9 +600,8 @@ func (d *commitDetail) body(width, height int) string {
 func (d *commitDetail) page(width, height int) string {
 	d.pageWidth = width
 
-	// The message reads across the top; the two lists that you act on sit side by
-	// side below it. Stacked, they made the page a long vertical scroll while half
-	// the terminal stayed empty.
+	// The message reads across the top; the two lists that you act on sit side by side
+	// below it.
 	top := d.topLines(width - 2)
 	topHeight := len(top) + 1 // a heading of its own
 	if maxTop := height * 3 / 5; topHeight > maxTop {
@@ -656,8 +614,8 @@ func (d *commitDetail) page(width, height int) string {
 	const gap = 1
 	bottomHeight := height - topHeight - gap
 	if bottomHeight < 4 {
-		// A short terminal: keep the message and drop the columns, which would be
-		// two headings and nothing else.
+		// A short terminal: keep the message and drop the columns, which would be two
+		// headings and nothing else.
 		d.messageScrollable = len(top) > height-1
 		return components.RenderPanel(d.title(len(top), height-1), d.window(top, height-1), width, height, true)
 	}
@@ -671,8 +629,8 @@ func (d *commitDetail) page(width, height int) string {
 	)
 }
 
-// title names the page, with the commit's place in the list and, when the message
-// does not fit, where in it you are.
+// title names the page, with the commit's place in the list and, when the message does
+// not fit, where in it you are.
 func (d *commitDetail) title(lines, rows int) string {
 	out := "Commit"
 	if d.commit != nil {
@@ -700,8 +658,8 @@ func (d *commitDetail) window(lines []string, rows int) []string {
 	return lines[d.scroll:min(d.scroll+rows, len(lines))]
 }
 
-// columns renders the changed files beside the jobs, each scrolling on its own
-// and the focused one taking the bolder heading.
+// columns renders the changed files beside the jobs, each scrolling on its own and the
+// focused one taking the bolder heading.
 func (d *commitDetail) columns(width, height int) string {
 	leftWidth := width / 2
 	if leftWidth < 20 {
@@ -742,8 +700,8 @@ func (d *commitDetail) topLines(width int) []string {
 	wrap(components.TitleStyle.Render(c.Title))
 	add("")
 
-	// The metadata comes before the message body: the CI status and the branch are
-	// what you check, and a long message would push them below the fold.
+	// The metadata comes before the message body: the CI status and the branch are what
+	// you check, and a long message would push them below the fold.
 	add(components.HelpDescStyle.Render("commit  ") + c.ShortID +
 		components.HelpDescStyle.Render("   authored by ") + c.AuthorName)
 	if len(c.ParentIDs) > 0 {
@@ -770,8 +728,8 @@ func (d *commitDetail) topLines(width int) []string {
 	return out
 }
 
-// pipelineLine is the commit's pipeline as one line of metadata: a single status
-// does not need a section of its own.
+// pipelineLine is the commit's pipeline as one line of metadata: a single status does
+// not need a section of its own.
 func (d *commitDetail) pipelineLine() string {
 	switch {
 	case d.loading && len(d.pipelines) == 0:

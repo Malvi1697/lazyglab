@@ -9,9 +9,8 @@ import (
 	"github.com/Malvi1697/lazyglab/internal/tui/components"
 )
 
-// ReconfigureFunc validates a host/token pair, persists it and returns a ready
-// client plus the authenticated username. The app package injects it: config
-// handling lives there and importing it here would be an import cycle.
+// ReconfigureFunc validates a host/token pair, persists it and returns a ready client
+// plus the authenticated username.
 type ReconfigureFunc func(host, token string) (*gitlab.Client, string, error)
 
 // reconfigField identifies which input of the re-authentication form has focus.
@@ -43,10 +42,7 @@ type reconfigDoneMsg struct {
 	err      error
 }
 
-// openReconfig opens the re-authentication overlay with the current host
-// prefilled. reason is the auth error that prompted it, empty when the user
-// asked for it. Focus starts on the token, since a revoked token is the common
-// case and the host usually stays as it is.
+// openReconfig opens the re-authentication overlay with the current host prefilled.
 func (a *App) openReconfig(reason string) {
 	host := a.activeHost
 	if host == "" && len(a.hostNames) > 0 {
@@ -60,8 +56,7 @@ func (a *App) openReconfig(reason string) {
 	a.overlay = overlayReconfig
 }
 
-// closeReconfig dismisses the overlay. A dismissal is remembered so a failing
-// auto-refresh does not immediately pop it open again; "A" reopens it.
+// closeReconfig dismisses the overlay.
 func (a *App) closeReconfig() {
 	a.reconfig = nil
 	a.overlay = overlayNone
@@ -100,8 +95,8 @@ func (a *App) handleReconfigKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		r.field = fieldHost
 		return a, nil
 	case KeyEnter:
-		// Enter on the host field moves to the still-empty token instead of
-		// submitting a form that cannot succeed.
+		// Enter on the host field moves to the still-empty token instead of submitting a form
+		// that cannot succeed.
 		if r.field == fieldHost && strings.TrimSpace(r.token) == "" {
 			r.field = fieldToken
 			return a, nil
@@ -122,9 +117,7 @@ func (a *App) handleReconfigKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return a, nil
 }
 
-// pasteIntoReconfig appends pasted text to the focused input. All whitespace is
-// stripped: neither a host nor a token may contain any, and a copied token
-// routinely brings along a trailing newline that would otherwise be submitted.
+// pasteIntoReconfig appends pasted text to the focused input.
 func (a *App) pasteIntoReconfig(content string) {
 	r := a.reconfig
 	if r == nil || r.busy {
@@ -155,8 +148,8 @@ func (r *reconfigState) setField(v string) {
 	r.err = ""
 }
 
-// submitReconfig validates the form and, if complete, runs the injected
-// reconfigure function off the UI goroutine.
+// submitReconfig validates the form and, if complete, runs the injected reconfigure
+// function off the UI goroutine.
 func (a *App) submitReconfig() tea.Cmd {
 	r := a.reconfig
 	host := strings.TrimSpace(r.host)
@@ -185,9 +178,8 @@ func (a *App) submitReconfig() tea.Cmd {
 	}
 }
 
-// applyReconfig swaps in the client for the freshly authenticated host and
-// closes the overlay. Switching hosts drops the selected project and branch,
-// which belong to the old host.
+// applyReconfig swaps in the client for the freshly authenticated host and closes the
+// overlay.
 func (a *App) applyReconfig(host string, client *gitlab.Client) {
 	if a.clients == nil {
 		a.clients = make(map[string]*gitlab.Client)

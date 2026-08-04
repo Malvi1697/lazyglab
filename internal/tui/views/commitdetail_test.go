@@ -139,8 +139,8 @@ func TestCommitDetail_WarningIsNotAPlainSuccess(t *testing.T) {
 	v.detail.sha = "38333fa4"
 	v.Update(loadedDetail("38333fa4"))
 
-	// Compare the glyph, not the styled string: the assertion reads the text a
-	// user sees, with the escapes stripped.
+	// Compare the glyph, not the styled string: the assertion reads the text a user sees,
+	// with the escapes stripped.
 	page := plain(v.Body(120, 40))
 	if !strings.Contains(page, plain(components.StatusIcon(components.StatusWarning))) {
 		t.Errorf("expected the warning icon for a pipeline that passed with warnings:\n%s", page)
@@ -193,8 +193,8 @@ func TestCommitDetail_EnterWithoutPipelineExplains(t *testing.T) {
 }
 
 func TestCommitDetail_EnterStepsIntoTheJobsOnThePage(t *testing.T) {
-	// The jobs are already rendered on the page, so Enter moves the focus into
-	// them rather than replacing the page with a panel.
+	// The jobs are already rendered on the page, so Enter moves the focus into them rather
+	// than replacing the page with a panel.
 	v := NewCommitsView(&Context{})
 	v.width, v.height = 120, 30
 	v.items = []gitlab.Commit{{ShortID: "38333fa4"}}
@@ -316,8 +316,8 @@ func TestCommitDetail_CopyUsesFullSHA(t *testing.T) {
 	}
 }
 
-// plain strips styling so assertions read the text a user sees, not the escapes
-// woven through it.
+// plain strips styling so assertions read the text a user sees, not the escapes woven
+// through it.
 func plain(s string) string { return ansi.Strip(s) }
 
 // batchMentions runs a (possibly nested) batch and reports whether any StatusMsg
@@ -443,8 +443,8 @@ func TestCommitPage_NarrowTerminalDropsTheMargins(t *testing.T) {
 }
 
 func TestCommitDetail_JobsStayVisibleBesideALongMessage(t *testing.T) {
-	// The jobs have a column of their own, so a long message cannot push them off
-	// the screen and stepping into them needs no scrolling.
+	// The jobs have a column of their own, so a long message cannot push them off the
+	// screen and stepping into them needs no scrolling.
 	v := NewCommitsView(&Context{})
 	v.width, v.height = 120, 24
 	v.items = []gitlab.Commit{{ShortID: "38333fa4"}}
@@ -666,8 +666,8 @@ func TestCommitPage_NoDiffFallsBackToJobs(t *testing.T) {
 }
 
 func TestCommitPage_TabCyclesTheBoxesNotTheViews(t *testing.T) {
-	// Tab used to be taken by the shell for switching views, so it never reached
-	// the page it was supposed to move around in.
+	// Tab used to be taken by the shell for switching views, so it never reached the page
+	// it was supposed to move around in.
 	v := NewCommitsView(&Context{})
 	v.width, v.height = 120, 30
 	v.items = []gitlab.Commit{{ShortID: "38333fa4"}}
@@ -723,8 +723,8 @@ func TestCommitPage_TabSkipsEmptyBoxes(t *testing.T) {
 }
 
 func TestCommitPage_ArrowsStepFilesWhileReadingADiff(t *testing.T) {
-	// Inside a diff the arrows belong to the files: stepping commits would swap the
-	// file under you for one from another commit.
+	// Inside a diff the arrows belong to the files: stepping commits would swap the file
+	// under you for one from another commit.
 	v := NewCommitsView(&Context{})
 	v.width, v.height = 120, 20
 	v.items = []gitlab.Commit{{ShortID: "38333fa4"}, {ShortID: "bbb2222"}}

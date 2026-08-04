@@ -10,24 +10,24 @@ import (
 	"github.com/Malvi1697/lazyglab/internal/tui/views"
 )
 
-// hasBackground reports whether s paints a background colour anywhere — the
-// difference between text in the accent's colour and text on top of it.
+// hasBackground reports whether s paints a background colour anywhere — the difference
+// between text in the accent's colour and text on top of it.
 func hasBackground(s string) bool {
 	return strings.Contains(s, "\x1b[4") || strings.Contains(s, "\x1b[10") ||
 		strings.Contains(s, ";4") || strings.Contains(s, ";10")
 }
 
 func TestTabs_TheTabYouAreOnIsAnAccentChip(t *testing.T) {
-	// Six similar labels in a row need one of them to be obviously the answer to
-	// "where am I". Bold text in the accent's colour was not enough of an answer.
+	// Six similar labels in a row need one of them to be obviously the answer to "where am
+	// I".
 	ids := []views.ViewID{views.ViewDashboard, views.ViewPipelines, views.ViewMRs}
 	row := renderTabs(120, ids, 1, []string{"Dashboard", "Pipelines", "Merge Requests"}, "")
 
 	if !hasBackground(row) {
 		t.Errorf("tabs = %q, want the active tab painted, not merely coloured", row)
 	}
-	// The brackets carry the same information without any colour at all, for
-	// NO_COLOR and for terminals that swallow backgrounds.
+	// The brackets carry the same information without any colour at all, for NO_COLOR and
+	// for terminals that swallow backgrounds.
 	if !strings.Contains(ansi.Strip(row), "[2] Pipelines") {
 		t.Errorf("tabs = %q, want the active tab bracketed too", ansi.Strip(row))
 	}
@@ -48,8 +48,8 @@ func TestSelectedRow_IsAnAccentBand(t *testing.T) {
 }
 
 func TestPanelHeading_TheBoxWithTheKeysTakesTheAccent(t *testing.T) {
-	// Two greys and one accent: the page says which box the keys drive without
-	// having to be read.
+	// Two greys and one accent: the page says which box the keys drive without having to
+	// be read.
 	focused := components.RenderPanel("Recent Commits", []string{"a row"}, 60, 4, true)
 	unfocused := components.RenderPanel("Readme", []string{"a line"}, 60, 4, false)
 

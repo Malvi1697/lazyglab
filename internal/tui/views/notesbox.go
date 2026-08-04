@@ -13,25 +13,19 @@ import (
 	"github.com/Malvi1697/lazyglab/internal/util"
 )
 
-// notesBox is a discussion: the comments on a merge request or an issue, as a
-// list of who said what, and the whole thread behind Enter.
-//
-// Reading it is half of why you would open the thing in a browser; the other half
-// is replying, which is why c opens your editor. Both halves live here so the
-// merge-request page and the issue page get the same ones.
+// notesBox is a discussion: the comments on a merge request or an issue, as a list of
+// who said what, and the whole thread behind Enter.
 type notesBox struct {
 	notes  []gitlab.Note
 	cursor int // indexes the shown notes, not all of them
 	scroll int
 
-	// showSystem includes GitLab's own bookkeeping — "changed the description",
-	// "added 3 commits". Off by default: an issue can carry a hundred of those and
-	// no conversation at all, and the heading says how many are being left out.
+	// showSystem includes GitLab's own bookkeeping — "changed the description", "added 3
+	// commits".
 	showSystem bool
 
 	// threadOpen is the whole thread, rendered as prose and scrolled as a body — a
-	// conversation is read end to end, not row by row. Named for the thread rather
-	// than "reading", which a page also does to a diff.
+	// conversation is read end to end, not row by row.
 	threadOpen   bool
 	threadScroll int
 	threadLines  []string // rendered thread, kept per width like a diff is
@@ -46,9 +40,7 @@ func (b *notesBox) setNotes(notes []gitlab.Note) {
 	b.threadLines = nil
 }
 
-// shown is the notes on screen: everything, or only what people wrote. When a
-// thread is nothing but bookkeeping there is nothing else to show, so it is shown
-// rather than leaving an empty box to puzzle over.
+// shown is the notes on screen: everything, or only what people wrote.
 func (b *notesBox) shown() []gitlab.Note {
 	if b.showSystem || b.human() == 0 {
 		return b.notes
@@ -96,8 +88,8 @@ func (b *notesBox) human() int {
 	return n
 }
 
-// notesTitle names the box: how many are shown, and of how many there are when
-// some are being left out.
+// notesTitle names the box: how many are shown, and of how many there are when some are
+// being left out.
 func (b *notesBox) notesTitle() string {
 	if len(b.notes) == 0 {
 		return "Discussion"
@@ -204,8 +196,8 @@ func (b *notesBox) threadView(width, height int) string {
 	return strings.Join(lines[b.threadScroll:end], "\n")
 }
 
-// thread renders every comment as prose: who and when as a heading, the body
-// wrapped beneath it. Cached per width, like a diff, because a keypress redraws.
+// thread renders every comment as prose: who and when as a heading, the body wrapped
+// beneath it.
 func (b *notesBox) thread(width int) []string {
 	if b.threadLines != nil && b.threadWidth == width {
 		return b.threadLines
@@ -258,17 +250,15 @@ func (b *notesBox) threadHints() []KeyHint {
 	return append(hints, KeyHint{"Esc", "Back"})
 }
 
-// boxHints are the footer hints while the discussion box has the focus. The two
-// pages that own a discussion share them, so the box only ever describes itself
-// one way.
+// boxHints are the footer hints while the discussion box has the focus.
 func (b *notesBox) boxHints() []KeyHint {
 	hints := []KeyHint{{"Enter", "Read the thread"}, {"c", "Comment"}}
 	hints = append(hints, b.systemToggleHint()...)
 	return append(hints, KeyHint{"j/k", "Move"})
 }
 
-// systemToggleHint offers s only where it would change what is on screen: there is
-// no point offering to hide the record when the record is all there is.
+// systemToggleHint offers s only where it would change what is on screen: there is no
+// point offering to hide the record when the record is all there is.
 func (b *notesBox) systemToggleHint() []KeyHint {
 	if human := b.human(); human == 0 || human == len(b.notes) {
 		return nil
@@ -292,15 +282,13 @@ func firstLine(body string) string {
 	return strings.TrimSpace(body)
 }
 
-// collapse squeezes a system note onto one line and drops the HTML GitLab writes
-// into some of them ("added 22 commits <ul><li><code>…"), which is markup for a
-// browser and noise in a terminal.
+// collapse squeezes a system note onto one line and drops the HTML GitLab writes into
+// some of them ("added 22 commits <ul><li><code>…").
 func collapse(body string) string {
 	return strings.Join(strings.Fields(stripHTML(body)), " ")
 }
 
-// stripHTML removes tags, leaving their text. Good enough for GitLab's own system
-// notes, which is all this is used on.
+// stripHTML removes tags, leaving their text.
 func stripHTML(s string) string {
 	var b strings.Builder
 	depth := 0
@@ -318,23 +306,14 @@ func stripHTML(s string) string {
 	return b.String()
 }
 
-// ============================================================================
-// Writing a comment
-// ============================================================================
-
-// commentWrittenMsg carries what the editor left behind: the text to post, or an
-// empty body when the comment was abandoned.
+// commentWrittenMsg carries what the editor left behind: the text to post, or an empty
+// body when the comment was abandoned.
 type commentWrittenMsg struct {
 	body string
 	err  error
 }
 
-// composeComment opens the user's editor on a scratch file and returns what they
-// wrote. The editor is the right answer here: a comment is prose, often several
-// paragraphs of it, and everyone already has the tool they want for that.
-//
-// The template's leading comments are stripped, as git does, so the file can
-// explain itself without ending up in the discussion.
+// composeComment opens the user's editor on a scratch file and returns what they wrote.
 func composeComment(subject string) tea.Cmd {
 	path, err := commentFile(subject)
 	if err != nil {

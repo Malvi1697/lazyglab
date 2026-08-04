@@ -9,8 +9,8 @@ import (
 	"github.com/Malvi1697/lazyglab/internal/gitlab"
 )
 
-// copied runs a copy command and returns the status line it reports, which is
-// the only visible evidence that anything reached the clipboard.
+// copied runs a copy command and returns the status line it reports, which is the only
+// visible evidence that anything reached the clipboard.
 func copied(t *testing.T, cmd tea.Cmd) string {
 	t.Helper()
 	if cmd == nil {
@@ -77,8 +77,7 @@ func TestCopy_TodoUsesItsTargetsReference(t *testing.T) {
 }
 
 func TestCopy_SaysSoWhenThereIsNothingToCopy(t *testing.T) {
-	// A to-do on a commit has no reference GitLab would write. Silence would look
-	// like a successful copy.
+	// A to-do on a commit has no reference GitLab would write.
 	v := todosView()
 	v.cursor = 2 // the build_failed commit todo
 	got := copied(t, press(v, 'y'))

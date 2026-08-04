@@ -13,12 +13,8 @@ import (
 	"github.com/Malvi1697/lazyglab/internal/util"
 )
 
-// mrDetail is the full-screen merge-request page: what it is, where it is going,
-// what stands between it and being merged, its changed files and its jobs.
-//
-// It is the commit page's sibling — same boxes, same keys, same caching — because
-// a merge request is the other thing you read a diff and a pipeline for. Both are
-// built from changesBox, jobsPanel and pageFrame.
+// mrDetail is the full-screen merge-request page: what it is, where it is going, what
+// stands between it and being merged, its changed files and its jobs.
 type mrDetail struct {
 	ctx *Context
 
@@ -44,8 +40,8 @@ type mrDetail struct {
 	jobs  jobsPanel
 	focus pageFocus
 
-	// pages remembers the last few merge requests fetched, so stepping back with h
-	// is free. Each page is four requests.
+	// pages remembers the last few merge requests fetched, so stepping back with h is
+	// free.
 	pages map[int]mrPage
 	order []int
 }
@@ -67,14 +63,13 @@ func newMRDetail(ctx *Context) mrDetail {
 	return mrDetail{ctx: ctx, jobs: jobsPanel{ctx: ctx}, pages: map[int]mrPage{}}
 }
 
-// openAt drills into a merge request. Enter means "show me this one", so it
-// fetches at once.
+// openAt drills into a merge request.
 func (d *mrDetail) openAt(mr *gitlab.MergeRequest, index, total int) tea.Cmd {
 	return d.showAt(mr, index, total, 0)
 }
 
-// stepAt is openAt for a step to a neighbour, which waits for the key to settle
-// before asking GitLab anything — see stepSettleDelay.
+// stepAt is openAt for a step to a neighbour, which waits for the key to settle before
+// asking GitLab anything — see stepSettleDelay.
 func (d *mrDetail) stepAt(mr *gitlab.MergeRequest, index, total int) tea.Cmd {
 	return d.showAt(mr, index, total, stepSettleDelay)
 }
@@ -176,21 +171,14 @@ func (d *mrDetail) reload() tea.Cmd {
 	return d.load(d.iid)
 }
 
-// readingBody reports whether something long-form has the screen — a diff or a
-// job's log — so the view hosting the page knows the arrows are not its to act on.
+// readingBody reports whether something long-form has the screen — a diff or a job's
+// log — so the view hosting the page knows the arrows are not its to act on.
 func (d *mrDetail) readingBody() bool {
 	return d.reading || d.threadOpen || d.jobs.showingTrace()
 }
 
-// ============================================================================
-// Loading
-// ============================================================================
-
-// load fetches the merge request, its approvals, its pipeline's jobs and its
-// changed files in one command.
-//
-// The approvals and the pipeline are extras: an instance without approval rules,
-// or a merge request nothing has built, must still show the page.
+// load fetches the merge request, its approvals, its pipeline's jobs and its changed
+// files in one command.
 func (d *mrDetail) load(iid int) tea.Cmd {
 	if d.ctx == nil || d.ctx.Project == nil || d.ctx.Client == nil {
 		return nil
@@ -228,8 +216,8 @@ func (d *mrDetail) load(iid int) tea.Cmd {
 func (d *mrDetail) update(msg tea.Msg) tea.Cmd {
 	switch m := msg.(type) {
 	case mrFetchMsg:
-		// Only the merge request still on screen, still unfetched, is worth asking
-		// about: the steps that led here have been overtaken.
+		// Only the merge request still on screen, still unfetched, is worth asking about: the
+		// steps that led here have been overtaken.
 		if !d.active || m.iid != d.iid || d.requested == d.iid || d.mr == nil {
 			return nil
 		}
@@ -301,19 +289,15 @@ func (d *mrDetail) update(msg tea.Msg) tea.Cmd {
 		if m.IsErr {
 			return statusCmd(m.Text, true)
 		}
-		// Approving or merging changes what this page says, so its cached copy is
-		// void and the page is refetched behind the message.
+		// Approving or merging changes what this page says, so its cached copy is void and
+		// the page is refetched behind the message.
 		d.forget(d.iid)
 		return tea.Batch(d.load(d.iid), statusCmd(m.Text, false))
 	}
 	return nil
 }
 
-// ============================================================================
-// Keys
-// ============================================================================
-
-// handleKey drives the page. Esc unwinds log -> box -> page -> list.
+// handleKey drives the page.
 func (d *mrDetail) handleKey(key string, height int) tea.Cmd {
 	// The thread has the screen: it scrolls, and c replies to what you are reading.
 	if d.threadOpen {
@@ -438,9 +422,8 @@ func (d *mrDetail) handleKey(key string, height int) tea.Cmd {
 }
 
 func (d *mrDetail) cycleFocus(step int) tea.Cmd {
-	// The discussion is always in the cycle, even when empty: c is how you start
-	// one, so a merge request nobody has commented on still needs somewhere to
-	// stand.
+	// The discussion is always in the cycle, even when empty: c is how you start one, so a
+	// merge request nobody has commented on still needs somewhere to stand.
 	d.focus = cycleFocus(d.focus, step, len(d.diffs) > 0, len(d.jobs.jobs) > 0, true)
 	if d.focus == focusJobs {
 		return d.focusJobs()
@@ -498,16 +481,12 @@ func (d *mrDetail) copyKeys(key string) tea.Cmd {
 	return nil
 }
 
-// ============================================================================
-// Actions
-// ============================================================================
-
 func (d *mrDetail) approve() tea.Cmd {
 	if d.mr == nil {
 		return nil
 	}
-	// Why-not comes before the client check, so the explanation reaches the user
-	// either way: a key that silently does nothing is a bug report waiting to happen.
+	// Why-not comes before the client check, so the explanation reaches the user either
+	// way: a key that silently does nothing is a bug report waiting to happen.
 	if d.approvals != nil && d.approvals.HasApproved {
 		return statusCmd(fmt.Sprintf("You have already approved !%d", d.mr.IID), true)
 	}
@@ -529,8 +508,8 @@ func (d *mrDetail) merge() tea.Cmd {
 	}
 	iid := d.mr.IID
 
-	// Say what stands in the way rather than sending a request that cannot succeed —
-	// and say it before the client check, or the reason never reaches the user.
+	// Say what stands in the way rather than sending a request that cannot succeed — and
+	// say it before the client check, or the reason never reaches the user.
 	if d.mr.HasConflicts {
 		return statusCmd(fmt.Sprintf("!%d has conflicts with %s", iid, d.mr.TargetBranch), true)
 	}
@@ -571,10 +550,6 @@ func (d *mrDetail) retryPipeline() tea.Cmd {
 	})
 }
 
-// ============================================================================
-// Rendering
-// ============================================================================
-
 // body renders the page as the view's whole body, between the arrow margins.
 func (d *mrDetail) body(width, height int) string {
 	if d.reading && d.selectedFile() != nil {
@@ -603,8 +578,8 @@ func (d *mrDetail) body(width, height int) string {
 	return d.withArrows(d.page(pageWidth, height), d.hasPrev(), d.hasNext())
 }
 
-// page renders the merge request itself: what it is on top, the two lists you act
-// on side by side below.
+// page renders the merge request itself: what it is on top, the two lists you act on
+// side by side below.
 func (d *mrDetail) page(width, height int) string {
 	d.pageWidth = width
 
@@ -634,8 +609,8 @@ func (d *mrDetail) page(width, height int) string {
 	)
 }
 
-// title names the page, with its place in the list and, when the description does
-// not fit, where in it you are.
+// title names the page, with its place in the list and, when the description does not
+// fit, where in it you are.
 func (d *mrDetail) title(lines, rows int) string {
 	out := "Merge Request"
 	if d.mr != nil {
@@ -664,8 +639,7 @@ func (d *mrDetail) window(lines []string, rows int) []string {
 }
 
 // columns renders the three lists you act on: the changed files, the jobs and the
-// discussion. On a narrow terminal the discussion drops out of the row — Tab
-// still reaches it, and it takes the body when read.
+// discussion.
 func (d *mrDetail) columns(width, height int) string {
 	const rule = 3 // the rule and its spaces
 
@@ -703,8 +677,8 @@ func (d *mrDetail) columns(width, height int) string {
 	return lipgloss.JoinHorizontal(lipgloss.Top, out, " ", components.VRule(height), " ", notes)
 }
 
-// topLines is the title, then what the merge request is and what stands between
-// it and being merged, then its description.
+// topLines is the title, then what the merge request is and what stands between it and
+// being merged, then its description.
 func (d *mrDetail) topLines(width int) []string {
 	mr := d.mr
 	if mr == nil {
@@ -733,9 +707,8 @@ func (d *mrDetail) topLines(width int) []string {
 	wrap(components.TitleStyle.Render(title))
 	add("")
 
-	// The metadata comes before the description: the branch, the CI and whether it
-	// can be merged are what you check, and a long description would push them
-	// below the fold.
+	// The metadata comes before the description: the branch, the CI and whether it can be
+	// merged are what you check, and a long description would push them below the fold.
 	field("branch  ", mr.SourceBranch+components.HelpDescStyle.Render(" → ")+mr.TargetBranch)
 	field("author  ", mr.Author)
 	if len(mr.Reviewers) > 0 {
@@ -807,8 +780,8 @@ func (d *mrDetail) mergeLine() string {
 	case "mergeable", "can_be_merged":
 		return label + lipgloss.NewStyle().Foreground(components.ColorSuccess).Render("ready")
 	default:
-		// GitLab's own wording, underscores and all: "ci_still_running",
-		// "not_approved", "draft_status", … Better its words than our guess.
+		// GitLab's own wording, underscores and all: "ci_still_running", "not_approved",
+		// "draft_status", … Better its words than our guess.
 		return label + lipgloss.NewStyle().Foreground(components.ColorWarning).
 			Render(strings.ReplaceAll(status, "_", " "))
 	}
@@ -834,10 +807,6 @@ func (d *mrDetail) approvalLine(a *gitlab.MRApprovals) string {
 		return label + components.HelpDescStyle.Render("none required")
 	}
 }
-
-// ============================================================================
-// KeyHints
-// ============================================================================
 
 func (d *mrDetail) keyHints() []KeyHint {
 	if d.threadOpen {

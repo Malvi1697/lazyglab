@@ -71,8 +71,8 @@ func modFor(key string) tea.KeyMod {
 	return 0
 }
 
-// authErr mirrors what the API client produces for a revoked token, including
-// the Request that ErrorResponse.Error() reads when formatting itself.
+// authErr mirrors what the API client produces for a revoked token, including the
+// Request that ErrorResponse.Error() reads when formatting itself.
 func authErr() error {
 	u, _ := url.Parse("https://gitlab.example.com/api/v4/projects")
 	return &gogitlab.ErrorResponse{

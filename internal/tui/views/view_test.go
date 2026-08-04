@@ -10,8 +10,8 @@ import (
 func TestParseViews(t *testing.T) {
 	t.Run("empty returns the default tabs", func(t *testing.T) {
 		got, warnings := ParseViews(nil)
-		// Commits is deliberately not a default tab: Overview lists recent commits
-		// and Enter opens the full commit page in place. It stays opt-in.
+		// Commits is deliberately not a default tab: Overview lists recent commits and Enter
+		// opens the full commit page in place.
 		want := []ViewID{ViewDashboard, ViewPipelines, ViewMRs, ViewIssues, ViewTodos}
 		if len(got) != len(want) {
 			t.Fatalf("want %d views, got %d (%v)", len(want), len(got), got)
@@ -76,15 +76,14 @@ func TestDefaultViewIndex(t *testing.T) {
 func TestListRow_TheNumberAndTheKindAreMetadata(t *testing.T) {
 	// The same change read one way in Recent Commits and another in Pipelines: the
 	// conventional-commit prefix was dimmed in one list and bright in the others.
-	// Both are now columns of the one layout, dimmed everywhere.
 	row := renderRow(listRow{ref: "!42", kind: "feat:", subject: "capacity-aware promotion"}, 60)
 	plainRow := plain(row)
 	if !strings.HasPrefix(plainRow, "!42 feat: capacity-aware promotion") {
 		t.Errorf("row = %q, want the number then the kind then the subject", plainRow)
 	}
 
-	// Measured over the list, and right-aligned within it: a four-digit number in one
-	// row indents the shorter ones so every subject starts in the same column.
+	// Measured over the list, and right-aligned within it: a four-digit number in one row
+	// indents the shorter ones so every subject starts in the same column.
 	mixed := renderRows([]listRow{
 		{ref: "!42", subject: "short number"},
 		{ref: "!1234", subject: "long number"},
@@ -93,8 +92,8 @@ func TestListRow_TheNumberAndTheKindAreMetadata(t *testing.T) {
 		t.Errorf("row = %q, want the shorter number right-aligned to the longer one", plain(mixed[0]))
 	}
 
-	// The metadata carries styling; the subject is left alone, so the escape codes
-	// stop before it.
+	// The metadata carries styling; the subject is left alone, so the escape codes stop
+	// before it.
 	if row == plainRow {
 		t.Errorf("row = %q, want the number and kind dimmed", row)
 	}
@@ -109,8 +108,8 @@ func TestListRow_TheNumberAndTheKindAreMetadata(t *testing.T) {
 }
 
 func TestListRow_EveryListIsLaidOutTheSameWay(t *testing.T) {
-	// The point of the shared layout: pick any list and the columns mean the same
-	// thing in the same order, with the subject starting in the same place.
+	// The point of the shared layout: pick any list and the columns mean the same thing in
+	// the same order, with the subject starting in the same place.
 	rows := map[string]listRow{
 		"merge request": mrRow(gitlab.MergeRequest{IID: 42, Title: "feat(cart): promote", Author: "jiri"}),
 		"issue":         issueRow(gitlab.Issue{IID: 7, Title: "fix(api): crash", Author: "alice"}),

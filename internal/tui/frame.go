@@ -9,9 +9,8 @@ import (
 	"github.com/Malvi1697/lazyglab/internal/tui/views"
 )
 
-// renderContextBar renders the top bar: the active branch and project on the
-// left, then the latest status message, and the refresh note at the far right.
-// Full width.
+// renderContextBar renders the top bar: the active branch and project on the left, then
+// the latest status message, and the refresh note at the far right.
 func renderContextBar(width int, ctx *views.Context, status string, statusIsErr bool, refresh string) string {
 	branch := ""
 	project := "no project"
@@ -33,9 +32,8 @@ func renderContextBar(width int, ctx *views.Context, status string, statusIsErr 
 	}
 	left += lipgloss.NewStyle().Foreground(components.ColorText).Render(project)
 
-	// The refresh note keeps the far right; the status takes whatever is left
-	// between it and the project name. A long status (an API error, typically) must
-	// not wrap onto the tabs row, so it is truncated rather than allowed to grow.
+	// The refresh note keeps the far right; the status takes whatever is left between it
+	// and the project name.
 	room := width - lipgloss.Width(left) - lipgloss.Width(refresh) - 4
 	right := components.Truncate(status, room)
 	if statusIsErr {
@@ -59,15 +57,12 @@ func renderContextBar(width int, ctx *views.Context, status string, statusIsErr 
 	return lipgloss.NewStyle().Width(width).Render(bar)
 }
 
-// renderTabs renders the numbered view tabs, highlighting the active one, with
-// the update notice (if any) at the far right — the tabs row is the one line with
-// room to spare, and a notice there survives every status message. Tabs are
-// numbered by position (1-based). Full width.
+// renderTabs renders the numbered view tabs, highlighting the active one, with the
+// update notice (if any) at the far right.
 func renderTabs(width int, viewIDs []views.ViewID, active int, titles []string, notice string) string {
 	// The tab you are on is the accent as a solid chip, not merely bold text in the
-	// accent's colour: a row of six similar labels needs one of them to be obviously
-	// the answer to "where am I". The rest take the light grey, which is a step
-	// brighter than metadata — they are labels you read, not data you scan past.
+	// accent's colour: a row of six similar labels needs one of them to be obviously the
+	// answer to "where am I".
 	activeStyle := components.AccentChipStyle
 	inactiveStyle := lipgloss.NewStyle().Foreground(components.ColorText)
 
@@ -79,21 +74,20 @@ func renderTabs(width int, viewIDs []views.ViewID, active int, titles []string, 
 		}
 		num := i + 1
 		if i == active {
-			// The brackets stay inside the chip: with NO_COLOR, or in a terminal that
-			// swallows the background, they are the only thing left saying which tab
-			// you are on.
+			// The brackets stay inside the chip: with NO_COLOR, or in a terminal that swallows
+			// the background, they are the only thing left saying which tab you are on.
 			parts = append(parts, activeStyle.Render(sprintTab(" [", num, "] ", title+" ")))
 		} else {
 			parts = append(parts, inactiveStyle.Render(sprintTab(" ", num, " ", title)))
 		}
 	}
 
-	// A rule under the tabs separates the frame from the body, which no longer
-	// has borders of its own.
+	// A rule under the tabs separates the frame from the body, which no longer has borders
+	// of its own.
 	bar := " " + strings.Join(parts, components.HelpSepStyle.Render(" · "))
 
-	// The notice is dropped rather than allowed to push the tabs around: knowing
-	// which view you are in matters more than knowing a release is out.
+	// The notice is dropped rather than allowed to push the tabs around: knowing which
+	// view you are in matters more than knowing a release is out.
 	if gap := width - lipgloss.Width(bar) - lipgloss.Width(notice) - 1; notice != "" && gap >= 2 {
 		bar += strings.Repeat(" ", gap) + notice + " "
 	}
@@ -118,8 +112,8 @@ func itoa(n int) string {
 	return string(b)
 }
 
-// renderFooter renders the global key hints joined with the active view's hints,
-// styled like the v1 keybind bar. Full width.
+// renderFooter renders the global key hints joined with the active view's hints, styled
+// like the v1 keybind bar.
 func renderFooter(width int, globalHints, viewHints []views.KeyHint) string {
 	var parts []string
 	appendHints := func(hints []views.KeyHint) {

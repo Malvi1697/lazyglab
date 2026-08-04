@@ -19,8 +19,6 @@ type GitRemote struct {
 var sshRemoteRegex = regexp.MustCompile(`^[\w.-]+@([\w.-]+):(.+)$`)
 
 // ParseGitLabRemote extracts the host and project path from a git remote URL.
-// It supports both HTTPS and SSH formats, strips the .git suffix, and handles
-// subgroup paths. Returns empty strings if the URL cannot be parsed.
 func ParseGitLabRemote(remoteURL string) (host, path string) {
 	remoteURL = strings.TrimSpace(remoteURL)
 	if remoteURL == "" {
@@ -38,8 +36,8 @@ func ParseGitLabRemote(remoteURL string) (host, path string) {
 		return host, path
 	}
 
-	// Try URL formats: https://host/owner/project.git,
-	// http://host/..., or ssh://git@host:2222/owner/project.git
+	// Try URL formats: https://host/owner/project.git, http://host/..., or
+	// ssh://git@host:2222/owner/project.git
 	u, err := url.Parse(remoteURL)
 	if err != nil || u.Host == "" || u.Scheme == "" {
 		return "", ""
@@ -61,10 +59,8 @@ func ParseGitLabRemote(remoteURL string) (host, path string) {
 	return host, path
 }
 
-// ParseGitRemoteOutput parses the output of `git remote -v` and returns a
-// deduplicated, sorted list of GitRemote entries. Only fetch lines are
-// processed. The "origin" remote is sorted first, followed by others in
-// alphabetical order. Remotes with unparseable URLs are skipped.
+// ParseGitRemoteOutput parses the output of `git remote -v` and returns a deduplicated,
+// sorted list of GitRemote entries.
 func ParseGitRemoteOutput(output string) []GitRemote {
 	if output == "" {
 		return nil
@@ -122,8 +118,8 @@ func ParseGitRemoteOutput(output string) []GitRemote {
 	return remotes
 }
 
-// DetectGitRemotes runs `git remote -v` in the current directory and returns
-// parsed remotes. Returns nil if git is not available or not in a repository.
+// DetectGitRemotes runs `git remote -v` in the current directory and returns parsed
+// remotes.
 func DetectGitRemotes() []GitRemote {
 	cmd := exec.Command("git", "remote", "-v")
 	out, err := cmd.Output()

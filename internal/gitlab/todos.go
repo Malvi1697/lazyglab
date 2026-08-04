@@ -9,9 +9,6 @@ import (
 )
 
 // ListTodos returns the current user's pending to-dos, across every project.
-//
-// This is the one list in lazyglab that is not about the selected project: a
-// to-do is GitLab telling you that something, somewhere, is waiting on you.
 func (c *Client) ListTodos() ([]Todo, error) {
 	opts := &gogitlab.ListTodosOptions{
 		State:       gogitlab.Ptr("pending"),
@@ -50,8 +47,8 @@ func (c *Client) ListTodos() ([]Todo, error) {
 			todo.Reference = reference(string(t.TargetType), int(t.Target.IID))
 			todo.TargetState = util.StripANSI(t.Target.State)
 		}
-		// A to-do whose target carries no title (a design, say) still has the body
-		// GitLab wrote for it, which is better than an empty row.
+		// A to-do whose target carries no title (a design, say) still has the body GitLab
+		// wrote for it, which is better than an empty row.
 		if todo.Title == "" {
 			todo.Title = todo.Body
 		}
@@ -60,8 +57,8 @@ func (c *Client) ListTodos() ([]Todo, error) {
 	return todos, nil
 }
 
-// reference is how GitLab writes a target's number: !5 for a merge request, #5
-// for an issue, nothing for the target types that have no number.
+// reference is how GitLab writes a target's number: !5 for a merge request, #5 for an
+// issue, nothing for the target types that have no number.
 func reference(targetType string, iid int) string {
 	if iid == 0 {
 		return ""

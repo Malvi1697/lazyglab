@@ -61,8 +61,8 @@ func TestLegend_DiffReaderNamesTheFileKeys(t *testing.T) {
 }
 
 func TestLegend_FilesBoxSaysTheArrowsStillMoveCommits(t *testing.T) {
-	// In the files box the arrows belong to the host list, not to the box — the
-	// footer has to say which, since it is not the same as inside a diff.
+	// In the files box the arrows belong to the host list, not to the box — the footer has
+	// to say which, since it is not the same as inside a diff.
 	d := legendPage(t)
 	d.focus = focusFiles
 
@@ -88,8 +88,8 @@ func TestLegend_JobsBoxKeepsThePageKeys(t *testing.T) {
 }
 
 func TestLegend_AnOpenLogOwnsTheArrows(t *testing.T) {
-	// The footer must not offer commit stepping while a log has the screen: it
-	// would swap out what you are reading.
+	// The footer must not offer commit stepping while a log has the screen: it would swap
+	// out what you are reading.
 	d := legendPage(t)
 	d.focus = focusJobs
 	d.jobs.setTrace("some output")

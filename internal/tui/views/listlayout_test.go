@@ -11,15 +11,12 @@ import (
 	"github.com/Malvi1697/lazyglab/internal/gitlab"
 )
 
-// The width of a terminal that is not especially wide, where the difference
-// between "the list has the page" and "the list has half the page" is the
-// difference between reading a title and guessing at it.
+// The width of a terminal that is not especially wide, where the difference between
+// a full-width list and a half-width one shows up in the titles.
 const testWidth = 100
 
 func TestLists_TheTitleFitsBecauseTheListHasTheWholePage(t *testing.T) {
-	// Every list used to give half its width to a panel restating the highlighted
-	// row, and the titles paid for it: "feat: split registration into two..." with
-	// the rest of the sentence nowhere on screen.
+	// Every list used to give half its width to a panel restating the highlighted row.
 	const title = "feat(cart): split registration into two steps"
 
 	pages := map[string]string{
@@ -56,8 +53,8 @@ func TestLists_TheTitleFitsBecauseTheListHasTheWholePage(t *testing.T) {
 	}
 
 	for name, body := range pages {
-		// The conventional prefix moves to its own column, so what has to survive
-		// intact is the sentence after it.
+		// The conventional prefix moves to its own column, so what has to survive intact is
+		// the sentence after it.
 		if !strings.Contains(body, "split registration into two steps") {
 			t.Errorf("%s: the title is cut off in\n%s", name, body)
 		}
@@ -71,8 +68,8 @@ func TestLists_TheTitleFitsBecauseTheListHasTheWholePage(t *testing.T) {
 }
 
 func TestLists_TheColumnsMeanTheSameThingEverywhere(t *testing.T) {
-	// Read any two rows from different views and the metadata is in the same places:
-	// what it is called, what kind of thing it is, then who/where/when at the right.
+	// Read any two rows from different views and the metadata is in the same places: what
+	// it is called, what kind of thing it is, then who/where/when at the right.
 	now := time.Date(time.Now().Year(), 7, 27, 9, 12, 0, 0, time.Local)
 
 	mr := plain(renderRow(mrRow(gitlab.MergeRequest{
@@ -103,8 +100,8 @@ func TestLists_TheColumnsMeanTheSameThingEverywhere(t *testing.T) {
 }
 
 func TestDashboard_TShowsAndFoldsTheReadme(t *testing.T) {
-	// In a small window half the rows spent on the README is half the commits you
-	// cannot see, which is the whole reason the key exists.
+	// In a small window half the rows spent on the README is half the commits you cannot
+	// see, which is the whole reason the key exists.
 	v := NewDashboardView(&Context{})
 	v.items = []gitlab.Commit{{ShortID: "abc1234", Title: "feat: one", AuthorName: "jan"}}
 	v.setReadme("README.md", "# Idiskgolf\n\nThis is the frontend.")
@@ -117,8 +114,8 @@ func TestDashboard_TShowsAndFoldsTheReadme(t *testing.T) {
 	if !strings.Contains(body, "feat:") || !strings.Contains(body, "one") {
 		t.Errorf("the commits should have the whole page:\n%s", body)
 	}
-	// The hint has to say which way the key goes, or it promises to hide something
-	// that is already hidden.
+	// The hint has to say which way the key goes, or it promises to hide something that is
+	// already hidden.
 	if !hasHint(v.KeyHints(), "t", "Show readme") {
 		t.Errorf("hints = %v, want t offering to show it", v.KeyHints())
 	}
@@ -141,8 +138,8 @@ func TestDashboard_TShowsAndFoldsTheReadme(t *testing.T) {
 }
 
 func TestDashboard_FoldingTheReadmeTakesTheKeysBack(t *testing.T) {
-	// Folding it away while it had the keys would leave j/k scrolling something
-	// nobody can see.
+	// Folding it away while it had the keys would leave j/k scrolling something nobody can
+	// see.
 	v := NewDashboardView(&Context{})
 	v.items = []gitlab.Commit{{ShortID: "abc1234", Title: "feat: one"}}
 	v.setReadme("README.md", "words")

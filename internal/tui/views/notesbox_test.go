@@ -24,8 +24,8 @@ func discussion() []gitlab.Note {
 }
 
 func TestNotes_HeadingSeparatesPeopleFromBookkeeping(t *testing.T) {
-	// A thread of system notes is not a discussion, and a count that pretends
-	// otherwise makes a quiet merge request look busy.
+	// A thread of system notes is not a discussion, and a count that pretends otherwise
+	// makes a quiet merge request look busy.
 	var b notesBox
 	b.setNotes(discussion())
 
@@ -49,16 +49,15 @@ func TestNotes_RowsSayWhoAndWhen(t *testing.T) {
 			t.Errorf("row = %q, want %q", row, want)
 		}
 	}
-	// A multi-line comment is one row: the first line of it. Row 1 is carol's,
-	// because the system note between them is not shown by default.
+	// A multi-line comment is one row: the first line of it.
 	if row := plain(b.noteRow(1)); strings.Contains(row, "rounding") {
 		t.Errorf("row = %q, want only the opening line", row)
 	}
 }
 
 func TestNotes_BookkeepingIsHiddenUntilAskedFor(t *testing.T) {
-	// An issue can carry a hundred "changed the description" notes and no
-	// conversation at all; the box is for the conversation.
+	// An issue can carry a hundred "changed the description" notes and no conversation at
+	// all; the box is for the conversation.
 	var b notesBox
 	b.setNotes(discussion())
 
@@ -247,8 +246,8 @@ func TestComment_ThreadTakesTheBodyAndKeepsTheArrowsToItself(t *testing.T) {
 }
 
 func TestNotes_TheToggleIsOnlyOfferedWhenItWouldChangeSomething(t *testing.T) {
-	// Offering to hide the record when the record is all there is sends people
-	// pressing a key that can only answer "there is nothing to hide".
+	// Offering to hide the record when the record is all there is sends people pressing a
+	// key that can only answer "there is nothing to hide".
 	var mixed notesBox
 	mixed.setNotes(discussion())
 	if got := hintsFor(mixed.boxHints()); !strings.Contains(got, "s ") {

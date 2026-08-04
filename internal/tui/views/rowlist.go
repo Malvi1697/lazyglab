@@ -6,12 +6,8 @@ import (
 	"github.com/Malvi1697/lazyglab/internal/tui/components"
 )
 
-// rowList is the state a list view keeps: the rows it holds, where the cursor is,
-// where the visible window starts, and the search that narrows it.
-//
-// Views embed it, which leaves each view with only what makes it different: what it
-// fetches, what its rows say, and what its keys do. The cursor always indexes the
-// searched rows, never the full list.
+// rowList is the state a list view keeps: the rows it holds, where the cursor is, where
+// the visible window starts, and the search that narrows it.
 type rowList[T any] struct {
 	items  []T
 	cursor int
@@ -47,9 +43,8 @@ func (l *rowList[T]) capturing() bool { return l.search.capturing() }
 
 func (l *rowList[T]) paste(content string) { l.search.paste(content, &l.cursor) }
 
-// navigate takes the keys that belong to the list itself — the search and the
-// movement — and reports whether it used one, so a view's own keys only see what is
-// left.
+// navigate takes the keys that belong to the list itself — the search and the movement
+// — and reports whether it used one, so a view's own keys only see what is left.
 func (l *rowList[T]) navigate(msg tea.KeyMsg, height int) bool {
 	if l.search.handleKey(msg, &l.cursor) {
 		return true
@@ -61,9 +56,7 @@ func (l *rowList[T]) navigate(msg tea.KeyMsg, height int) bool {
 	return false
 }
 
-// box renders the list as a body panel. Rows are described rather than drawn — one
-// listRow per item — so every list in the app is laid out by the same columns,
-// measured over the whole list.
+// box renders the list as a body panel.
 func (l *rowList[T]) box(width, height int, name string, row func(T) listRow, focused bool) string {
 	visible := l.visible()
 	rows := make([]listRow, len(visible))

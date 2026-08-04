@@ -13,21 +13,15 @@ import (
 	"github.com/Malvi1697/lazyglab/internal/util"
 )
 
-// GraphQL exists for one reason: the REST list endpoints do not carry a
-// pipeline's stages, and asking per pipeline would be thirty requests for one
-// screen — exactly the fan-out the request budget forbids. One GraphQL query
-// answers for the whole page.
-//
-// Nothing else uses it. REST is the rest of the app's contract, and client-go
-// covers it; this is the bulk lookup REST has no endpoint for.
+// GraphQL exists for one reason: the REST list endpoints do not carry a pipeline's
+// stages, and asking per pipeline would be thirty requests for one screen.
 const (
 	graphqlTimeout = 10 * time.Second
-	// GitLab refuses more than twenty pipelines per ids filter ("Cannot query more
-	// than 20 pipelines by ID at once"), so a page of thirty is two requests rather
-	// than thirty.
+	// GitLab refuses more than twenty pipelines per ids filter ("Cannot query more than 20
+	// pipelines by ID at once"), so a page of thirty is two requests rather than thirty.
 	maxStageIDs = 20
-	// A page of thirty pipelines with their stages is tens of kilobytes; well past
-	// that and something other than the API is answering.
+	// A page of thirty pipelines with their stages is tens of kilobytes; well past that
+	// and something other than the API is answering.
 	maxGraphQLResponse = 8 << 20
 )
 
@@ -80,8 +74,8 @@ func (c *Client) graphql(query string, variables map[string]any, out any) error 
 	if err := json.NewDecoder(io.LimitReader(resp.Body, maxGraphQLResponse)).Decode(&envelope); err != nil {
 		return fmt.Errorf("graphql: reading the answer: %w", err)
 	}
-	// GraphQL answers 200 with an errors array, so a failed query looks like a
-	// success until this is checked.
+	// GraphQL answers 200 with an errors array, so a failed query looks like a success
+	// until this is checked.
 	if len(envelope.Errors) > 0 {
 		return fmt.Errorf("graphql: %s", envelope.Errors[0].Message)
 	}
@@ -91,16 +85,8 @@ func (c *Client) graphql(query string, variables map[string]any, out any) error 
 	return json.Unmarshal(envelope.Data, out)
 }
 
-// pipelineStagesQuery asks for the stages of specific pipelines, and for the status
-// of every job in them. The filter is on global ids
-// ("gid://gitlab/Ci::Pipeline/724560"), which is what the REST id turns into — there
-// is no iids filter on this connection.
-//
-// The jobs are the point. GitLab's own CiStage.status cannot be trusted: a stage
-// whose every job was canceled reports "success" (its own detailedStatus admits to
-// "status_warning"), so a pipeline that got nowhere showed three green marks and
-// then a screen of ⊗ when you pressed Enter. Deriving the mark from the jobs means
-// the row and the drill-down cannot disagree, because they are the same facts.
+// pipelineStagesQuery asks for the stages of specific pipelines, and for the status of
+// every job in them.
 const pipelineStagesQuery = `query ($path: ID!, $ids: [ID!]) {
   project(fullPath: $path) {
     pipelines(ids: $ids, first: 100) {
@@ -113,12 +99,6 @@ const pipelineStagesQuery = `query ($path: ID!, $ids: [ID!]) {
 }`
 
 // PipelineStages returns the stages of each given pipeline, keyed by pipeline ID.
-//
-// One request for the whole list, and a finished pipeline's stages never change
-// again, so they are cached for the life of the process: an auto-refresh only asks
-// about the pipelines that are still moving, and often about nothing at all.
-// Pipelines the answer does not mention are simply absent from the map — the list
-// draws without their marks rather than failing.
 func (c *Client) PipelineStages(projectPath string, pipelines []Pipeline) map[int][]Stage {
 	stages := make(map[int][]Stage, len(pipelines))
 
@@ -175,8 +155,8 @@ func (c *Client) readStages(projectPath string, batch []Pipeline, stages map[int
 		} `json:"project"`
 	}
 	if err := c.graphql(pipelineStagesQuery, map[string]any{"path": projectPath, "ids": ids}, &answer); err != nil {
-		// The marks are an extra; an instance with GraphQL disabled, or a query this
-		// version rejects, must not cost the list itself.
+		// The marks are an extra; an instance with GraphQL disabled, or a query this version
+		// rejects, must not cost the list itself.
 		return
 	}
 
@@ -203,11 +183,7 @@ func (c *Client) readStages(projectPath string, batch []Pipeline, stages map[int
 }
 
 // StageStatus is how a stage went, given how its jobs went: the worst thing that
-// happened to any of them, except that anything still moving wins — a stage with a
-// failed job and a running one is still running.
-//
-// This is what the mark in the pipeline list shows, rather than GitLab's own
-// CiStage.status, which calls a stage of nothing-but-canceled jobs a success.
+// happened to any of them, except that anything still moving wins.
 func StageStatus(jobs []string) string {
 	// Read down the list: the first state present is the one the stage is in.
 	for _, want := range []string{

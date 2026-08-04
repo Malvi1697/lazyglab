@@ -29,8 +29,8 @@ func NewCommitsView(ctx *Context) *CommitsView {
 // Title implements View.
 func (v *CommitsView) Title() string { return "Commits" }
 
-// Focus implements View: refreshes what is on screen — the open commit page, or
-// the list when none is.
+// Focus implements View: refreshes what is on screen — the open commit page, or the
+// list when none is.
 func (v *CommitsView) Focus() tea.Cmd {
 	if v.detail.active {
 		if v.detail.readingBody() {
@@ -40,10 +40,6 @@ func (v *CommitsView) Focus() tea.Cmd {
 	}
 	return v.load()
 }
-
-// ============================================================================
-// Update
-// ============================================================================
 
 // Update implements View.
 func (v *CommitsView) Update(msg tea.Msg) tea.Cmd {
@@ -78,9 +74,8 @@ func (v *CommitsView) handleKey(msg tea.KeyMsg) tea.Cmd {
 	key := msg.String()
 
 	if v.detail.active {
-		// Stepping to the neighbouring commit belongs to the list's owner, since
-		// the page itself does not know what comes next — but not while a diff or a
-		// job log is open, where the arrows belong to what you are reading.
+		// Stepping to the neighbouring commit belongs to the list's owner, since the page
+		// itself does not know what comes next.
 		if step, ok := stepKey(key); ok && !v.detail.readingBody() {
 			return v.stepCommit(step)
 		}
@@ -109,8 +104,8 @@ func (v *CommitsView) handleKey(msg tea.KeyMsg) tea.Cmd {
 	return nil
 }
 
-// CapturingText implements TextCapturer: while the search is being typed, the
-// shell must not read the letters as its own commands.
+// CapturingText implements TextCapturer: while the search is being typed, the shell
+// must not read the letters as its own commands.
 func (v *CommitsView) CapturingText() bool { return !v.detail.active && v.capturing() }
 
 // stepCommit moves to the neighbouring commit, keeping the page open.
@@ -124,8 +119,7 @@ func (v *CommitsView) stepCommit(step int) tea.Cmd {
 	return v.detail.stepAt(v.selected(), v.cursor, len(visible))
 }
 
-// copyHash copies the selected commit's full SHA to the clipboard. The list
-// shows the author rather than the hash, so this is how the hash is obtained.
+// copyHash copies the selected commit's full SHA to the clipboard.
 func (v *CommitsView) copyHash() tea.Cmd {
 	selected := v.selected()
 	if selected == nil {
@@ -142,17 +136,13 @@ func (v *CommitsView) copyHash() tea.Cmd {
 	)
 }
 
-// ============================================================================
-// Body / rendering
-// ============================================================================
-
 // Body implements View.
 func (v *CommitsView) Body(width, height int) string {
 	v.width = width
 	v.height = height
 
-	// Drilled into a commit: the page gets the whole body, like GitLab's own
-	// commit page, rather than being squeezed into the detail pane.
+	// Drilled into a commit: the page gets the whole body, like GitLab's own commit page,
+	// rather than being squeezed into the detail pane.
 	if v.detail.active {
 		return v.detail.body(width, height)
 	}
@@ -160,8 +150,7 @@ func (v *CommitsView) Body(width, height int) string {
 	return v.box(width, height, "Commits", commitItemRow, true)
 }
 
-// commitItemRow describes one commit row. The status comes with the commit here,
-// rather than being matched in from the pipelines as the dashboard has to.
+// commitItemRow describes one commit row.
 func commitItemRow(c gitlab.Commit) listRow {
 	kind, subject := splitConventional(c.Title)
 	return listRow{
@@ -181,10 +170,6 @@ func shortSHA(sha string) string {
 	return sha
 }
 
-// ============================================================================
-// KeyHints
-// ============================================================================
-
 // KeyHints implements View.
 func (v *CommitsView) KeyHints() []KeyHint {
 	if v.detail.active {
@@ -197,10 +182,6 @@ func (v *CommitsView) KeyHints() []KeyHint {
 		v.search.hint(),
 	}
 }
-
-// ============================================================================
-// Commands (async API calls)
-// ============================================================================
 
 // ref is the active branch, empty when the project default is in use.
 func (v *CommitsView) ref() string {

@@ -14,12 +14,8 @@ import (
 	"github.com/Malvi1697/lazyglab/internal/util"
 )
 
-// jobsPanel is a pipeline's jobs, navigable and actionable: a stage-grouped list
-// with a cursor, the selected job's detail or log, and the actions GitLab allows
-// on a job (retry, cancel, play a manual one).
-//
-// It is a component rather than part of a view so a pipeline can be driven from
-// anywhere it is shown — the Pipelines view and the commit page today.
+// jobsPanel is a pipeline's jobs, navigable and actionable: a stage-grouped list with a
+// cursor, the selected job's detail or log.
 type jobsPanel struct {
 	ctx *Context
 
@@ -31,9 +27,8 @@ type jobsPanel struct {
 	trace       string
 	traceScroll int
 
-	// The rendered forms of the two lists, kept because a keypress redraws the whole
-	// body: without them a four-thousand-line log was stripped of ANSI and re-wrapped
-	// on every single scroll, and the job rows were built twice per frame.
+	// The rendered forms of the two lists, kept because a keypress redraws the whole body:
+	// without them a long log was re-wrapped on every keypress.
 	rows       []string // job rows, with stage headings
 	rowOf      []int    // job index -> row index
 	traceLines []string // the log, cleaned and wrapped
@@ -59,8 +54,8 @@ func (p *jobsPanel) open(pipelineID int) tea.Cmd {
 	return p.load()
 }
 
-// adopt takes a pipeline's jobs that someone else already fetched, so a page
-// showing them does not have to load them again to become interactive.
+// adopt takes a pipeline's jobs that someone else already fetched, so a page showing
+// them does not have to load them again to become interactive.
 func (p *jobsPanel) adopt(pipelineID int, jobs []gitlab.Job) {
 	if pipelineID != p.pipelineID {
 		p.cursor = 0
@@ -102,13 +97,8 @@ func (p *jobsPanel) setJobs(jobs []gitlab.Job) {
 	}
 }
 
-// inStageOrder puts the jobs into the order the pipeline runs them, grouped by
-// stage: lint, then build, then deploy.
-//
-// GitLab lists jobs newest first, which is the reverse — the panel opened on
-// "operations" and ended at "lint", so it read bottom-up against the row of stage
-// marks in the pipeline list, and comparing the two was guesswork. Job ids grow
-// with the pipeline, so the smallest id in a stage says when that stage started.
+// inStageOrder puts the jobs into the order the pipeline runs them, grouped by stage:
+// lint, then build, then deploy.
 func inStageOrder(jobs []gitlab.Job) []gitlab.Job {
 	firstOf := make(map[string]int, len(jobs))
 	for _, j := range jobs {
@@ -123,8 +113,8 @@ func inStageOrder(jobs []gitlab.Job) []gitlab.Job {
 		if firstOf[ordered[a].Stage] != firstOf[ordered[b].Stage] {
 			return firstOf[ordered[a].Stage] < firstOf[ordered[b].Stage]
 		}
-		// Within a stage, the order they were created in — a matrix job's variants
-		// read as a block rather than shuffled.
+		// Within a stage, the order they were created in — a matrix job's variants read as a
+		// block rather than shuffled.
 		return ordered[a].ID < ordered[b].ID
 	})
 	return ordered
@@ -145,23 +135,18 @@ func (p *jobsPanel) selected() *gitlab.Job {
 	return &p.jobs[p.cursor]
 }
 
-// ============================================================================
-// Keys
-// ============================================================================
-
-// handleKey drives the panel and reports whether the key was consumed, so the
-// host view can fall back to its own bindings.
+// handleKey drives the panel and reports whether the key was consumed, so the host view
+// can fall back to its own bindings.
 func (p *jobsPanel) handleKey(key string, height int) (tea.Cmd, bool) {
-	// With a log open, navigation scrolls it; the actions below still apply to
-	// the job the log belongs to.
+	// With a log open, navigation scrolls it; the actions below still apply to the job the
+	// log belongs to.
 	if p.trace != "" {
 		if p.scrollTrace(key, height) {
 			return nil, true
 		}
 	}
 
-	// Job list navigation. Only reached with no log open: an open log takes the
-	// navigation keys for itself, and Esc closes it.
+	// Job list navigation.
 	if act := components.NavFor(key); act != components.NavNone {
 		p.cursor = components.ApplyNav(act, p.cursor, len(p.jobs), listRows(height))
 		return nil, true
@@ -178,8 +163,8 @@ func (p *jobsPanel) handleKey(key string, height int) (tea.Cmd, bool) {
 		if job == nil {
 			return nil, true
 		}
-		// A job's name is what people quote when they say what broke; its number is
-		// only meaningful to the API.
+		// A job's name is what people quote when they say what broke; its number is only
+		// meaningful to the API.
 		return copyRef(job.Name), true
 	case keyCopyLink:
 		if job == nil {
@@ -213,8 +198,7 @@ func (p *jobsPanel) handleKey(key string, height int) (tea.Cmd, bool) {
 	return nil, false
 }
 
-// scrollTrace moves through an open log, using the same keys that move a list
-// cursor. Reports whether the key was a scroll.
+// scrollTrace moves through an open log, using the same keys that move a list cursor.
 func (p *jobsPanel) scrollTrace(key string, height int) bool {
 	rows := listRows(height)
 	switch components.NavFor(key) {
@@ -244,8 +228,8 @@ func (p *jobsPanel) scrollTrace(key string, height int) bool {
 // keyHints are the panel's footer hints.
 func (p *jobsPanel) keyHints() []KeyHint {
 	if p.trace != "" {
-		// The job's own actions still apply to the job whose log this is, so the
-		// footer names them here too rather than only in the list.
+		// The job's own actions still apply to the job whose log this is, so the footer names
+		// them here too rather than only in the list.
 		return []KeyHint{
 			{"j/k", "Scroll"},
 			{"R", "Retry"},
@@ -266,10 +250,6 @@ func (p *jobsPanel) keyHints() []KeyHint {
 		{"Esc", "Back"},
 	}
 }
-
-// ============================================================================
-// Commands
-// ============================================================================
 
 func (p *jobsPanel) load() tea.Cmd {
 	if p.ctx == nil || p.ctx.Project == nil || p.ctx.Client == nil || p.pipelineID == 0 {
@@ -335,8 +315,7 @@ func (p *jobsPanel) playJob() tea.Cmd {
 	if job == nil {
 		return nil
 	}
-	// Only a manual job can be played. This is checked before the client, so the
-	// explanation reaches the user either way.
+	// Only a manual job can be played.
 	if job.Status != "manual" {
 		return func() tea.Msg {
 			return StatusMsg{Text: "Only manual jobs can be played", IsErr: true}
@@ -356,16 +335,8 @@ func (p *jobsPanel) playJob() tea.Cmd {
 	}
 }
 
-// ============================================================================
-// Rendering
-// ============================================================================
-
-// items renders the job rows grouped by stage, plus the mapping from job index
-// to display row (stage headers occupy rows of their own).
-//
-// The result depends only on the job list, so it is built once per list rather
-// than per frame: the page asks for it twice — for the rows and for the cursor's
-// row — and a frame happens on every keypress.
+// items renders the job rows grouped by stage, plus the mapping from job index to
+// display row (stage headers occupy rows of their own).
 func (p *jobsPanel) items() ([]string, []int) {
 	if p.rows != nil || len(p.jobs) == 0 {
 		return p.rows, p.rowOf
@@ -380,9 +351,8 @@ func (p *jobsPanel) items() ([]string, []int) {
 			items = append(items, "\x00"+components.MutedStyle.Render(job.Stage))
 		}
 		jobToDisplay[i] = len(items)
-		// The icon already says what the status is; repeating it in words made
-		// every row say the same thing twice. Only a duration adds anything, and
-		// only when the job has run.
+		// The icon already says what the status is; repeating it in words made every row say
+		// the same thing twice.
 		items = append(items, fmt.Sprintf("  %s %s%s",
 			components.StatusIcon(job.Status), job.Name,
 			components.MutedStyle.Render(durationSuffix(&job))))
@@ -406,8 +376,7 @@ func (p *jobsPanel) listBox(width, height int, title string) string {
 	return renderListBox(width, height, title, items, p.cursorRow(), &p.scroll)
 }
 
-// listTitle names the job list. It stays the job list even with a log open, so
-// the two boxes are not both titled after the log.
+// listTitle names the job list.
 func (p *jobsPanel) listTitle() string {
 	return fmt.Sprintf("Jobs (#%d)", p.pipelineID)
 }
@@ -481,9 +450,8 @@ func (p *jobsPanel) traceView(width, height int) string {
 	return strings.Join(cleaned[p.traceScroll:end], "\n")
 }
 
-// cleanedTrace is the log stripped of ANSI and GitLab's section markers and
-// wrapped to width, remembered until the log or the width changes. Deriving it
-// per frame meant a long log allocated close to a megabyte for every keypress.
+// cleanedTrace is the log stripped of ANSI and GitLab's section markers and wrapped to
+// width, remembered until the log or the width changes.
 func (p *jobsPanel) cleanedTrace(width int) []string {
 	if p.traceLines != nil && p.traceWidth == width {
 		return p.traceLines
@@ -502,8 +470,8 @@ func (p *jobsPanel) cleanedTrace(width int) []string {
 	return cleaned
 }
 
-// body renders the panel on its own: the job list beside the selected job's
-// detail or log. Used where the panel is the whole screen.
+// body renders the panel on its own: the job list beside the selected job's detail or
+// log.
 func (p *jobsPanel) body(width, height int) string {
 	leftWidth := width * 45 / 100
 	if leftWidth < 20 {

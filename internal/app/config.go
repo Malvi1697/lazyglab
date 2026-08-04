@@ -20,30 +20,29 @@ type Config struct {
 type HostConfig struct {
 	Token   string `yaml:"token"`
 	APIHost string `yaml:"api_host,omitempty"` // optional: if API is on different host
-	// Favorites are starred project paths ("group/project") on this host, shown
-	// in the favorites picker. Paths rather than IDs, so they stay readable and
-	// hand-editable in the config file.
+	// Favorites are starred project paths ("group/project") on this host, shown in the
+	// favorites picker.
 	Favorites []string `yaml:"favorites,omitempty"`
-	// LastProject is the project path selected most recently on this host, so a
-	// restart resumes where the user left off.
+	// LastProject is the project path selected most recently on this host, so a restart
+	// resumes where the user left off.
 	LastProject string `yaml:"last_project,omitempty"`
 }
 
 // Settings holds global UI preferences.
 type Settings struct {
-	// Views lists enabled cockpit views in tab order (overview, pipelines, mrs, issues, commits). Empty = all.
+	// Views lists enabled cockpit views in tab order (overview, pipelines, mrs, issues,
+	// commits).
 	Views []string `yaml:"views"`
-	// DefaultView is the view shown at launch. Empty/absent = first enabled.
+	// DefaultView is the view shown at launch.
 	DefaultView string `yaml:"default_view"`
 	// Panels is the obsolete v1 key, kept only to warn if present.
 	Panels []string `yaml:"panels"`
-	// RefreshInterval is the auto-refresh period in seconds. nil = default (30),
-	// 0 = disabled. Interpreted via RefreshSeconds().
+	// RefreshInterval is the auto-refresh period in seconds.
 	RefreshInterval *int `yaml:"refresh_interval"`
 }
 
-// RefreshSeconds returns the normalized auto-refresh interval in seconds:
-// nil/negative -> 30, 0 -> disabled, 1..4 -> clamped to 5, else the value.
+// RefreshSeconds returns the normalized auto-refresh interval in seconds: nil/negative
+// -> 30, 0 -> disabled, 1..4 -> clamped to 5, else the value.
 func (s Settings) RefreshSeconds() int {
 	if s.RefreshInterval == nil {
 		return 30
@@ -74,8 +73,6 @@ func LoadConfigFrom(path string) (*Config, error) {
 	}
 
 	// Reject group/world readable config files (contain tokens).
-	// Unix permission bits are meaningless on Windows, where Perm() reports
-	// 0666 and would always trip this check, so skip it there.
 	if runtime.GOOS != "windows" {
 		if perm := info.Mode().Perm(); perm&0077 != 0 {
 			return nil, fmt.Errorf(
@@ -125,9 +122,7 @@ func SaveConfigTo(path string, cfg *Config) error {
 	}
 	defer func() { _ = f.Close() }()
 
-	// O_CREATE only applies the mode to newly created files; tighten the
-	// permissions on a pre-existing (possibly loosely-permissioned) file too,
-	// otherwise a later LoadConfig would reject the token file as too open.
+	// O_CREATE only applies the mode to newly created files.
 	if runtime.GOOS != "windows" {
 		if err := f.Chmod(0600); err != nil {
 			return fmt.Errorf("securing config file permissions: %w", err)

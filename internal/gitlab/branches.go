@@ -8,17 +8,10 @@ import (
 	"github.com/Malvi1697/lazyglab/internal/util"
 )
 
-// maxBranchPages bounds how many pages of branches we fetch. The GitLab
-// branches endpoint has no server-side ordering by activity, so we must pull
-// the full set and sort client-side — this cap keeps that bounded on repos
-// with an unusually large number of branches (100 per page => 2000 branches).
+// maxBranchPages bounds how many pages of branches we fetch.
 const maxBranchPages = 20
 
 // ListBranches returns branches for a project, sorted by most recent activity.
-//
-// The branches endpoint returns results ordered by name with no activity sort
-// available, so fetching a single page and sorting it would sort the wrong
-// subset. We paginate (up to maxBranchPages) and sort the full set.
 func (c *Client) ListBranches(projectID int) ([]Branch, error) {
 	var branches []Branch
 
@@ -56,7 +49,6 @@ func (c *Client) ListBranches(projectID int) ([]Branch, error) {
 	}
 
 	// Sort by last activity (most recent first), default branch always on top.
-	// SliceStable keeps a deterministic order for equal-activity branches.
 	sort.SliceStable(branches, func(i, j int) bool {
 		if branches[i].Default != branches[j].Default {
 			return branches[i].Default

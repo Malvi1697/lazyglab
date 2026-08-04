@@ -13,9 +13,7 @@ import (
 )
 
 func TestPipelineRow_SaysHowFarItGotStageByStage(t *testing.T) {
-	// A pipeline list that only says "failed" answers the wrong question. Where it
-	// stopped is the thing you open the view for, and GitLab's own list shows it as a
-	// row of marks per stage.
+	// A pipeline list that only says "failed" answers the wrong question.
 	p := gitlab.Pipeline{ID: 1, Status: "failed", CommitTitle: "feat: promote", Ref: "main",
 		CreatedAt: time.Now()}
 	stages := []gitlab.Stage{
@@ -52,8 +50,7 @@ func TestPipelineRow_SaysHowFarItGotStageByStage(t *testing.T) {
 
 func TestPipelineRow_NoStagesMeansNoMarks(t *testing.T) {
 	// The marks follow the list rather than coming with it, and an instance without
-	// GraphQL never sends them. Either way the row is a row, not a row of
-	// placeholders pretending the pipeline has no stages.
+	// GraphQL never sends them.
 	p := gitlab.Pipeline{ID: 1, Status: "success", CommitTitle: "feat: promote", Ref: "main"}
 
 	row := ansi.Strip(renderRow(pipelineRow(p, nil), 120))
@@ -66,8 +63,8 @@ func TestPipelineRow_NoStagesMeansNoMarks(t *testing.T) {
 }
 
 func TestPipelinesView_StagesArriveAfterTheListAndReachTheRows(t *testing.T) {
-	// The stages are a second message on purpose: the rows are worth drawing before
-	// they land.
+	// The stages are a second message on purpose: the rows are worth drawing before they
+	// land.
 	v := NewPipelinesView(&Context{})
 	v.width, v.height = 120, 20
 	v.Update(PipelinesLoadedMsg{Pipelines: []gitlab.Pipeline{
@@ -92,9 +89,8 @@ func TestPipelinesView_StagesArriveAfterTheListAndReachTheRows(t *testing.T) {
 }
 
 func TestJobsPanel_StagesReadInTheOrderThePipelineRanThem(t *testing.T) {
-	// GitLab lists jobs newest first, so the panel used to open on the last stage and
-	// end at the first — bottom-up against the row of stage marks in the list, which
-	// made comparing the two guesswork.
+	// GitLab lists jobs newest first, so the panel used to open on the last stage and end
+	// at the first.
 	var p jobsPanel
 	p.setJobs([]gitlab.Job{
 		{ID: 90, Name: "deploy:prod", Stage: "deploy", Status: "canceled"},
@@ -127,8 +123,8 @@ func TestJobsPanel_StagesReadInTheOrderThePipelineRanThem(t *testing.T) {
 }
 
 func TestPipelines_TNamesTheStagesBehindTheMarks(t *testing.T) {
-	// "How do I tell which mark is which stage?" — this is the answer, out of the
-	// stages already in hand, so it costs no request and no drilling in.
+	// "How do I tell which mark is which stage?" — this is the answer, out of the stages
+	// already in hand, so it costs no request and no drilling in.
 	v := NewPipelinesView(&Context{})
 	v.width, v.height = 120, 24
 	v.Update(PipelinesLoadedMsg{Pipelines: []gitlab.Pipeline{
@@ -159,8 +155,8 @@ func TestPipelines_TNamesTheStagesBehindTheMarks(t *testing.T) {
 			t.Errorf("body should carry %q:\n%s", want, body)
 		}
 	}
-	// Named in the order the pipeline ran them, which is the order of the marks on
-	// its row and of the groups Enter opens.
+	// Named in the order the pipeline ran them, which is the order of the marks on its row
+	// and of the groups Enter opens.
 	if at, then := strings.Index(body, "lint"), strings.Index(body, "operations"); at > then {
 		t.Errorf("stages are named out of order:\n%s", body)
 	}
