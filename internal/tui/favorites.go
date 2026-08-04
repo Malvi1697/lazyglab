@@ -171,7 +171,9 @@ func (a *App) renderFavorites() string {
 	if a.pickerStatus != "" {
 		lines = append(lines, components.HelpDescStyle.Render(components.Truncate(a.pickerStatus, innerWidth)))
 	} else {
-		lines = append(lines, components.HelpDescStyle.Render("Enter: open  f: unstar  Esc: close  j/k: navigate"))
+		lines = append(lines, hintBar(innerWidth,
+			views.KeyHint{Key: "Enter", Desc: "Open"}, views.KeyHint{Key: "f", Desc: "Unstar"},
+			views.KeyHint{Key: "j/k", Desc: "Navigate"}, views.KeyHint{Key: "Esc", Desc: "Close"}))
 	}
 
 	return components.RenderBox("Favorites", lines, boxWidth, boxHeight, components.ColorPrimary, components.ColorPrimary)

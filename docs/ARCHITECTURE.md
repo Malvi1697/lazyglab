@@ -142,6 +142,12 @@ Each of these is pinned by a test, because each of them cost a bug:
   the same split copies the SSH and HTTPS clone URLs.
 - `t` folds the view's second box.
 
+Hints read as **`Action: key`**, separated by `|`, rendered by `hintBar` in
+`tui/hints.go` — the one renderer the footer and every overlay share. It lays them
+out in the order given, drops whole hints that do not fit rather than cutting one,
+and the footer keeps `Keybindings: ?` however narrow the terminal is. A view's own
+keys come before the global ones, so they are what survives.
+
 **A new key is three edits:** the handler, the view's `KeyHints()`, and
 `helpEntries()` in `overlays.go`. `legend_test.go` pins the parts that matter. A
 hint must not promise what the key cannot do — offer `j/k Scroll` only when there is

@@ -105,11 +105,11 @@ func (a *App) renderConfirm() string {
 		return ""
 	}
 	prompt := a.pendingConfirm.prompt
-	hint := "y/Enter: confirm  n/Esc: cancel"
+	hint := hintBar(0, views.KeyHint{Key: "y/Enter", Desc: "Confirm"}, views.KeyHint{Key: "n/Esc", Desc: "Cancel"})
 
 	innerWidth := len(prompt)
-	if len(hint) > innerWidth {
-		innerWidth = len(hint)
+	if w := lipgloss.Width(hint); w > innerWidth {
+		innerWidth = w
 	}
 	innerWidth += 4
 	boxWidth := innerWidth + 4
@@ -118,7 +118,7 @@ func (a *App) renderConfirm() string {
 		"",
 		"  " + lipgloss.NewStyle().Bold(true).Foreground(components.ColorWarning).Render(prompt),
 		"",
-		"  " + components.HelpDescStyle.Render(hint),
+		"  " + hint,
 		"",
 	}
 	return components.RenderBox("Confirm", lines, boxWidth, len(lines)+2, components.ColorWarning, components.ColorWarning)
@@ -221,14 +221,17 @@ func (a *App) renderBranchPicker() string {
 	}
 	// The hint follows the search's stage, as the project picker's does: while typing,
 	// Enter applies; once applied, Esc clears before it cancels.
-	hint := "Enter: select  /: search  Esc: cancel"
+	innerWidth := boxWidth - 4
+	hint := hintBar(innerWidth,
+		views.KeyHint{Key: "Enter", Desc: "Select"}, views.KeyHint{Key: "/", Desc: "Search"}, views.KeyHint{Key: "Esc", Desc: "Cancel"})
 	switch {
 	case a.branchFilter.Active:
-		hint = a.branchFilter.Hint() + components.HelpDescStyle.Render("   Enter: apply")
+		hint = prefixedHints(a.branchFilter.Hint(), innerWidth, views.KeyHint{Key: "Enter", Desc: "Apply"})
 	case a.branchFilter.Applied():
-		hint = a.branchFilter.Hint() + components.HelpDescStyle.Render("   Enter: select  Esc: clear")
+		hint = prefixedHints(a.branchFilter.Hint(), innerWidth,
+			views.KeyHint{Key: "Enter", Desc: "Select"}, views.KeyHint{Key: "Esc", Desc: "Clear"})
 	}
-	lines = append(lines, "", components.HelpDescStyle.Render(hint))
+	lines = append(lines, "", hint)
 
 	title := fmt.Sprintf("Select Branch (%d)", len(a.branches))
 	if a.branchFilter.On() {
@@ -351,16 +354,20 @@ func (a *App) renderProjectPicker() string {
 	default:
 		lines = append(lines, a.projectRows(visible, innerWidth, maxVisible)...)
 	}
-	hint := "Enter: select  /: search  f: star  y/Y: clone URL  Esc: cancel"
+	picked := []views.KeyHint{
+		{Key: "Enter", Desc: "Select"}, {Key: "/", Desc: "Search"}, {Key: "f", Desc: "Star"},
+		{Key: "y/Y", Desc: "Clone URL"}, {Key: "Esc", Desc: "Cancel"},
+	}
+	hint := hintBar(innerWidth, picked...)
 	switch {
 	case a.projectFilter.Active:
-		hint = a.projectFilter.Hint() + components.HelpDescStyle.Render("   Enter: apply")
+		hint = prefixedHints(a.projectFilter.Hint(), innerWidth, views.KeyHint{Key: "Enter", Desc: "Apply"})
 	case a.pickerStatus != "":
-		hint = components.Truncate(a.pickerStatus, innerWidth)
+		hint = components.HelpDescStyle.Render(components.Truncate(a.pickerStatus, innerWidth))
 	case a.projectFilter.Applied():
-		hint = a.projectFilter.Hint() + components.HelpDescStyle.Render("   Enter: select  f: star  y/Y: clone URL  Esc: clear")
+		hint = prefixedHints(a.projectFilter.Hint(), innerWidth, picked...)
 	}
-	lines = append(lines, "", components.HelpDescStyle.Render(hint))
+	lines = append(lines, "", hint)
 
 	title := fmt.Sprintf("Select Project (%d)", len(a.projects))
 	if a.projectFilter.On() {
@@ -635,12 +642,13 @@ func (a *App) renderHelp() string {
 	end := min(a.helpScroll+visible, len(all))
 	lines := append([]string{}, all[a.helpScroll:end]...)
 
-	hint := "Esc: close"
+	hints := []views.KeyHint{{Key: "Esc", Desc: "Close"}}
 	if len(all) > visible {
-		hint = fmt.Sprintf("j/k: scroll (%d-%d of %d)  Esc: close",
-			a.helpScroll+1, end, len(all))
+		hints = append([]views.KeyHint{
+			{Key: "j/k", Desc: fmt.Sprintf("Scroll (%d-%d of %d)", a.helpScroll+1, end, len(all))},
+		}, hints...)
 	}
-	lines = append(lines, components.HelpSepStyle.Render(hint))
+	lines = append(lines, hintBar(boxWidth-4, hints...))
 
 	return components.RenderBox("Keybindings", lines, boxWidth, boxHeight,
 		components.ColorPrimary, components.ColorPrimary)

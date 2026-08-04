@@ -115,16 +115,10 @@ func itoa(n int) string {
 // renderFooter renders the global key hints joined with the active view's hints, styled
 // like the v1 keybind bar.
 func renderFooter(width int, globalHints, viewHints []views.KeyHint) string {
-	var parts []string
-	appendHints := func(hints []views.KeyHint) {
-		for _, h := range hints {
-			parts = append(parts, components.HelpKeyStyle.Render(h.Key)+" "+components.HelpDescStyle.Render(h.Desc))
-		}
-	}
-	appendHints(globalHints)
-	appendHints(viewHints)
-
-	sep := components.HelpSepStyle.Render(" · ")
-	bar := " " + strings.Join(parts, sep)
+	// The view's own keys come first: they are what this screen can do, and they are
+	// what a narrow terminal should keep. The global ones are the same everywhere and
+	// are all in the help overlay.
+	hints := append(append([]views.KeyHint{}, viewHints...), globalHints...)
+	bar := " " + hintBarKeeping(width-1, hints, []views.KeyHint{{Key: "?", Desc: "Keybindings"}})
 	return lipgloss.NewStyle().Width(width).MaxWidth(width).Render(bar)
 }

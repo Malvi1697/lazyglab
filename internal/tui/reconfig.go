@@ -7,6 +7,7 @@ import (
 
 	"github.com/Malvi1697/lazyglab/internal/gitlab"
 	"github.com/Malvi1697/lazyglab/internal/tui/components"
+	"github.com/Malvi1697/lazyglab/internal/tui/views"
 )
 
 // ReconfigureFunc validates a host/token pair, persists it and returns a ready client
@@ -254,7 +255,9 @@ func (a *App) renderReconfig() string {
 			lines = append(lines, components.ErrorStyle.Render(l))
 		}
 	default:
-		lines = append(lines, components.HelpDescStyle.Render("Tab: next field  Enter: save  Esc: cancel"))
+		lines = append(lines, hintBar(innerWidth,
+			views.KeyHint{Key: "Tab", Desc: "Next field"}, views.KeyHint{Key: "Enter", Desc: "Save"},
+			views.KeyHint{Key: "Esc", Desc: "Cancel"}))
 	}
 
 	return components.RenderBox("Reconnect to GitLab", lines, boxWidth, len(lines)+2,

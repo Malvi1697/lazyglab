@@ -682,13 +682,12 @@ func (a *App) View() tea.View {
 // globalHints returns the shell-level key hints shown in the footer.
 func (a *App) globalHints() []views.KeyHint {
 	return []views.KeyHint{
-		{Key: "q", Desc: "Quit"},
-		{Key: "?", Desc: "Help"},
 		{Key: fmt.Sprintf("1-%d", len(a.viewIDs)), Desc: "View"},
 		{Key: "P", Desc: "Project"},
-		{Key: "f", Desc: "★"},
 		{Key: "b", Desc: "Branch"},
-		{Key: "r", Desc: "↻"},
+		{Key: "f", Desc: "Favorites"},
+		{Key: "r", Desc: "Refresh"},
+		{Key: "q", Desc: "Quit"},
 	}
 }
 
