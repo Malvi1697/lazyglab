@@ -24,6 +24,8 @@ func (c *Client) GetProjectByPath(path string) (*Project, error) {
 		PathWithNamespace: util.StripANSI(p.PathWithNamespace),
 		WebURL:            util.StripANSI(p.WebURL),
 		DefaultBranch:     util.StripANSI(p.DefaultBranch),
+		SSHCloneURL:       util.StripANSI(p.SSHURLToRepo),
+		HTTPCloneURL:      util.StripANSI(p.HTTPURLToRepo),
 		ReadmeFile:        readmeFile(p.ReadmeURL),
 	}, nil
 }
@@ -128,6 +130,8 @@ func (c *Client) projectPage(page int) ([]Project, *gogitlab.Response, error) {
 			PathWithNamespace: util.StripANSI(p.PathWithNamespace),
 			WebURL:            util.StripANSI(p.WebURL),
 			DefaultBranch:     util.StripANSI(p.DefaultBranch),
+			SSHCloneURL:       util.StripANSI(p.SSHURLToRepo),
+			HTTPCloneURL:      util.StripANSI(p.HTTPURLToRepo),
 			ReadmeFile:        readmeFile(p.ReadmeURL),
 		}
 	}

@@ -11,6 +11,11 @@ type Project struct {
 	WebURL            string
 	DefaultBranch     string
 
+	// SSHCloneURL and HTTPCloneURL are what you paste after "git clone". GitLab
+	// sends both with every project, so they cost nothing to carry.
+	SSHCloneURL  string
+	HTTPCloneURL string
+
 	// ReadmeFile is the repository path of the project's README, taken from the
 	// readme_url GitLab already sends with every project. Empty when it has none,
 	// which is how the dashboard knows not to ask.

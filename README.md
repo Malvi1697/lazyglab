@@ -221,6 +221,10 @@ through. Switching tabs reuses data younger than ten seconds; `r` always fetches
 Every list takes `/` to **search** it: type to narrow, `Enter` to keep the list
 narrowed while the action keys work again, `Esc` to clear.
 
+In the project picker (`P`) the same two keys copy what you would **clone** with:
+`y` the SSH URL, `Y` the HTTPS one. The picker opens on the project you are already
+in, so that is two keystrokes from anywhere.
+
 Two keys copy, everywhere: **`y` copies what you would type** — a SHA, `!42`, `#7`,
 `#1234`, a job's name — and **`Y` copies the link you would send**. They act on the
 box that has focus, so in the commit page's jobs box they copy the job while
@@ -396,7 +400,7 @@ Overview is shown first, and auto-refresh runs every 30s.
 | `[` / `]` | Previous / next view |
 | `h` / `l`, `←` / `→` | Move *within* what is open (between commits, between a commit's files) |
 | `t` | Fold the second box away, where the view has one |
-| `P` | Project switcher (`f` stars the highlighted project) |
+| `P` | Project switcher, opened on the current project (`f` stars, `y`/`Y` copy its SSH/HTTPS clone URL) |
 | `f` | Favorites picker (`f` again unstars) |
 | `/` | Search inside the project / branch picker |
 | `b` | Branch switcher |

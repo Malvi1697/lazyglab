@@ -37,6 +37,10 @@ func copyToClipboard(text string) tea.Cmd {
 	return tea.Batch(cmds...)
 }
 
+// CopyToClipboard is copyToClipboard for the shell, which has copying of its own
+// to do: the clone URLs in the project picker, which is shell-level state.
+func CopyToClipboard(text string) tea.Cmd { return copyToClipboard(text) }
+
 // copyRef and copyLink are the two halves of one rule, kept together so every
 // view spells it the same way: lowercase y copies the identifier — the thing you
 // would type into a commit message or a chat — and uppercase Y copies the link

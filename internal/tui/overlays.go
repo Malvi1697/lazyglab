@@ -290,6 +290,11 @@ func (a *App) handleProjectPickerKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return a, a.toggleFavorite(visible[a.projectCursor].PathWithNamespace)
 		}
 		return a, nil
+	case key == KeyCopy, key == KeyCopyLink:
+		if a.projectCursor >= 0 && a.projectCursor < len(visible) {
+			return a, a.copyCloneURL(visible[a.projectCursor], key == KeyCopyLink)
+		}
+		return a, nil
 	case key == KeyEnter:
 		if a.projectCursor >= 0 && a.projectCursor < len(visible) {
 			proj := visible[a.projectCursor]
@@ -365,14 +370,14 @@ func (a *App) renderProjectPicker() string {
 	default:
 		lines = append(lines, a.projectRows(visible, innerWidth, maxVisible)...)
 	}
-	hint := "Enter: select  /: search  f: star  Esc: cancel"
+	hint := "Enter: select  /: search  f: star  y/Y: clone URL  Esc: cancel"
 	switch {
 	case a.projectFilter.Active:
 		hint = a.projectFilter.Hint() + components.HelpDescStyle.Render("   Enter: apply")
-	case a.favoritesStatus != "":
-		hint = components.Truncate(a.favoritesStatus, innerWidth)
+	case a.pickerStatus != "":
+		hint = components.Truncate(a.pickerStatus, innerWidth)
 	case a.projectFilter.Applied():
-		hint = a.projectFilter.Hint() + components.HelpDescStyle.Render("   Enter: select  f: star  Esc: clear")
+		hint = a.projectFilter.Hint() + components.HelpDescStyle.Render("   Enter: select  f: star  y/Y: clone URL  Esc: clear")
 	}
 	lines = append(lines, "", components.HelpDescStyle.Render(hint))
 
@@ -493,6 +498,7 @@ func helpEntries() []helpEntry {
 		{"Pickers (P / b / f)", ""},
 		{"/", "Search; Enter applies, Esc clears"},
 		{"f", "Star / unstar the highlighted one"},
+		{"y / Y", "Copy the SSH / HTTPS clone URL (P)"},
 
 		{"Reconnect form (A)", ""},
 		{"Tab", "Next field"},

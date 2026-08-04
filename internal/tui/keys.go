@@ -17,6 +17,11 @@ const (
 	KeyBranch   = "b"
 	KeyReauth   = "A" // reconnect: change host / replace token
 	KeyFavorite = "f" // favorites picker; inside a picker: star/unstar
+	// Inside the project picker the two copy keys copy what you would clone with:
+	// "y" the SSH URL you would type, "Y" the HTTPS one you would send someone —
+	// the same division of labour they have everywhere else in the app.
+	KeyCopy     = "y"
+	KeyCopyLink = "Y"
 	KeyNextTab  = "]" // next view, as in lazygit
 	KeyPrevTab  = "[" // previous view, as in lazygit
 )

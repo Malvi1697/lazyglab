@@ -57,10 +57,10 @@ type App struct {
 	authPromptDismissed bool
 
 	// Favorites: starred project paths on the active host, plus the picker's state.
-	favorites       []string
-	saveFavorites   SaveFavoritesFunc
-	favoriteCursor  int
-	favoritesStatus string // inline note shown in the favorites picker
+	favorites      []string
+	saveFavorites  SaveFavoritesFunc
+	favoriteCursor int
+	pickerStatus   string // inline note shown inside whichever picker is open
 
 	// Session resume: the project to reopen at startup and how to record it.
 	lastProject     string
@@ -406,6 +406,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if a.wantProjectPicker {
 			a.wantProjectPicker = false
 			a.overlay = overlayProject
+			a.cursorOnActiveProject()
 			return a, nil
 		}
 		a.setStatus(fmt.Sprintf("Loaded %d projects", len(a.projects)), false)
@@ -577,13 +578,16 @@ func (a *App) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		a.switchView((a.active - 1 + len(a.viewIDs)) % len(a.viewIDs))
 		return a, a.refreshIfStale()
 	case "P": // project switcher (uppercase so "p" stays free for view actions)
-		// Each visit starts unfiltered; a stale query would hide most projects.
+		// Each visit starts unfiltered; a stale query would hide most projects, and a
+		// note from last time ("Copied git@…") would read as something that just
+		// happened.
 		a.projectFilter.Reset()
-		a.projectCursor = 0
+		a.pickerStatus = ""
 		a.wantProjectPicker = true
 		if len(a.projects) > 0 {
 			a.wantProjectPicker = false
 			a.overlay = overlayProject
+			a.cursorOnActiveProject()
 			return a, nil
 		}
 		return a, a.loadProjects()
@@ -628,6 +632,23 @@ func (a *App) switchView(idx int) {
 func (a *App) setStatus(text string, isErr bool) {
 	a.statusText = text
 	a.statusIsErr = isErr
+}
+
+// cursorOnActiveProject opens the picker on the project you are already in, when it
+// is in the list. It is the row you most often want something from — to copy its
+// clone URL, or to see where you are — and hunting for it in a list of hundreds was
+// the picker's own fault.
+func (a *App) cursorOnActiveProject() {
+	a.projectCursor = 0
+	if a.ctx == nil || a.ctx.Project == nil {
+		return
+	}
+	for i, p := range a.visibleProjects() {
+		if strings.EqualFold(p.PathWithNamespace, a.ctx.Project.PathWithNamespace) {
+			a.projectCursor = i
+			return
+		}
+	}
 }
 
 // clampProjectCursor keeps the project cursor within bounds.

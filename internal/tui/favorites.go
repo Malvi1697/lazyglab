@@ -34,10 +34,10 @@ func (a *App) toggleFavorite(path string) tea.Cmd {
 	}
 	if i := slices.Index(a.favorites, path); i >= 0 {
 		a.favorites = slices.Delete(a.favorites, i, i+1)
-		a.favoritesStatus = "Removed from favorites: " + path
+		a.pickerStatus = "Removed from favorites: " + path
 	} else {
 		a.favorites = append(a.favorites, path)
-		a.favoritesStatus = "Added to favorites: " + path
+		a.pickerStatus = "Added to favorites: " + path
 	}
 	a.clampFavoriteCursor()
 
@@ -79,7 +79,7 @@ func (a *App) clampFavoriteCursor() {
 // openFavorites shows the favorites picker.
 func (a *App) openFavorites() {
 	a.clampFavoriteCursor()
-	a.favoritesStatus = ""
+	a.pickerStatus = ""
 	a.overlay = overlayFavorites
 }
 
@@ -173,8 +173,8 @@ func (a *App) renderFavorites() string {
 	}
 
 	lines = append(lines, "")
-	if a.favoritesStatus != "" {
-		lines = append(lines, components.HelpDescStyle.Render(components.Truncate(a.favoritesStatus, innerWidth)))
+	if a.pickerStatus != "" {
+		lines = append(lines, components.HelpDescStyle.Render(components.Truncate(a.pickerStatus, innerWidth)))
 	} else {
 		lines = append(lines, components.HelpDescStyle.Render("Enter: open  f: unstar  Esc: close  j/k: navigate"))
 	}
