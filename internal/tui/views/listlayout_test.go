@@ -25,31 +25,31 @@ func TestLists_TheTitleFitsBecauseTheListHasTheWholePage(t *testing.T) {
 	pages := map[string]string{
 		"merge requests": func() string {
 			v := NewMRsView(&Context{})
-			v.mrs = []gitlab.MergeRequest{{IID: 16, Title: title, Author: "jiri.kucera",
+			v.items = []gitlab.MergeRequest{{IID: 16, Title: title, Author: "jiri.kucera",
 				SourceBranch: "split-registration", UpdatedAt: time.Now()}}
 			return plain(v.Body(testWidth, 20))
 		}(),
 		"issues": func() string {
 			v := NewIssuesView(&Context{})
-			v.issues = []gitlab.Issue{{IID: 7, Title: title, Author: "alice", UpdatedAt: time.Now()}}
+			v.items = []gitlab.Issue{{IID: 7, Title: title, Author: "alice", UpdatedAt: time.Now()}}
 			return plain(v.Body(testWidth, 20))
 		}(),
 		"pipelines": func() string {
 			v := NewPipelinesView(&Context{})
-			v.pipelines = []gitlab.Pipeline{{ID: 1, Status: "success", CommitTitle: title,
+			v.items = []gitlab.Pipeline{{ID: 1, Status: "success", CommitTitle: title,
 				Ref: "split-registration", CreatedAt: time.Now()}}
 			return plain(v.Body(testWidth, 20))
 		}(),
 		"todos": func() string {
 			v := NewTodosView(&Context{})
 			v.loaded = true
-			v.todos = []gitlab.Todo{{ID: 1, Action: "review_requested", Reference: "!16",
+			v.items = []gitlab.Todo{{ID: 1, Action: "review_requested", Reference: "!16",
 				Title: title, ProjectPath: "group/api", CreatedAt: time.Now()}}
 			return plain(v.Body(testWidth, 20))
 		}(),
 		"dashboard": func() string {
 			v := NewDashboardView(&Context{})
-			v.commits = []gitlab.Commit{{ShortID: "abc1234", Title: title,
+			v.items = []gitlab.Commit{{ShortID: "abc1234", Title: title,
 				AuthorName: "jiri.kucera", CreatedAt: time.Now()}}
 			return plain(v.Body(testWidth, 20))
 		}(),
@@ -106,7 +106,7 @@ func TestDashboard_TShowsAndFoldsTheReadme(t *testing.T) {
 	// In a small window half the rows spent on the README is half the commits you
 	// cannot see, which is the whole reason the key exists.
 	v := NewDashboardView(&Context{})
-	v.commits = []gitlab.Commit{{ShortID: "abc1234", Title: "feat: one", AuthorName: "jan"}}
+	v.items = []gitlab.Commit{{ShortID: "abc1234", Title: "feat: one", AuthorName: "jan"}}
 	v.setReadme("README.md", "# Idiskgolf\n\nThis is the frontend.")
 
 	// It starts folded: the commits are what the page is opened for.
@@ -144,7 +144,7 @@ func TestDashboard_FoldingTheReadmeTakesTheKeysBack(t *testing.T) {
 	// Folding it away while it had the keys would leave j/k scrolling something
 	// nobody can see.
 	v := NewDashboardView(&Context{})
-	v.commits = []gitlab.Commit{{ShortID: "abc1234", Title: "feat: one"}}
+	v.items = []gitlab.Commit{{ShortID: "abc1234", Title: "feat: one"}}
 	v.setReadme("README.md", "words")
 	v.Update(tea.KeyPressMsg{Code: 't', Text: "t"}) // bring it up first
 

@@ -14,7 +14,7 @@ func todosView() *TodosView {
 	v := NewTodosView(&Context{})
 	v.height = 20
 	v.width = 120
-	v.todos = []gitlab.Todo{
+	v.items = []gitlab.Todo{
 		{
 			ID: 1, Action: "review_requested", Target: "MergeRequest", Reference: "!42",
 			Title: "Fix the cart", ProjectPath: "group/api", Author: "alice",

@@ -34,7 +34,7 @@ func TestCommitStatus(t *testing.T) {
 func TestDashboard_Navigation(t *testing.T) {
 	v := NewDashboardView(&Context{})
 	v.height = 20
-	v.commits = []gitlab.Commit{
+	v.items = []gitlab.Commit{
 		{ShortID: "aaa1111", Title: "first"},
 		{ShortID: "bbb2222", Title: "second"},
 		{ShortID: "ccc3333", Title: "third"},
@@ -75,7 +75,7 @@ func TestDashboard_Navigation(t *testing.T) {
 
 func TestDashboard_CursorClampedWhenCommitsShrink(t *testing.T) {
 	v := NewDashboardView(&Context{})
-	v.commits = []gitlab.Commit{{ShortID: "a"}, {ShortID: "b"}, {ShortID: "c"}}
+	v.items = []gitlab.Commit{{ShortID: "a"}, {ShortID: "b"}, {ShortID: "c"}}
 	v.cursor = 2
 
 	// A refresh on a different branch can return fewer commits.
@@ -104,7 +104,7 @@ func TestDashboard_ShowClockOrDateNotAnAge(t *testing.T) {
 	// hours ago is yesterday, which is a date rather than a clock.
 	now := time.Now()
 	noon := time.Date(now.Year(), now.Month(), now.Day(), 12, 0, 0, 0, now.Location())
-	v.commits = []gitlab.Commit{{
+	v.items = []gitlab.Commit{{
 		ShortID: "a", Title: "today", AuthorName: "A", CreatedAt: noon,
 	}}
 
@@ -122,7 +122,7 @@ func TestDashboard_CommitsAboveTheReadme(t *testing.T) {
 	// about itself. Both halves scroll, so both get real room.
 	v := NewDashboardView(&Context{})
 	for i := 0; i < 40; i++ {
-		v.commits = append(v.commits, gitlab.Commit{ShortID: "c", Title: "commit", AuthorName: "A"})
+		v.items = append(v.items, gitlab.Commit{ShortID: "c", Title: "commit", AuthorName: "A"})
 	}
 	v.setReadme("README.md", "# The Project\n\nWhat it does.\n")
 	v.Update(tea.KeyPressMsg{Code: 't', Text: "t"}) // it starts folded away
@@ -164,7 +164,7 @@ func TestDashboard_CommitsAboveTheReadme(t *testing.T) {
 func TestDashboard_TabMovesBetweenTheHalves(t *testing.T) {
 	v := NewDashboardView(&Context{})
 	v.height = 40
-	v.commits = []gitlab.Commit{{ShortID: "a", Title: "one"}, {ShortID: "b", Title: "two"}}
+	v.items = []gitlab.Commit{{ShortID: "a", Title: "one"}, {ShortID: "b", Title: "two"}}
 	v.setReadme("README.md", strings.Repeat("a line of the readme\n", 200))
 	v.Update(tea.KeyPressMsg{Code: 't', Text: "t"}) // it starts folded away
 	v.Body(120, 40)
@@ -176,7 +176,7 @@ func TestDashboard_TabMovesBetweenTheHalves(t *testing.T) {
 
 	// j scrolls the README rather than moving the commit cursor.
 	v.Update(tea.KeyPressMsg{Code: 'j', Text: "j"})
-	if v.readmeBox.scroll == 0 { // the embedded box's own offset
+	if v.offset == 0 { // the embedded box's own offset
 		t.Error("j should scroll the README when it has the focus")
 	}
 	if v.cursor != 0 {
@@ -252,7 +252,7 @@ func TestDashboard_CommitColumnsLineUp(t *testing.T) {
 	// nothing to follow down the list.
 	v := NewDashboardView(&Context{})
 	now := time.Now()
-	v.commits = []gitlab.Commit{
+	v.items = []gitlab.Commit{
 		{ShortID: "a", Title: "fix: short prefix", AuthorName: "Jan Všetíček", CreatedAt: now},
 		{ShortID: "b", Title: "refactor(api): long prefix", AuthorName: "Someone Else", CreatedAt: now},
 		{ShortID: "c", Title: "no conventional prefix at all", AuthorName: "Third Person", CreatedAt: now},
@@ -297,7 +297,7 @@ func TestDashboard_TheTimestampSitsAtTheRight(t *testing.T) {
 	v := NewDashboardView(&Context{})
 	now := time.Now()
 	lastWeek := now.AddDate(0, 0, -7)
-	v.commits = []gitlab.Commit{
+	v.items = []gitlab.Commit{
 		{ShortID: "a", Title: "chore: one", AuthorName: "A", CreatedAt: now},
 		{ShortID: "b", Title: "chore: two", AuthorName: "A", CreatedAt: lastWeek},
 	}
@@ -334,7 +334,7 @@ func TestDashboard_NarrowRowsKeepTheMessage(t *testing.T) {
 	// The author and the timestamp come along only if they fit beside the message,
 	// never instead of it.
 	v := NewDashboardView(&Context{})
-	v.commits = []gitlab.Commit{{
+	v.items = []gitlab.Commit{{
 		ShortID: "a", Title: "feat: a reasonably long subject line here",
 		AuthorName: "Jan Všetíček", CreatedAt: time.Now(),
 	}}

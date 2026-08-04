@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
-	"charm.land/lipgloss/v2"
 
 	"github.com/Malvi1697/lazyglab/internal/gitlab"
 	"github.com/Malvi1697/lazyglab/internal/tui/components"
@@ -22,13 +21,10 @@ type DashboardView struct {
 	ctx           *Context
 	width, height int // last body size, tracked from tea.WindowSizeMsg / Body
 
-	commits   []gitlab.Commit
+	rowList[gitlab.Commit]
+
+	// pipelines give the commits their CI status, matched by SHA.
 	pipelines []gitlab.Pipeline
-
-	cursor int // into the visible (searched) commits
-	scroll int // first visible row, kept across frames
-
-	search listSearch
 
 	// readmeBox is the project's own words, below the commits. It belongs to a
 	// project and a ref, so switching either has to drop it.
@@ -39,11 +35,9 @@ type DashboardView struct {
 	// focus says whether the keys drive the commit list or the README.
 	focus pageFocus
 
-	// readmeHidden folds the README away, and starts folded: the commits are what
-	// the page is opened for, and half the rows spent on prose you have read once is
-	// half the commits you cannot see. "t" brings it up. Session-only, so every
-	// launch starts on the commits.
-	readmeHidden bool
+	// readmeFold starts folded: the commits are what the page is opened for, and half
+	// the rows spent on prose you have read once is half the commits you cannot see.
+	readmeFold foldBox
 
 	// detail is the in-place commit page, opened with Enter — the same one the
 	// Commits view uses, so drilling in never moves you to another tab.
@@ -52,7 +46,10 @@ type DashboardView struct {
 
 // NewDashboardView creates a DashboardView bound to the shared session context.
 func NewDashboardView(ctx *Context) *DashboardView {
-	return &DashboardView{ctx: ctx, detail: newCommitDetail(ctx), readmeHidden: true}
+	v := &DashboardView{ctx: ctx, detail: newCommitDetail(ctx),
+		readmeFold: foldBox{name: "readme", folded: true}}
+	v.match = commitSearchText
+	return v
 }
 
 // Title implements View.
@@ -120,8 +117,7 @@ func (v *DashboardView) Update(msg tea.Msg) tea.Cmd {
 
 	case CommitsLoadedMsg:
 		if msg.Err == nil {
-			v.commits = msg.Commits
-			v.clampCursor()
+			v.setItems(msg.Commits)
 		}
 		return nil
 
@@ -143,7 +139,7 @@ func (v *DashboardView) Update(msg tea.Msg) tea.Cmd {
 
 	case tea.PasteMsg:
 		if !v.detail.active {
-			v.search.paste(msg.Content, &v.cursor)
+			v.paste(msg.Content)
 		}
 		return nil
 	}
@@ -169,17 +165,17 @@ func (v *DashboardView) handleKey(msg tea.KeyMsg) tea.Cmd {
 
 	switch key {
 	case keyToggleBox:
-		v.readmeHidden = !v.readmeHidden
-		if v.readmeHidden {
+		v.readmeFold.toggle()
+		if v.readmeFold.folded {
 			// The keys cannot stay with a box that is no longer on screen.
 			v.focus = focusPage
 		}
 		return nil
 	case keyTab:
-		v.focus = cycleFocus(v.focus, 1, false, false, !v.readmeHidden)
+		v.focus = cycleFocus(v.focus, 1, false, false, v.readmeFold.open())
 		return nil
 	case keyShiftTab:
-		v.focus = cycleFocus(v.focus, -1, false, false, !v.readmeHidden)
+		v.focus = cycleFocus(v.focus, -1, false, false, v.readmeFold.open())
 		return nil
 	}
 
@@ -193,25 +189,20 @@ func (v *DashboardView) handleKey(msg tea.KeyMsg) tea.Cmd {
 		return nil
 	}
 
-	if v.search.handleKey(msg, &v.cursor) {
-		return nil
-	}
-
-	if act := components.NavFor(key); act != components.NavNone {
-		v.cursor = components.ApplyNav(act, v.cursor, len(v.visible()), listRows(v.height))
+	if v.navigate(msg, v.height) {
 		return nil
 	}
 	if key == keyOpenBrowse {
 		return v.openCommitInBrowser()
 	}
 	if key == keyEnter {
-		return v.detail.openAt(v.selectedCommit(), v.cursor, len(v.visible()))
+		return v.detail.openAt(v.selected(), v.cursor, len(v.visible()))
 	}
 	if key == keyCopy {
 		return v.copyHash()
 	}
 	if key == keyCopyLink {
-		if c := v.selectedCommit(); c != nil {
+		if c := v.selected(); c != nil {
 			return copyLink(c.ShortID, c.WebURL)
 		}
 		return nil
@@ -221,19 +212,12 @@ func (v *DashboardView) handleKey(msg tea.KeyMsg) tea.Cmd {
 
 // CapturingText implements TextCapturer: while the search is being typed, the
 // shell must not read the letters as its own commands.
-func (v *DashboardView) CapturingText() bool { return !v.detail.active && v.search.capturing() }
-
-// visible is the commits matching the search; the cursor indexes it.
-func (v *DashboardView) visible() []gitlab.Commit {
-	return filtered(v.commits, v.search.filter, func(c gitlab.Commit) string {
-		return c.Title + " " + c.AuthorName + " " + c.ShortID
-	})
-}
+func (v *DashboardView) CapturingText() bool { return !v.detail.active && v.capturing() }
 
 // copyHash copies the selected commit's full SHA to the clipboard, since the
 // list shows the author rather than the hash.
 func (v *DashboardView) copyHash() tea.Cmd {
-	selected := v.selectedCommit()
+	selected := v.selected()
 	if selected == nil {
 		return nil
 	}
@@ -258,25 +242,12 @@ func (v *DashboardView) stepCommit(step int) tea.Cmd {
 		return nil // already at an end; the arrow is drawn faint there
 	}
 	v.cursor = next
-	return v.detail.stepAt(v.selectedCommit(), v.cursor, len(visible))
-}
-
-// selectedCommit returns the highlighted commit, or nil.
-func (v *DashboardView) selectedCommit() *gitlab.Commit {
-	visible := v.visible()
-	if v.cursor < 0 || v.cursor >= len(visible) {
-		return nil
-	}
-	return &visible[v.cursor]
-}
-
-func (v *DashboardView) clampCursor() {
-	v.cursor = clampCursor(v.cursor, len(v.visible()))
+	return v.detail.stepAt(v.selected(), v.cursor, len(visible))
 }
 
 // openCommitInBrowser opens the selected commit's page on the GitLab host.
 func (v *DashboardView) openCommitInBrowser() tea.Cmd {
-	c := v.selectedCommit()
+	c := v.selected()
 	if c == nil {
 		return nil
 	}
@@ -306,49 +277,19 @@ func (v *DashboardView) Body(width, height int) string {
 		return v.detail.body(width, height)
 	}
 
-	// Folded away with "t": the commits take the whole page.
-	if v.readmeHidden {
+	if v.readmeFold.folded {
 		return v.commitsBox(width, height)
 	}
-
-	// A blank row between them. Without a frame to do the separating, the two halves
-	// otherwise run into each other.
-	const gap = 1
-
-	// Half each, which is what makes this a front page rather than a commit list
-	// with a footnote. The commits keep a floor, so a short terminal still shows a
-	// few of them.
-	topHeight := (height - gap) / 2
-	if topHeight < 5 {
-		topHeight = min(5, height-gap-1)
-	}
-	bottomHeight := height - gap - topHeight
-	if bottomHeight < 1 {
-		return v.commitsBox(width, height)
-	}
-
-	return lipgloss.JoinVertical(lipgloss.Left,
-		v.commitsBox(width, topHeight),
-		"",
-		v.readmePanel(width, bottomHeight, v.focus == focusNotes),
-	)
+	// Half each once it is up: a front page, not a commit list with a footnote.
+	return splitBody(width, height, height/2, v.commitsBox,
+		func(width, height int) string {
+			return v.readmePanel(width, height, v.focus == focusNotes)
+		})
 }
 
 // commitsBox renders the recent-commits list.
 func (v *DashboardView) commitsBox(width, height int) string {
-	visible := v.visible()
-	rows := make([]listRow, len(visible))
-	for i, c := range visible {
-		rows[i] = v.commitRow(c)
-	}
-	rowWidth := width - components.SelectionGutter
-	cols := measureColumns(rows, rowWidth)
-
-	return renderRowsBox(width, height,
-		v.search.title("Recent Commits", len(visible), len(v.commits)),
-		len(visible),
-		func(i int) string { return renderListRow(rows[i], cols, rowWidth) },
-		cursorWhen(v.focus == focusPage, v.cursor), &v.scroll)
+	return v.box(width, height, "Recent Commits", v.commitRow, v.focus == focusPage)
 }
 
 // commitRow describes one recent-commits row, mapping the commit's CI status from
@@ -403,20 +344,16 @@ func (v *DashboardView) KeyHints() []KeyHint {
 		if v.scrollable {
 			hints = append(hints, KeyHint{"j/k", "Scroll"})
 		}
-		return append(hints,
-			KeyHint{"Tab", "Commits"}, KeyHint{"t", "Hide readme"}, KeyHint{"Esc", "Back"})
+		return append(hints, KeyHint{"Tab", "Commits"}, v.readmeFold.hint(), KeyHint{"Esc", "Back"})
 	}
-	hints := []KeyHint{{Key: "Enter", Desc: "Commit page"}}
-	// The hint says which way the key goes, so it never promises a box that is
-	// already there or offers to hide one that is not.
-	if v.readmeHidden {
-		hints = append(hints, KeyHint{Key: "t", Desc: "Show readme"})
-	} else {
-		hints = append(hints, KeyHint{Key: "Tab", Desc: "Readme"}, KeyHint{Key: "t", Desc: "Hide readme"})
+
+	hints := []KeyHint{{"Enter", "Commit page"}}
+	if v.readmeFold.open() {
+		hints = append(hints, KeyHint{"Tab", "Readme"})
 	}
-	return append(hints,
-		KeyHint{Key: "y/Y", Desc: "Copy SHA/link"},
-		KeyHint{Key: "o", Desc: "Open commit"},
+	return append(hints, v.readmeFold.hint(),
+		KeyHint{"y/Y", "Copy SHA/link"},
+		KeyHint{"o", "Open commit"},
 		v.search.hint(),
 	)
 }

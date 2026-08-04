@@ -83,22 +83,7 @@ func (c *Client) ListPipelinesByRef(projectID int, ref string) ([]Pipeline, erro
 		return nil, err
 	}
 
-	pipelines := make([]Pipeline, len(apiPipelines))
-	for i, p := range apiPipelines {
-		pipelines[i] = Pipeline{
-			ID:     int(p.ID),
-			Status: util.StripANSI(p.Status),
-			Ref:    util.StripANSI(p.Ref),
-			SHA:    util.StripANSI(p.SHA),
-			WebURL: util.StripANSI(p.WebURL),
-		}
-		if p.CreatedAt != nil {
-			pipelines[i].CreatedAt = *p.CreatedAt
-		}
-		if p.UpdatedAt != nil {
-			pipelines[i].UpdatedAt = *p.UpdatedAt
-		}
-	}
+	pipelines := toPipelines(apiPipelines)
 
 	c.fillCommitTitles(projectID, pipelines)
 	c.fillWarnings(projectID, pipelines)

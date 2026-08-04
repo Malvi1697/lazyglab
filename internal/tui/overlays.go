@@ -511,7 +511,7 @@ func helpEntries() []helpEntry {
 		{"R", "Retry"},
 		{"C", "Cancel"},
 		{"y / Y", "Copy #1234 / the link"},
-		{"t", "Name the stages behind the marks"},
+		{"t", "Show the stages behind the marks"},
 
 		{"Jobs (pipeline or commit)", ""},
 		{"Enter", "Read the job's log"},

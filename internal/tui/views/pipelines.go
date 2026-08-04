@@ -36,19 +36,14 @@ type PipelinesView struct {
 	ctx           *Context
 	width, height int // last body size, tracked from tea.WindowSizeMsg / Body
 
-	pipelines []gitlab.Pipeline
-	cursor    int // indexes the visible (searched) list, not pipelines
-	scroll    int // first visible row of the pipeline list, kept across frames
+	rowList[gitlab.Pipeline]
 
 	// stages is how far each pipeline got, by pipeline ID: the row of marks GitLab
 	// shows in its own list. Fetched for the whole page in one request once the
 	// pipelines are in hand, so the list is never waiting on it.
 	stages map[int][]gitlab.Stage
-	// stagesHidden folds the box that names them away, and starts folded. Session-only,
-	// like every other "t".
-	stagesHidden bool
-
-	search listSearch
+	// stagesBox names the stages behind the marks, and starts folded.
+	stagesBox foldBox
 
 	// jobs is the shared, interactive jobs panel — the same one the commit page
 	// uses, so a pipeline is driven identically wherever it is shown.
@@ -58,7 +53,12 @@ type PipelinesView struct {
 
 // NewPipelinesView creates a PipelinesView bound to the shared session context.
 func NewPipelinesView(ctx *Context) *PipelinesView {
-	return &PipelinesView{ctx: ctx, jobs: jobsPanel{ctx: ctx}, stagesHidden: true}
+	v := &PipelinesView{ctx: ctx, jobs: jobsPanel{ctx: ctx},
+		stagesBox: foldBox{name: "stages", folded: true}}
+	v.match = func(p gitlab.Pipeline) string {
+		return fmt.Sprintf("%d %s %s %s", p.ID, p.Status, p.Ref, p.CommitTitle)
+	}
+	return v
 }
 
 // Title implements View.
@@ -97,8 +97,7 @@ func (v *PipelinesView) Update(msg tea.Msg) tea.Cmd {
 		if msg.Err != nil {
 			return statusCmd(fmt.Sprintf("Error loading pipelines: %v", msg.Err), true)
 		}
-		v.pipelines = msg.Pipelines
-		v.clampCursor()
+		v.setItems(msg.Pipelines)
 		return v.loadStages()
 
 	case PipelineStagesLoadedMsg:
@@ -139,7 +138,7 @@ func (v *PipelinesView) Update(msg tea.Msg) tea.Cmd {
 
 	case tea.PasteMsg:
 		if !v.viewingJobs {
-			v.search.paste(msg.Content, &v.cursor)
+			v.paste(msg.Content)
 		}
 		return nil
 
@@ -151,23 +150,7 @@ func (v *PipelinesView) Update(msg tea.Msg) tea.Cmd {
 
 // CapturingText implements TextCapturer: while the search is being typed, the
 // shell must not read the letters as its own commands.
-func (v *PipelinesView) CapturingText() bool { return !v.viewingJobs && v.search.capturing() }
-
-// visible is the pipelines matching the search; the cursor indexes it.
-func (v *PipelinesView) visible() []gitlab.Pipeline {
-	return filtered(v.pipelines, v.search.filter, func(p gitlab.Pipeline) string {
-		return fmt.Sprintf("%d %s %s %s", p.ID, p.Status, p.Ref, p.CommitTitle)
-	})
-}
-
-// selectedPipeline returns the highlighted pipeline, or nil.
-func (v *PipelinesView) selectedPipeline() *gitlab.Pipeline {
-	visible := v.visible()
-	if v.cursor < 0 || v.cursor >= len(visible) {
-		return nil
-	}
-	return &visible[v.cursor]
-}
+func (v *PipelinesView) CapturingText() bool { return !v.viewingJobs && v.capturing() }
 
 func (v *PipelinesView) handleKey(msg tea.KeyMsg) tea.Cmd {
 	key := msg.String()
@@ -198,19 +181,17 @@ func (v *PipelinesView) handleKey(msg tea.KeyMsg) tea.Cmd {
 	}
 
 	if key == keyToggleBox {
-		v.stagesHidden = !v.stagesHidden
+		v.stagesBox.toggle()
 		return nil
 	}
 
-	// Pipeline list navigation
-	if act := components.NavFor(key); act != components.NavNone {
-		v.cursor = components.ApplyNav(act, v.cursor, len(v.visible()), listRows(v.height))
+	if v.navigate(msg, v.height) {
 		return nil
 	}
 
 	// Enter: load jobs for the selected pipeline
 	if key == keyEnter {
-		if p := v.selectedPipeline(); p != nil {
+		if p := v.selected(); p != nil {
 			return v.jobs.open(p.ID)
 		}
 		return nil
@@ -219,19 +200,19 @@ func (v *PipelinesView) handleKey(msg tea.KeyMsg) tea.Cmd {
 	// Pipeline actions
 	switch key {
 	case keyRetry:
-		if p := v.selectedPipeline(); p != nil {
+		if p := v.selected(); p != nil {
 			return confirmCmd(fmt.Sprintf("Retry pipeline #%d?", p.ID), v.retryPipeline())
 		}
 	case keyCancel:
-		if p := v.selectedPipeline(); p != nil {
+		if p := v.selected(); p != nil {
 			return confirmCmd(fmt.Sprintf("Cancel pipeline #%d?", p.ID), v.cancelPipeline())
 		}
 	case keyCopy:
-		if p := v.selectedPipeline(); p != nil {
+		if p := v.selected(); p != nil {
 			return copyRef(fmt.Sprintf("#%d", p.ID))
 		}
 	case keyCopyLink:
-		if p := v.selectedPipeline(); p != nil {
+		if p := v.selected(); p != nil {
 			return copyLink(fmt.Sprintf("pipeline #%d", p.ID), p.WebURL)
 		}
 	case keyRun:
@@ -267,52 +248,32 @@ func (v *PipelinesView) Body(width, height int) string {
 		return v.jobs.body(width, height)
 	}
 
-	// The marks say how far each pipeline got, but not which mark is which stage. The
-	// box below names them for the highlighted row, out of the stages already in hand
-	// — no request, and no need to drill in to find out what you are looking at. It
-	// starts folded, because the list is what the page is for.
-	if v.stagesHidden {
+	// The marks say how far each pipeline got, but not which mark is which stage; the
+	// box below names them for the highlighted row, out of the stages already in hand.
+	if v.stagesBox.folded {
 		return v.listBox(width, height)
 	}
-	const gap = 1
-	bottomHeight := max(min(len(v.stages[v.selectedID()])+1, height/2), 4)
-	topHeight := height - gap - bottomHeight
-	if topHeight < 5 {
-		return v.listBox(width, height)
-	}
-	return lipgloss.JoinVertical(lipgloss.Left,
-		v.listBox(width, topHeight),
-		"",
-		components.RenderPanel(v.stagesTitle(), v.stageLines(), width, bottomHeight, false),
-	)
+	return splitBody(width, height, len(v.stages[v.selectedID()])+1,
+		v.listBox, panelBox(v.stagesTitle(), v.stageLines()))
 }
 
 // listBox renders the pipeline list itself.
 func (v *PipelinesView) listBox(width, height int) string {
-	visible := v.visible()
-	rows := make([]listRow, len(visible))
-	for i, p := range visible {
-		rows[i] = pipelineRow(p, v.stages[p.ID])
-	}
-	rowWidth := width - components.SelectionGutter
-	cols := measureColumns(rows, rowWidth)
-
-	return renderRowsBox(width, height,
-		v.search.title("Pipelines", len(visible), len(v.pipelines)),
-		len(visible), func(i int) string { return renderListRow(rows[i], cols, rowWidth) },
-		v.cursor, &v.scroll)
+	return v.box(width, height, "Pipelines", func(p gitlab.Pipeline) listRow {
+		return pipelineRow(p, v.stages[p.ID])
+	}, true)
 }
 
 // selectedID is the highlighted pipeline's ID, or 0.
 func (v *PipelinesView) selectedID() int {
-	if p := v.selectedPipeline(); p != nil {
+	if p := v.selected(); p != nil {
 		return p.ID
 	}
 	return 0
 }
 
 func (v *PipelinesView) stagesTitle() string {
-	if p := v.selectedPipeline(); p != nil {
+	if p := v.selected(); p != nil {
 		return fmt.Sprintf("Stages (#%d)", p.ID)
 	}
 	return "Stages"
@@ -323,7 +284,7 @@ func (v *PipelinesView) stagesTitle() string {
 func (v *PipelinesView) stageLines() []string {
 	stages := v.stages[v.selectedID()]
 	if len(stages) == 0 {
-		if v.selectedPipeline() == nil {
+		if v.selected() == nil {
 			return nil
 		}
 		return []string{components.HelpDescStyle.Render("No stages reported for this pipeline")}
@@ -399,13 +360,9 @@ func (v *PipelinesView) KeyHints() []KeyHint {
 	if v.viewingJobs {
 		return v.jobs.keyHints()
 	}
-	stages := KeyHint{"t", "Hide stages"}
-	if v.stagesHidden {
-		stages = KeyHint{"t", "Name the stages"}
-	}
 	return []KeyHint{
 		{"Enter", "Jobs"},
-		stages,
+		v.stagesBox.hint(),
 		{"p", "Run"},
 		{"R", "Retry"},
 		{"C", "Cancel"},
@@ -422,12 +379,12 @@ func (v *PipelinesView) KeyHints() []KeyHint {
 // loadStages asks for the stages of every pipeline now on screen — one request for
 // the page, and none at all once every finished pipeline in it is cached.
 func (v *PipelinesView) loadStages() tea.Cmd {
-	if v.ctx == nil || v.ctx.Project == nil || v.ctx.Client == nil || len(v.pipelines) == 0 {
+	if v.ctx == nil || v.ctx.Project == nil || v.ctx.Client == nil || len(v.items) == 0 {
 		return nil
 	}
 	client := v.ctx.Client
 	path := v.ctx.Project.PathWithNamespace
-	pipelines := v.pipelines
+	pipelines := v.items
 	return func() tea.Msg {
 		return PipelineStagesLoadedMsg{Stages: client.PipelineStages(path, pipelines)}
 	}
@@ -453,7 +410,7 @@ func (v *PipelinesView) load() tea.Cmd {
 }
 
 func (v *PipelinesView) retryPipeline() tea.Cmd {
-	p := v.selectedPipeline()
+	p := v.selected()
 	if p == nil || v.ctx == nil || v.ctx.Project == nil || v.ctx.Client == nil {
 		return nil
 	}
@@ -469,7 +426,7 @@ func (v *PipelinesView) retryPipeline() tea.Cmd {
 }
 
 func (v *PipelinesView) cancelPipeline() tea.Cmd {
-	p := v.selectedPipeline()
+	p := v.selected()
 	if p == nil || v.ctx == nil || v.ctx.Project == nil || v.ctx.Client == nil {
 		return nil
 	}
@@ -513,7 +470,7 @@ func (v *PipelinesView) runPipeline() tea.Cmd {
 }
 
 func (v *PipelinesView) openPipelineInBrowser() tea.Cmd {
-	p := v.selectedPipeline()
+	p := v.selected()
 	if p == nil {
 		return nil
 	}
@@ -522,14 +479,6 @@ func (v *PipelinesView) openPipelineInBrowser() tea.Cmd {
 		return nil
 	}
 	return execBrowser(cmd)
-}
-
-// ============================================================================
-// Helpers
-// ============================================================================
-
-func (v *PipelinesView) clampCursor() {
-	v.cursor = clampCursor(v.cursor, len(v.visible()))
 }
 
 // confirmCmd returns a command that asks the shell to confirm a destructive

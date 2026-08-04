@@ -12,7 +12,7 @@ import (
 func TestCommitRows_ShowAuthorNotHash(t *testing.T) {
 	// The hash column was replaced by the author; the SHA is obtained with y.
 	v := NewCommitsView(&Context{})
-	v.commits = []gitlab.Commit{{
+	v.items = []gitlab.Commit{{
 		ID:      "a665c90dfull0000000000000000000000000000",
 		ShortID: "a665c90d", Title: "merge migrations", AuthorName: "Jan Všetíček",
 	}}
@@ -28,7 +28,7 @@ func TestCommitRows_ShowAuthorNotHash(t *testing.T) {
 
 func TestOverviewRows_ShowAuthorNotHash(t *testing.T) {
 	v := NewDashboardView(&Context{})
-	v.commits = []gitlab.Commit{{ShortID: "bbb2222", Title: "t", AuthorName: "Someone Else"}}
+	v.items = []gitlab.Commit{{ShortID: "bbb2222", Title: "t", AuthorName: "Someone Else"}}
 
 	row := renderRow(v.commitRow(v.visible()[0]), 120)
 	if !strings.Contains(row, "Someone Else") {
@@ -41,7 +41,7 @@ func TestOverviewRows_ShowAuthorNotHash(t *testing.T) {
 
 func TestCommitRows_LongAuthorIsTruncatedForAlignment(t *testing.T) {
 	v := NewCommitsView(&Context{})
-	v.commits = []gitlab.Commit{
+	v.items = []gitlab.Commit{
 		{ShortID: "a", Title: "one", AuthorName: "Short"},
 		{ShortID: "b", Title: "two", AuthorName: "A Very Long Contributor Name Indeed"},
 	}
@@ -58,7 +58,7 @@ func TestCommitRows_LongAuthorIsTruncatedForAlignment(t *testing.T) {
 
 func TestCommitsView_CopyFromListUsesFullSHA(t *testing.T) {
 	v := NewCommitsView(&Context{})
-	v.commits = []gitlab.Commit{{
+	v.items = []gitlab.Commit{{
 		ID: "a665c90dfull0000000000000000000000000000", ShortID: "a665c90d",
 	}}
 

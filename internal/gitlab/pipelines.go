@@ -34,6 +34,16 @@ func (c *Client) ListPipelines(projectID int) ([]Pipeline, error) {
 		return nil, err
 	}
 
+	pipelines := toPipelines(apiPipelines)
+
+	c.fillCommitTitles(projectID, pipelines)
+	c.fillWarnings(projectID, pipelines)
+	return pipelines, nil
+}
+
+// toPipelines maps a page of API pipelines into domain ones. Every list endpoint
+// returns the same shape, so they all come through here.
+func toPipelines(apiPipelines []*gogitlab.PipelineInfo) []Pipeline {
 	pipelines := make([]Pipeline, len(apiPipelines))
 	for i, p := range apiPipelines {
 		pipelines[i] = Pipeline{
@@ -50,10 +60,7 @@ func (c *Client) ListPipelines(projectID int) ([]Pipeline, error) {
 			pipelines[i].UpdatedAt = *p.UpdatedAt
 		}
 	}
-
-	c.fillCommitTitles(projectID, pipelines)
-	c.fillWarnings(projectID, pipelines)
-	return pipelines, nil
+	return pipelines
 }
 
 // fillCommitTitles gives each pipeline the title of the commit it built.
@@ -230,22 +237,7 @@ func (c *Client) ListPipelinesBySHA(projectID int, sha string) ([]Pipeline, erro
 		return nil, err
 	}
 
-	pipelines := make([]Pipeline, len(apiPipelines))
-	for i, p := range apiPipelines {
-		pipelines[i] = Pipeline{
-			ID:     int(p.ID),
-			Status: util.StripANSI(p.Status),
-			Ref:    util.StripANSI(p.Ref),
-			SHA:    util.StripANSI(p.SHA),
-			WebURL: util.StripANSI(p.WebURL),
-		}
-		if p.CreatedAt != nil {
-			pipelines[i].CreatedAt = *p.CreatedAt
-		}
-		if p.UpdatedAt != nil {
-			pipelines[i].UpdatedAt = *p.UpdatedAt
-		}
-	}
+	pipelines := toPipelines(apiPipelines)
 
 	c.fillWarnings(projectID, pipelines)
 	return pipelines, nil

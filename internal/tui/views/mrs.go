@@ -21,11 +21,7 @@ type MRsView struct {
 	ctx           *Context
 	width, height int // last body size, tracked from tea.WindowSizeMsg / Body
 
-	mrs    []gitlab.MergeRequest
-	cursor int // indexes the visible (searched) list, not mrs
-	scroll int // first visible row, kept across frames
-
-	search listSearch
+	rowList[gitlab.MergeRequest]
 
 	// detail is the in-place merge-request page, opened with Enter — the same shape
 	// as the commit page, so drilling in never moves you to another tab.
@@ -34,7 +30,11 @@ type MRsView struct {
 
 // NewMRsView creates an MRsView bound to the shared session context.
 func NewMRsView(ctx *Context) *MRsView {
-	return &MRsView{ctx: ctx, detail: newMRDetail(ctx)}
+	v := &MRsView{ctx: ctx, detail: newMRDetail(ctx)}
+	v.match = func(mr gitlab.MergeRequest) string {
+		return fmt.Sprintf("!%d %s %s %s", mr.IID, mr.Title, mr.Author, mr.SourceBranch)
+	}
+	return v
 }
 
 // Title implements View.
@@ -72,13 +72,12 @@ func (v *MRsView) Update(msg tea.Msg) tea.Cmd {
 		if msg.Err != nil {
 			return statusCmd(fmt.Sprintf("Error loading merge requests: %v", msg.Err), true)
 		}
-		v.mrs = msg.MRs
-		v.clampCursor()
+		v.setItems(msg.MRs)
 		return nil
 
 	case tea.PasteMsg:
 		if !v.detail.active {
-			v.search.paste(msg.Content, &v.cursor)
+			v.paste(msg.Content)
 		}
 		return nil
 
@@ -92,7 +91,7 @@ func (v *MRsView) Update(msg tea.Msg) tea.Cmd {
 
 // CapturingText implements TextCapturer: while the search is being typed, the
 // shell must not read the letters as its own commands.
-func (v *MRsView) CapturingText() bool { return !v.detail.active && v.search.capturing() }
+func (v *MRsView) CapturingText() bool { return !v.detail.active && v.capturing() }
 
 // stepMR moves to the neighbouring merge request, keeping the page open. It steps
 // within the search results when one is applied: the page was opened from that
@@ -105,22 +104,6 @@ func (v *MRsView) stepMR(step int) tea.Cmd {
 	}
 	v.cursor = next
 	return v.detail.stepAt(v.selected(), v.cursor, len(visible))
-}
-
-// visible is the merge requests matching the search; the cursor indexes it.
-func (v *MRsView) visible() []gitlab.MergeRequest {
-	return filtered(v.mrs, v.search.filter, func(mr gitlab.MergeRequest) string {
-		return fmt.Sprintf("!%d %s %s %s", mr.IID, mr.Title, mr.Author, mr.SourceBranch)
-	})
-}
-
-// selected returns the highlighted merge request, or nil.
-func (v *MRsView) selected() *gitlab.MergeRequest {
-	visible := v.visible()
-	if v.cursor < 0 || v.cursor >= len(visible) {
-		return nil
-	}
-	return &visible[v.cursor]
 }
 
 func (v *MRsView) handleKey(msg tea.KeyMsg) tea.Cmd {
@@ -136,12 +119,7 @@ func (v *MRsView) handleKey(msg tea.KeyMsg) tea.Cmd {
 		return v.detail.handleKey(key, v.height)
 	}
 
-	if v.search.handleKey(msg, &v.cursor) {
-		return nil
-	}
-
-	if act := components.NavFor(key); act != components.NavNone {
-		v.cursor = components.ApplyNav(act, v.cursor, len(v.visible()), listRows(v.height))
+	if v.navigate(msg, v.height) {
 		return nil
 	}
 
@@ -187,18 +165,7 @@ func (v *MRsView) Body(width, height int) string {
 		return v.detail.body(width, height)
 	}
 
-	visible := v.visible()
-	rows := make([]listRow, len(visible))
-	for i, mr := range visible {
-		rows[i] = mrRow(mr)
-	}
-	rowWidth := width - components.SelectionGutter
-	cols := measureColumns(rows, rowWidth)
-
-	return renderRowsBox(width, height,
-		v.search.title("Merge Requests", len(visible), len(v.mrs)),
-		len(visible), func(i int) string { return renderListRow(rows[i], cols, rowWidth) },
-		v.cursor, &v.scroll)
+	return v.box(width, height, "Merge Requests", mrRow, true)
 }
 
 // mrRow describes one merge-request row: its number, its CI, what it is, then who
@@ -292,12 +259,4 @@ func (v *MRsView) mergeMR() tea.Cmd {
 		}
 		return StatusMsg{Text: fmt.Sprintf("Merged !%d", mrIID)}
 	}
-}
-
-// ============================================================================
-// Helpers
-// ============================================================================
-
-func (v *MRsView) clampCursor() {
-	v.cursor = clampCursor(v.cursor, len(v.visible()))
 }

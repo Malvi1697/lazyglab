@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
-	"charm.land/lipgloss/v2"
 
 	"github.com/Malvi1697/lazyglab/internal/gitlab"
 	"github.com/Malvi1697/lazyglab/internal/tui/components"
@@ -30,20 +29,23 @@ type TodosView struct {
 	ctx           *Context
 	width, height int // last body size, tracked from tea.WindowSizeMsg / Body
 
-	todos  []gitlab.Todo
+	rowList[gitlab.Todo]
 	loaded bool // a reply has arrived, so an empty list really is empty
-	cursor int  // indexes the visible (searched) list, not todos
-	scroll int  // first visible row, kept across frames
 
-	search listSearch
-
-	// detailHidden folds the box below the list away, the way the dashboard's
-	// README folds. Session-only: it is a change of view, not a preference.
-	detailHidden bool
+	// detailBox says why the highlighted to-do exists; Enter here leads to a browser,
+	// so this is the only place that can say it.
+	detailBox foldBox
 }
 
 // NewTodosView creates a TodosView bound to the shared session context.
-func NewTodosView(ctx *Context) *TodosView { return &TodosView{ctx: ctx} }
+func NewTodosView(ctx *Context) *TodosView {
+	v := &TodosView{ctx: ctx, detailBox: foldBox{name: "detail"}}
+	v.match = func(t gitlab.Todo) string {
+		return strings.Join([]string{t.Reference, t.Title, t.ProjectPath, t.Author,
+			t.Action, todoActionWord(t.Action)}, " ")
+	}
+	return v
+}
 
 // Title implements View.
 func (v *TodosView) Title() string { return "Todos" }
@@ -68,8 +70,7 @@ func (v *TodosView) Update(msg tea.Msg) tea.Cmd {
 			return statusCmd(fmt.Sprintf("Error loading todos: %v", msg.Err), true)
 		}
 		v.loaded = true
-		v.todos = msg.Todos
-		v.clampCursor()
+		v.setItems(msg.Todos)
 		return nil
 
 	case TodoActionDoneMsg:
@@ -81,7 +82,7 @@ func (v *TodosView) Update(msg tea.Msg) tea.Cmd {
 		return tea.Batch(v.load(), statusCmd(msg.Text, false))
 
 	case tea.PasteMsg:
-		v.search.paste(msg.Content, &v.cursor)
+		v.paste(msg.Content)
 		return nil
 
 	case tea.KeyMsg:
@@ -92,47 +93,26 @@ func (v *TodosView) Update(msg tea.Msg) tea.Cmd {
 
 // CapturingText implements TextCapturer: while the search is being typed, the
 // shell must not read the letters as its own commands.
-func (v *TodosView) CapturingText() bool { return v.search.capturing() }
-
-// visible is the to-dos matching the search; the cursor indexes it.
-func (v *TodosView) visible() []gitlab.Todo {
-	return filtered(v.todos, v.search.filter, func(t gitlab.Todo) string {
-		return strings.Join([]string{t.Reference, t.Title, t.ProjectPath, t.Author,
-			t.Action, todoActionWord(t.Action)}, " ")
-	})
-}
-
-// selected returns the highlighted to-do, or nil.
-func (v *TodosView) selected() *gitlab.Todo {
-	visible := v.visible()
-	if v.cursor < 0 || v.cursor >= len(visible) {
-		return nil
-	}
-	return &visible[v.cursor]
-}
+func (v *TodosView) CapturingText() bool { return v.capturing() }
 
 func (v *TodosView) handleKey(msg tea.KeyMsg) tea.Cmd {
-	if v.search.handleKey(msg, &v.cursor) {
+	if v.navigate(msg, v.height) {
 		return nil
 	}
 
 	key := msg.String()
-	if act := components.NavFor(key); act != components.NavNone {
-		v.cursor = components.ApplyNav(act, v.cursor, len(v.visible()), listRows(v.height))
-		return nil
-	}
 
 	if key == keyToggleBox {
-		v.detailHidden = !v.detailHidden
+		v.detailBox.toggle()
 		return nil
 	}
 
 	// Clearing the whole list works with an empty cursor, so it comes first.
 	if key == keyDoneAll {
-		if len(v.todos) == 0 {
+		if len(v.items) == 0 {
 			return nil
 		}
-		return confirmCmd(fmt.Sprintf("Mark all %d todos as done?", len(v.todos)), v.markAllDone())
+		return confirmCmd(fmt.Sprintf("Mark all %d todos as done?", len(v.items)), v.markAllDone())
 	}
 
 	todo := v.selected()
@@ -173,41 +153,16 @@ func (v *TodosView) Body(width, height int) string {
 	v.width = width
 	v.height = height
 
-	if v.detailHidden {
+	if v.detailBox.folded {
 		return v.todosBox(width, height)
 	}
-
-	// A third, floored, so a short window still shows why the highlighted row is
-	// there without the list shrinking to nothing.
-	const gap = 1
-	bottomHeight := max(height/3, 6)
-	topHeight := height - gap - bottomHeight
-	if topHeight < 5 {
-		return v.todosBox(width, height)
-	}
-
-	return lipgloss.JoinVertical(lipgloss.Left,
-		v.todosBox(width, topHeight),
-		"",
-		components.RenderPanel(v.detailTitle(), splitLines(v.todoDetail()),
-			width, bottomHeight, false),
-	)
+	return splitBody(width, height, height/3,
+		v.todosBox, panelBox(v.detailTitle(), splitLines(v.todoDetail())))
 }
 
 // todosBox renders the to-do list itself.
 func (v *TodosView) todosBox(width, height int) string {
-	visible := v.visible()
-	rows := make([]listRow, len(visible))
-	for i, t := range visible {
-		rows[i] = todoRow(t)
-	}
-	rowWidth := width - components.SelectionGutter
-	cols := measureColumns(rows, rowWidth)
-
-	return renderRowsBox(width, height,
-		v.search.title("Todos", len(visible), len(v.todos)),
-		len(visible), func(i int) string { return renderListRow(rows[i], cols, rowWidth) },
-		v.cursor, &v.scroll)
+	return v.box(width, height, "Todos", todoRow, true)
 }
 
 func (v *TodosView) detailTitle() string {
@@ -240,7 +195,7 @@ func todoRow(t gitlab.Todo) listRow {
 }
 
 func (v *TodosView) todoDetail() string {
-	if len(v.todos) == 0 {
+	if len(v.items) == 0 {
 		// Before the first reply an empty list means "not yet", not "nothing" — and
 		// telling someone their plate is clear when it is not is the worse mistake.
 		if !v.loaded {
@@ -368,15 +323,11 @@ func todoActionWord(action string) string {
 
 // KeyHints implements View.
 func (v *TodosView) KeyHints() []KeyHint {
-	toggle := KeyHint{"t", "Hide detail"}
-	if v.detailHidden {
-		toggle = KeyHint{"t", "Show detail"}
-	}
 	return []KeyHint{
 		{"Enter/o", "Open"},
 		{"d", "Done"},
 		{"D", "All done"},
-		toggle,
+		v.detailBox.hint(),
 		{"y/Y", "Copy ref/link"},
 		v.search.hint(),
 	}
@@ -415,19 +366,11 @@ func (v *TodosView) markAllDone() tea.Cmd {
 		return nil
 	}
 	client := v.ctx.Client
-	count := len(v.todos)
+	count := len(v.items)
 	return func() tea.Msg {
 		if err := client.MarkAllTodosDone(); err != nil {
 			return TodoActionDoneMsg{Text: fmt.Sprintf("Could not clear the list: %v", err), IsErr: true}
 		}
 		return TodoActionDoneMsg{Text: fmt.Sprintf("Cleared %d todos", count)}
 	}
-}
-
-// ============================================================================
-// Helpers
-// ============================================================================
-
-func (v *TodosView) clampCursor() {
-	v.cursor = clampCursor(v.cursor, len(v.visible()))
 }

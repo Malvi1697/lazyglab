@@ -17,7 +17,14 @@ func (c *Client) GetProjectByPath(path string) (*Project, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Project{
+	project := toProject(p)
+	return &project, nil
+}
+
+// toProject maps an API project into a domain one, for both the list and the
+// by-path lookup.
+func toProject(p *gogitlab.Project) Project {
+	return Project{
 		ID:                int(p.ID),
 		Name:              util.StripANSI(p.Name),
 		NameWithNamespace: util.StripANSI(p.NameWithNamespace),
@@ -27,7 +34,7 @@ func (c *Client) GetProjectByPath(path string) (*Project, error) {
 		SSHCloneURL:       util.StripANSI(p.SSHURLToRepo),
 		HTTPCloneURL:      util.StripANSI(p.HTTPURLToRepo),
 		ReadmeFile:        readmeFile(p.ReadmeURL),
-	}, nil
+	}
 }
 
 // readmeFile is the repository path of a project's README, taken from the URL
@@ -123,17 +130,7 @@ func (c *Client) projectPage(page int) ([]Project, *gogitlab.Response, error) {
 
 	projects := make([]Project, len(apiProjects))
 	for i, p := range apiProjects {
-		projects[i] = Project{
-			ID:                int(p.ID),
-			Name:              util.StripANSI(p.Name),
-			NameWithNamespace: util.StripANSI(p.NameWithNamespace),
-			PathWithNamespace: util.StripANSI(p.PathWithNamespace),
-			WebURL:            util.StripANSI(p.WebURL),
-			DefaultBranch:     util.StripANSI(p.DefaultBranch),
-			SSHCloneURL:       util.StripANSI(p.SSHURLToRepo),
-			HTTPCloneURL:      util.StripANSI(p.HTTPURLToRepo),
-			ReadmeFile:        readmeFile(p.ReadmeURL),
-		}
+		projects[i] = toProject(p)
 	}
 	return projects, resp, nil
 }

@@ -38,7 +38,7 @@ func press(v View, key rune) tea.Cmd {
 func TestCopy_MergeRequestRefAndLink(t *testing.T) {
 	v := NewMRsView(&Context{})
 	v.height = 20
-	v.mrs = []gitlab.MergeRequest{{IID: 42, Title: "Fix the cart", WebURL: "https://gl/x/-/merge_requests/42"}}
+	v.items = []gitlab.MergeRequest{{IID: 42, Title: "Fix the cart", WebURL: "https://gl/x/-/merge_requests/42"}}
 
 	if got := copied(t, press(v, 'y')); !strings.Contains(got, "!42") {
 		t.Errorf("y reported %q, want the reference you would type", got)
@@ -52,14 +52,14 @@ func TestCopy_MergeRequestRefAndLink(t *testing.T) {
 func TestCopy_IssueAndPipelineFollowTheSameRule(t *testing.T) {
 	issues := NewIssuesView(&Context{})
 	issues.height = 20
-	issues.issues = []gitlab.Issue{{IID: 7, Title: "Crash", WebURL: "https://gl/x/-/issues/7"}}
+	issues.items = []gitlab.Issue{{IID: 7, Title: "Crash", WebURL: "https://gl/x/-/issues/7"}}
 	if got := copied(t, press(issues, 'y')); !strings.Contains(got, "#7") {
 		t.Errorf("issue y reported %q, want #7", got)
 	}
 
 	pipelines := NewPipelinesView(&Context{})
 	pipelines.height = 20
-	pipelines.pipelines = []gitlab.Pipeline{{ID: 1234, Status: "success", WebURL: "https://gl/x/-/pipelines/1234"}}
+	pipelines.items = []gitlab.Pipeline{{ID: 1234, Status: "success", WebURL: "https://gl/x/-/pipelines/1234"}}
 	if got := copied(t, press(pipelines, 'y')); !strings.Contains(got, "#1234") {
 		t.Errorf("pipeline y reported %q, want #1234", got)
 	}

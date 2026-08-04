@@ -16,7 +16,7 @@ func mrsWithPage(t *testing.T) *MRsView {
 	t.Helper()
 	v := NewMRsView(&Context{})
 	v.width, v.height = 160, 45
-	v.mrs = []gitlab.MergeRequest{
+	v.items = []gitlab.MergeRequest{
 		{IID: 42, Title: "Fix the cart", Author: "alice", SourceBranch: "fix-cart",
 			TargetBranch: "main", State: "opened", WebURL: "https://gl/x/-/merge_requests/42"},
 		{IID: 12, Title: "Test mr", Author: "bob", SourceBranch: "test",

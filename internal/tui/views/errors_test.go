@@ -54,7 +54,7 @@ func TestLoadErrors_TheCommitPageIsNotSilentEither(t *testing.T) {
 	// The page returned its message as a string, and Overview — the default view —
 	// dropped it on the floor, so nothing on the commit page could report anything.
 	v := NewDashboardView(&Context{})
-	v.commits = []gitlab.Commit{{ID: "abc1234", ShortID: "abc1234", Title: "one"}}
+	v.items = []gitlab.Commit{{ID: "abc1234", ShortID: "abc1234", Title: "one"}}
 	v.Update(tea.KeyPressMsg{Code: tea.KeyEnter}) // open the page
 
 	cmd := v.Update(CommitDetailLoadedMsg{SHA: "abc1234", Err: errors.New("boom")})

@@ -45,7 +45,7 @@ func loadedDetail(sha string) CommitDetailLoadedMsg {
 func TestCommitsView_EnterOpensDetailInPlace(t *testing.T) {
 	v := NewCommitsView(&Context{})
 	v.width, v.height = 120, 30
-	v.commits = []gitlab.Commit{{ShortID: "aaa1111"}, {ShortID: "38333fa4"}}
+	v.items = []gitlab.Commit{{ShortID: "aaa1111"}, {ShortID: "38333fa4"}}
 	v.cursor = 1
 
 	if cmd := v.Update(enterKey); cmd != nil {
@@ -72,7 +72,7 @@ func TestOverviewView_EnterOpensDetailInPlace(t *testing.T) {
 	// Drilling in must not move the user to another tab.
 	v := NewDashboardView(&Context{})
 	v.width, v.height = 120, 30
-	v.commits = []gitlab.Commit{{ShortID: "38333fa4"}}
+	v.items = []gitlab.Commit{{ShortID: "38333fa4"}}
 
 	v.Update(enterKey)
 	if !v.detail.active {
@@ -86,7 +86,7 @@ func TestOverviewView_EnterOpensDetailInPlace(t *testing.T) {
 func TestCommitDetail_EscGoesBack(t *testing.T) {
 	v := NewCommitsView(&Context{})
 	v.width, v.height = 120, 30
-	v.commits = []gitlab.Commit{{ShortID: "aaa1111"}}
+	v.items = []gitlab.Commit{{ShortID: "aaa1111"}}
 	v.Update(enterKey)
 
 	v.Update(escKey)
@@ -101,7 +101,7 @@ func TestCommitDetail_EscGoesBack(t *testing.T) {
 func TestCommitDetail_ShowsWhatGitLabsCommitPageShows(t *testing.T) {
 	v := NewCommitsView(&Context{})
 	v.width, v.height = 120, 40
-	v.commits = []gitlab.Commit{{ShortID: "38333fa4"}}
+	v.items = []gitlab.Commit{{ShortID: "38333fa4"}}
 	v.Update(enterKey)
 	v.detail.sha = "38333fa4"
 	v.Update(loadedDetail("38333fa4"))
@@ -134,7 +134,7 @@ func TestCommitDetail_ShowsWhatGitLabsCommitPageShows(t *testing.T) {
 func TestCommitDetail_WarningIsNotAPlainSuccess(t *testing.T) {
 	v := NewCommitsView(&Context{})
 	v.width, v.height = 120, 40
-	v.commits = []gitlab.Commit{{ShortID: "38333fa4"}}
+	v.items = []gitlab.Commit{{ShortID: "38333fa4"}}
 	v.Update(enterKey)
 	v.detail.sha = "38333fa4"
 	v.Update(loadedDetail("38333fa4"))
@@ -153,7 +153,7 @@ func TestCommitDetail_WarningIsNotAPlainSuccess(t *testing.T) {
 func TestCommitDetail_NoPipelineIsExplained(t *testing.T) {
 	v := NewCommitsView(&Context{})
 	v.width, v.height = 120, 30
-	v.commits = []gitlab.Commit{{ShortID: "aaa1111"}}
+	v.items = []gitlab.Commit{{ShortID: "aaa1111"}}
 	v.Update(enterKey)
 	v.detail.sha = "aaa1111"
 	v.Update(CommitDetailLoadedMsg{SHA: "aaa1111", Commit: &gitlab.Commit{ShortID: "aaa1111", Title: "t"}})
@@ -174,7 +174,7 @@ func TestCommitDetail_NoPipelineIsExplained(t *testing.T) {
 func TestCommitDetail_EnterWithoutPipelineExplains(t *testing.T) {
 	v := NewCommitsView(&Context{})
 	v.width, v.height = 120, 30
-	v.commits = []gitlab.Commit{{ShortID: "aaa1111"}}
+	v.items = []gitlab.Commit{{ShortID: "aaa1111"}}
 	v.Update(enterKey)
 	v.detail.sha = "aaa1111"
 	v.Update(CommitDetailLoadedMsg{SHA: "aaa1111", Commit: &gitlab.Commit{ShortID: "aaa1111"}})
@@ -197,7 +197,7 @@ func TestCommitDetail_EnterStepsIntoTheJobsOnThePage(t *testing.T) {
 	// them rather than replacing the page with a panel.
 	v := NewCommitsView(&Context{})
 	v.width, v.height = 120, 30
-	v.commits = []gitlab.Commit{{ShortID: "38333fa4"}}
+	v.items = []gitlab.Commit{{ShortID: "38333fa4"}}
 	v.Update(enterKey)
 	v.detail.sha = "38333fa4"
 	v.Update(loadedDetail("38333fa4"))
@@ -228,7 +228,7 @@ func TestCommitDetail_LogTakesTheWholeBody(t *testing.T) {
 	// A log needs the room, so it is the one thing that replaces the page.
 	v := NewCommitsView(&Context{})
 	v.width, v.height = 120, 20
-	v.commits = []gitlab.Commit{{ShortID: "38333fa4"}}
+	v.items = []gitlab.Commit{{ShortID: "38333fa4"}}
 	v.Update(enterKey)
 	v.detail.sha = "38333fa4"
 	v.Update(loadedDetail("38333fa4"))
@@ -250,7 +250,7 @@ func TestCommitDetail_LogTakesTheWholeBody(t *testing.T) {
 func TestCommitDetail_RetryWithoutPipelineExplains(t *testing.T) {
 	v := NewCommitsView(&Context{})
 	v.width, v.height = 120, 30
-	v.commits = []gitlab.Commit{{ShortID: "aaa1111"}}
+	v.items = []gitlab.Commit{{ShortID: "aaa1111"}}
 	v.Update(enterKey)
 
 	cmd := v.Update(tea.KeyPressMsg{Code: 'R', Text: "R"})
@@ -265,7 +265,7 @@ func TestCommitDetail_RetryWithoutPipelineExplains(t *testing.T) {
 func TestCommitDetail_IgnoresStaleReply(t *testing.T) {
 	v := NewCommitsView(&Context{})
 	v.width, v.height = 120, 30
-	v.commits = []gitlab.Commit{{ShortID: "aaa1111"}}
+	v.items = []gitlab.Commit{{ShortID: "aaa1111"}}
 	v.Update(enterKey)
 	v.detail.sha = "aaa1111"
 
@@ -278,7 +278,7 @@ func TestCommitDetail_IgnoresStaleReply(t *testing.T) {
 func TestCommitDetail_LongPageScrolls(t *testing.T) {
 	v := NewCommitsView(&Context{})
 	v.width, v.height = 120, 12 // a short terminal
-	v.commits = []gitlab.Commit{{ShortID: "38333fa4"}}
+	v.items = []gitlab.Commit{{ShortID: "38333fa4"}}
 	v.Update(enterKey)
 	v.detail.sha = "38333fa4"
 
@@ -302,7 +302,7 @@ func TestCommitDetail_LongPageScrolls(t *testing.T) {
 func TestCommitDetail_CopyUsesFullSHA(t *testing.T) {
 	v := NewCommitsView(&Context{})
 	v.width, v.height = 120, 30
-	v.commits = []gitlab.Commit{{ShortID: "38333fa4"}}
+	v.items = []gitlab.Commit{{ShortID: "38333fa4"}}
 	v.Update(enterKey)
 	v.detail.sha = "38333fa4"
 	v.Update(loadedDetail("38333fa4"))
@@ -342,7 +342,7 @@ func batchMentions(cmd tea.Cmd, text string) bool {
 func TestCommitPage_ArrowsStepBetweenCommits(t *testing.T) {
 	v := NewCommitsView(&Context{})
 	v.width, v.height = 120, 30
-	v.commits = []gitlab.Commit{
+	v.items = []gitlab.Commit{
 		{ShortID: "aaa1111", Title: "first"},
 		{ShortID: "bbb2222", Title: "second"},
 		{ShortID: "ccc3333", Title: "third"},
@@ -388,7 +388,7 @@ func TestCommitPage_ArrowsStepBetweenCommits(t *testing.T) {
 func TestCommitPage_ArrowsStopAtTheEnds(t *testing.T) {
 	v := NewCommitsView(&Context{})
 	v.width, v.height = 120, 30
-	v.commits = []gitlab.Commit{{ShortID: "only", Title: "one"}}
+	v.items = []gitlab.Commit{{ShortID: "only", Title: "one"}}
 	v.Update(enterKey)
 
 	v.Update(tea.KeyPressMsg{Code: tea.KeyLeft})
@@ -404,7 +404,7 @@ func TestCommitPage_ArrowsStopAtTheEnds(t *testing.T) {
 func TestCommitPage_ArrowsAreDrawnInTheMargins(t *testing.T) {
 	v := NewCommitsView(&Context{})
 	v.width, v.height = 120, 20
-	v.commits = []gitlab.Commit{{ShortID: "a"}, {ShortID: "b"}, {ShortID: "c"}}
+	v.items = []gitlab.Commit{{ShortID: "a"}, {ShortID: "b"}, {ShortID: "c"}}
 	v.cursor = 1
 	v.Update(enterKey)
 
@@ -433,7 +433,7 @@ func TestCommitPage_NarrowTerminalDropsTheMargins(t *testing.T) {
 	// Squeezing the text to keep decoration would be the wrong trade.
 	v := NewCommitsView(&Context{})
 	v.width, v.height = 24, 12
-	v.commits = []gitlab.Commit{{ShortID: "a", Title: "a commit title here"}}
+	v.items = []gitlab.Commit{{ShortID: "a", Title: "a commit title here"}}
 	v.Update(enterKey)
 
 	body := plain(v.Body(24, 12))
@@ -447,7 +447,7 @@ func TestCommitDetail_JobsStayVisibleBesideALongMessage(t *testing.T) {
 	// the screen and stepping into them needs no scrolling.
 	v := NewCommitsView(&Context{})
 	v.width, v.height = 120, 24
-	v.commits = []gitlab.Commit{{ShortID: "38333fa4"}}
+	v.items = []gitlab.Commit{{ShortID: "38333fa4"}}
 	v.Update(enterKey)
 	v.detail.sha = "38333fa4"
 
@@ -475,7 +475,7 @@ func TestCommitDetail_JobsStayVisibleBesideALongMessage(t *testing.T) {
 func TestCommitDetail_JobCursorMovesWithinThePage(t *testing.T) {
 	v := NewCommitsView(&Context{})
 	v.width, v.height = 120, 30
-	v.commits = []gitlab.Commit{{ShortID: "38333fa4"}}
+	v.items = []gitlab.Commit{{ShortID: "38333fa4"}}
 	v.Update(enterKey)
 	v.detail.sha = "38333fa4"
 	v.Update(loadedDetail("38333fa4"))
@@ -497,7 +497,7 @@ func TestCommitDetail_JobCursorMovesWithinThePage(t *testing.T) {
 func TestCommitDetail_StepInWithoutPipelineExplains(t *testing.T) {
 	v := NewCommitsView(&Context{})
 	v.width, v.height = 120, 30
-	v.commits = []gitlab.Commit{{ShortID: "aaa1111"}}
+	v.items = []gitlab.Commit{{ShortID: "aaa1111"}}
 	v.Update(enterKey)
 	v.detail.sha = "aaa1111"
 	v.Update(CommitDetailLoadedMsg{SHA: "aaa1111", Commit: &gitlab.Commit{ShortID: "aaa1111"}})
@@ -533,7 +533,7 @@ func diffedDetail() CommitDetailLoadedMsg {
 func TestCommitPage_ListsChangedFiles(t *testing.T) {
 	v := NewCommitsView(&Context{})
 	v.width, v.height = 120, 40
-	v.commits = []gitlab.Commit{{ShortID: "38333fa4"}}
+	v.items = []gitlab.Commit{{ShortID: "38333fa4"}}
 	v.Update(enterKey)
 	v.detail.sha = "38333fa4"
 	v.Update(diffedDetail())
@@ -556,7 +556,7 @@ func TestCommitPage_EnterStepsIntoTheChangesFirst(t *testing.T) {
 	// A commit is its diff, so the changes are the first thing Enter reaches.
 	v := NewCommitsView(&Context{})
 	v.width, v.height = 120, 40
-	v.commits = []gitlab.Commit{{ShortID: "38333fa4"}}
+	v.items = []gitlab.Commit{{ShortID: "38333fa4"}}
 	v.Update(enterKey)
 	v.detail.sha = "38333fa4"
 	v.Update(diffedDetail())
@@ -576,7 +576,7 @@ func TestCommitPage_EnterStepsIntoTheChangesFirst(t *testing.T) {
 func TestCommitPage_ReadsADiff(t *testing.T) {
 	v := NewCommitsView(&Context{})
 	v.width, v.height = 120, 20
-	v.commits = []gitlab.Commit{{ShortID: "38333fa4"}}
+	v.items = []gitlab.Commit{{ShortID: "38333fa4"}}
 	v.Update(enterKey)
 	v.detail.sha = "38333fa4"
 	v.Update(diffedDetail())
@@ -611,7 +611,7 @@ func TestCommitPage_DiffLinesAreColoured(t *testing.T) {
 	// Colour is what makes a diff readable at a glance; check the raw output.
 	v := NewCommitsView(&Context{})
 	v.width, v.height = 120, 20
-	v.commits = []gitlab.Commit{{ShortID: "38333fa4"}}
+	v.items = []gitlab.Commit{{ShortID: "38333fa4"}}
 	v.Update(enterKey)
 	v.detail.sha = "38333fa4"
 	v.Update(diffedDetail())
@@ -637,7 +637,7 @@ func TestCommitPage_DiffLinesAreColoured(t *testing.T) {
 func TestCommitPage_WithheldDiffSaysSo(t *testing.T) {
 	v := NewCommitsView(&Context{})
 	v.width, v.height = 120, 20
-	v.commits = []gitlab.Commit{{ShortID: "38333fa4"}}
+	v.items = []gitlab.Commit{{ShortID: "38333fa4"}}
 	v.Update(enterKey)
 	v.detail.sha = "38333fa4"
 	v.Update(diffedDetail())
@@ -654,7 +654,7 @@ func TestCommitPage_NoDiffFallsBackToJobs(t *testing.T) {
 	// A commit whose diff GitLab would not send still has to be steppable.
 	v := NewCommitsView(&Context{})
 	v.width, v.height = 120, 30
-	v.commits = []gitlab.Commit{{ShortID: "38333fa4"}}
+	v.items = []gitlab.Commit{{ShortID: "38333fa4"}}
 	v.Update(enterKey)
 	v.detail.sha = "38333fa4"
 	v.Update(loadedDetail("38333fa4")) // jobs but no diffs
@@ -670,7 +670,7 @@ func TestCommitPage_TabCyclesTheBoxesNotTheViews(t *testing.T) {
 	// the page it was supposed to move around in.
 	v := NewCommitsView(&Context{})
 	v.width, v.height = 120, 30
-	v.commits = []gitlab.Commit{{ShortID: "38333fa4"}}
+	v.items = []gitlab.Commit{{ShortID: "38333fa4"}}
 	v.Update(enterKey)
 	v.detail.sha = "38333fa4"
 	v.Update(diffedDetail())
@@ -706,7 +706,7 @@ func TestCommitPage_TabSkipsEmptyBoxes(t *testing.T) {
 	// A commit with no changes reported must not have a Tab stop on an empty box.
 	v := NewCommitsView(&Context{})
 	v.width, v.height = 120, 30
-	v.commits = []gitlab.Commit{{ShortID: "38333fa4"}}
+	v.items = []gitlab.Commit{{ShortID: "38333fa4"}}
 	v.Update(enterKey)
 	v.detail.sha = "38333fa4"
 	v.Update(loadedDetail("38333fa4")) // jobs, no diffs
@@ -727,7 +727,7 @@ func TestCommitPage_ArrowsStepFilesWhileReadingADiff(t *testing.T) {
 	// file under you for one from another commit.
 	v := NewCommitsView(&Context{})
 	v.width, v.height = 120, 20
-	v.commits = []gitlab.Commit{{ShortID: "38333fa4"}, {ShortID: "bbb2222"}}
+	v.items = []gitlab.Commit{{ShortID: "38333fa4"}, {ShortID: "bbb2222"}}
 	v.Update(enterKey)
 	v.detail.sha = "38333fa4"
 	v.Update(diffedDetail())
@@ -771,7 +771,7 @@ func TestCommitPage_ArrowsStepFilesWhileReadingADiff(t *testing.T) {
 func TestCommitPage_ArrowsStepCommitsFromThePageNotFiles(t *testing.T) {
 	v := NewCommitsView(&Context{})
 	v.width, v.height = 120, 20
-	v.commits = []gitlab.Commit{{ShortID: "38333fa4"}, {ShortID: "bbb2222"}}
+	v.items = []gitlab.Commit{{ShortID: "38333fa4"}, {ShortID: "bbb2222"}}
 	v.Update(enterKey)
 	v.detail.sha = "38333fa4"
 	v.Update(diffedDetail())

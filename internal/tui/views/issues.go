@@ -7,7 +7,6 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/Malvi1697/lazyglab/internal/gitlab"
-	"github.com/Malvi1697/lazyglab/internal/tui/components"
 )
 
 // Local key constant specific to the Issues view (see pipelines.go for the
@@ -19,11 +18,7 @@ type IssuesView struct {
 	ctx           *Context
 	width, height int // last body size, tracked from tea.WindowSizeMsg / Body
 
-	issues []gitlab.Issue
-	cursor int // indexes the visible (searched) list, not issues
-	scroll int // first visible row, kept across frames
-
-	search listSearch
+	rowList[gitlab.Issue]
 
 	// detail is the in-place issue page, opened with Enter: the issue and its
 	// discussion, which is the one thing the list row does not carry.
@@ -32,7 +27,11 @@ type IssuesView struct {
 
 // NewIssuesView creates an IssuesView bound to the shared session context.
 func NewIssuesView(ctx *Context) *IssuesView {
-	return &IssuesView{ctx: ctx, detail: newIssueDetail(ctx)}
+	v := &IssuesView{ctx: ctx, detail: newIssueDetail(ctx)}
+	v.match = func(i gitlab.Issue) string {
+		return fmt.Sprintf("#%d %s %s %s", i.IID, i.Title, i.Author, strings.Join(i.Labels, " "))
+	}
+	return v
 }
 
 // Title implements View.
@@ -66,13 +65,12 @@ func (v *IssuesView) Update(msg tea.Msg) tea.Cmd {
 		if msg.Err != nil {
 			return statusCmd(fmt.Sprintf("Error loading issues: %v", msg.Err), true)
 		}
-		v.issues = msg.Issues
-		v.clampCursor()
+		v.setItems(msg.Issues)
 		return nil
 
 	case tea.PasteMsg:
 		if !v.detail.active {
-			v.search.paste(msg.Content, &v.cursor)
+			v.paste(msg.Content)
 		}
 		return nil
 
@@ -86,7 +84,7 @@ func (v *IssuesView) Update(msg tea.Msg) tea.Cmd {
 
 // CapturingText implements TextCapturer: while the search is being typed, the
 // shell must not read the letters as its own commands.
-func (v *IssuesView) CapturingText() bool { return !v.detail.active && v.search.capturing() }
+func (v *IssuesView) CapturingText() bool { return !v.detail.active && v.capturing() }
 
 // stepIssue moves to the neighbouring issue, keeping the page open.
 func (v *IssuesView) stepIssue(step int) tea.Cmd {
@@ -97,22 +95,6 @@ func (v *IssuesView) stepIssue(step int) tea.Cmd {
 	}
 	v.cursor = next
 	return v.detail.stepAt(v.selected(), v.cursor, len(visible))
-}
-
-// visible is the issues matching the search; the cursor indexes it.
-func (v *IssuesView) visible() []gitlab.Issue {
-	return filtered(v.issues, v.search.filter, func(i gitlab.Issue) string {
-		return fmt.Sprintf("#%d %s %s %s", i.IID, i.Title, i.Author, strings.Join(i.Labels, " "))
-	})
-}
-
-// selected returns the highlighted issue, or nil.
-func (v *IssuesView) selected() *gitlab.Issue {
-	visible := v.visible()
-	if v.cursor < 0 || v.cursor >= len(visible) {
-		return nil
-	}
-	return &visible[v.cursor]
 }
 
 func (v *IssuesView) handleKey(msg tea.KeyMsg) tea.Cmd {
@@ -127,12 +109,7 @@ func (v *IssuesView) handleKey(msg tea.KeyMsg) tea.Cmd {
 		return v.detail.handleKey(key, v.height)
 	}
 
-	if v.search.handleKey(msg, &v.cursor) {
-		return nil
-	}
-
-	if act := components.NavFor(key); act != components.NavNone {
-		v.cursor = components.ApplyNav(act, v.cursor, len(v.visible()), listRows(v.height))
+	if v.navigate(msg, v.height) {
 		return nil
 	}
 
@@ -178,18 +155,7 @@ func (v *IssuesView) Body(width, height int) string {
 		return v.detail.body(width, height)
 	}
 
-	visible := v.visible()
-	rows := make([]listRow, len(visible))
-	for i, issue := range visible {
-		rows[i] = issueRow(issue)
-	}
-	rowWidth := width - components.SelectionGutter
-	cols := measureColumns(rows, rowWidth)
-
-	return renderRowsBox(width, height,
-		v.search.title("Issues", len(visible), len(v.issues)),
-		len(visible), func(i int) string { return renderListRow(rows[i], cols, rowWidth) },
-		v.cursor, &v.scroll)
+	return v.box(width, height, "Issues", issueRow, true)
 }
 
 // issueRow describes one issue row. There is no CI on an issue, so the mark column
@@ -264,12 +230,4 @@ func (v *IssuesView) toggleIssue() tea.Cmd {
 		}
 		return StatusMsg{Text: fmt.Sprintf("%s #%d", action, issue.IID)}
 	}
-}
-
-// ============================================================================
-// Helpers
-// ============================================================================
-
-func (v *IssuesView) clampCursor() {
-	v.cursor = clampCursor(v.cursor, len(v.visible()))
 }

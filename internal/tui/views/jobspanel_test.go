@@ -217,7 +217,7 @@ func TestJobsPanel_LogViewStripsNoiseAndClamps(t *testing.T) {
 func TestPipelinesView_EnterOpensThePanel(t *testing.T) {
 	v := NewPipelinesView(&Context{})
 	v.width, v.height = 120, 30
-	v.pipelines = []gitlab.Pipeline{{ID: 722175, Status: "failed", Ref: "main"}}
+	v.items = []gitlab.Pipeline{{ID: 722175, Status: "failed", Ref: "main"}}
 
 	v.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	if v.jobs.pipelineID != 722175 {
@@ -228,7 +228,7 @@ func TestPipelinesView_EnterOpensThePanel(t *testing.T) {
 func TestPipelinesView_EscUnwindsLogThenJobsThenList(t *testing.T) {
 	v := NewPipelinesView(&Context{})
 	v.width, v.height = 120, 30
-	v.pipelines = []gitlab.Pipeline{{ID: 722175, Status: "failed"}}
+	v.items = []gitlab.Pipeline{{ID: 722175, Status: "failed"}}
 	v.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	v.Update(JobsLoadedMsg{Jobs: []gitlab.Job{{ID: 1, Name: "build", Stage: "build"}}})
 	v.Update(JobTraceLoadedMsg{Trace: "log output"})
@@ -260,12 +260,12 @@ func TestCommitPage_RoutesJobMessagesToThePanel(t *testing.T) {
 
 	commits := NewCommitsView(ctx)
 	commits.width, commits.height = 120, 30
-	commits.commits = []gitlab.Commit{{ShortID: "38333fa4"}}
+	commits.items = []gitlab.Commit{{ShortID: "38333fa4"}}
 	hosts["commits"] = commits
 
 	overview := NewDashboardView(ctx)
 	overview.width, overview.height = 120, 30
-	overview.commits = []gitlab.Commit{{ShortID: "38333fa4"}}
+	overview.items = []gitlab.Commit{{ShortID: "38333fa4"}}
 	hosts["overview"] = overview
 
 	for name, host := range hosts {
@@ -315,7 +315,7 @@ func TestCommitPage_RoutesJobMessagesToThePanel(t *testing.T) {
 func TestCommitPage_EscUnwindsLogThenJobsFocusThenPage(t *testing.T) {
 	v := NewCommitsView(&Context{})
 	v.width, v.height = 120, 30
-	v.commits = []gitlab.Commit{{ShortID: "38333fa4"}}
+	v.items = []gitlab.Commit{{ShortID: "38333fa4"}}
 	v.Update(enterKey)
 	v.detail.sha = "38333fa4"
 	v.Update(loadedDetail("38333fa4")) // carries the jobs
@@ -348,7 +348,7 @@ func TestCommitPage_JobActionsWorkFromTheCommit(t *testing.T) {
 	// The point of sharing the panel: a pipeline is controllable from a commit.
 	v := NewCommitsView(&Context{})
 	v.width, v.height = 120, 30
-	v.commits = []gitlab.Commit{{ShortID: "38333fa4"}}
+	v.items = []gitlab.Commit{{ShortID: "38333fa4"}}
 	v.Update(enterKey)
 	v.detail.sha = "38333fa4"
 	v.Update(loadedDetail("38333fa4"))

@@ -21,7 +21,7 @@ type readmeBox struct {
 	source string
 	loaded bool
 
-	scroll     int
+	offset     int      // first visible line
 	lines      []string // rendered, wrapped
 	width      int      // the width they were wrapped to
 	scrollable bool
@@ -31,13 +31,13 @@ type readmeBox struct {
 // still "loaded": there is nothing more to ask for.
 func (b *readmeBox) setReadme(file, source string) {
 	b.file, b.source, b.loaded = file, source, true
-	b.scroll, b.lines = 0, nil
+	b.offset, b.lines = 0, nil
 }
 
 // resetReadme forgets it, for when the project or branch changes.
 func (b *readmeBox) resetReadme() {
 	b.file, b.source, b.loaded = "", "", false
-	b.scroll, b.lines = 0, nil
+	b.offset, b.lines = 0, nil
 }
 
 // wants reports whether this README still needs fetching: the project has one and
@@ -57,7 +57,7 @@ func (b *readmeBox) readmeTitle() string {
 // readmeKey scrolls the README and reports whether it took the key.
 func (b *readmeBox) readmeKey(key string, height int) bool {
 	if act := components.NavFor(key); act != components.NavNone {
-		b.scroll = scrollBy(act, b.scroll, listRows(height))
+		b.offset = scrollBy(act, b.offset, listRows(height))
 		return true
 	}
 	return false
@@ -84,13 +84,13 @@ func (b *readmeBox) readmePanel(width, height int, focused bool) string {
 	default:
 		lines := b.render(contentWidth)
 		b.scrollable = len(lines) > rows
-		if maxScroll := len(lines) - rows; b.scroll > maxScroll {
-			b.scroll = max(0, maxScroll)
+		if maxScroll := len(lines) - rows; b.offset > maxScroll {
+			b.offset = max(0, maxScroll)
 		}
-		if b.scroll < 0 {
-			b.scroll = 0
+		if b.offset < 0 {
+			b.offset = 0
 		}
-		body = lines[b.scroll:min(b.scroll+rows, len(lines))]
+		body = lines[b.offset:min(b.offset+rows, len(lines))]
 	}
 
 	return components.RenderPanel(b.readmeTitle(), body, width, height, focused)

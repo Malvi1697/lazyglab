@@ -283,6 +283,12 @@ func renderListRow(r listRow, cols listColumns, width int) string {
 	return row
 }
 
+// commitSearchText is what "/" compares a commit against, in both lists that show
+// commits.
+func commitSearchText(c gitlab.Commit) string {
+	return c.Title + " " + c.AuthorName + " " + c.ShortID
+}
+
 // commitStamp is a commit's whole timestamp, date and time together, for the column
 // at the right. Empty for a commit GitLab gave no date.
 func commitStamp(t time.Time) string {

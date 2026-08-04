@@ -6,7 +6,6 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/Malvi1697/lazyglab/internal/gitlab"
-	"github.com/Malvi1697/lazyglab/internal/tui/components"
 )
 
 // CommitsView is the self-contained cockpit view for commits.
@@ -14,11 +13,7 @@ type CommitsView struct {
 	ctx           *Context
 	width, height int // last body size, tracked from tea.WindowSizeMsg / Body
 
-	commits []gitlab.Commit
-	cursor  int // indexes the visible (searched) list, not commits
-	scroll  int // first visible row, kept across frames
-
-	search listSearch
+	rowList[gitlab.Commit]
 
 	// detail is the in-place commit page, opened with Enter.
 	detail commitDetail
@@ -26,7 +21,9 @@ type CommitsView struct {
 
 // NewCommitsView creates a CommitsView bound to the shared session context.
 func NewCommitsView(ctx *Context) *CommitsView {
-	return &CommitsView{ctx: ctx, detail: newCommitDetail(ctx)}
+	v := &CommitsView{ctx: ctx, detail: newCommitDetail(ctx)}
+	v.match = commitSearchText
+	return v
 }
 
 // Title implements View.
@@ -60,13 +57,12 @@ func (v *CommitsView) Update(msg tea.Msg) tea.Cmd {
 		if msg.Err != nil {
 			return statusCmd(fmt.Sprintf("Error loading commits: %v", msg.Err), true)
 		}
-		v.commits = msg.Commits
-		v.clampCursor()
+		v.setItems(msg.Commits)
 		return nil
 
 	case tea.PasteMsg:
 		if !v.detail.active {
-			v.search.paste(msg.Content, &v.cursor)
+			v.paste(msg.Content)
 		}
 		return nil
 
@@ -91,12 +87,7 @@ func (v *CommitsView) handleKey(msg tea.KeyMsg) tea.Cmd {
 		return v.detail.handleKey(key, v.height)
 	}
 
-	if v.search.handleKey(msg, &v.cursor) {
-		return nil
-	}
-
-	if act := components.NavFor(key); act != components.NavNone {
-		v.cursor = components.ApplyNav(act, v.cursor, len(v.visible()), listRows(v.height))
+	if v.navigate(msg, v.height) {
 		return nil
 	}
 
@@ -120,14 +111,7 @@ func (v *CommitsView) handleKey(msg tea.KeyMsg) tea.Cmd {
 
 // CapturingText implements TextCapturer: while the search is being typed, the
 // shell must not read the letters as its own commands.
-func (v *CommitsView) CapturingText() bool { return !v.detail.active && v.search.capturing() }
-
-// visible is the commits matching the search; the cursor indexes it.
-func (v *CommitsView) visible() []gitlab.Commit {
-	return filtered(v.commits, v.search.filter, func(c gitlab.Commit) string {
-		return c.Title + " " + c.AuthorName + " " + c.ShortID
-	})
-}
+func (v *CommitsView) CapturingText() bool { return !v.detail.active && v.capturing() }
 
 // stepCommit moves to the neighbouring commit, keeping the page open.
 func (v *CommitsView) stepCommit(step int) tea.Cmd {
@@ -138,15 +122,6 @@ func (v *CommitsView) stepCommit(step int) tea.Cmd {
 	}
 	v.cursor = next
 	return v.detail.stepAt(v.selected(), v.cursor, len(visible))
-}
-
-// selected returns the highlighted commit, or nil.
-func (v *CommitsView) selected() *gitlab.Commit {
-	visible := v.visible()
-	if v.cursor < 0 || v.cursor >= len(visible) {
-		return nil
-	}
-	return &visible[v.cursor]
 }
 
 // copyHash copies the selected commit's full SHA to the clipboard. The list
@@ -171,8 +146,7 @@ func (v *CommitsView) copyHash() tea.Cmd {
 // Body / rendering
 // ============================================================================
 
-// Body implements View: a horizontal split with a list on the left and a
-// detail panel on the right.
+// Body implements View.
 func (v *CommitsView) Body(width, height int) string {
 	v.width = width
 	v.height = height
@@ -183,19 +157,7 @@ func (v *CommitsView) Body(width, height int) string {
 		return v.detail.body(width, height)
 	}
 
-	visible := v.visible()
-	rows := make([]listRow, len(visible))
-	for i, c := range visible {
-		rows[i] = commitItemRow(c)
-	}
-	rowWidth := width - components.SelectionGutter
-	cols := measureColumns(rows, rowWidth)
-
-	return renderRowsBox(width, height,
-		v.search.title("Commits", len(visible), len(v.commits)),
-		len(visible),
-		func(i int) string { return renderListRow(rows[i], cols, rowWidth) },
-		v.cursor, &v.scroll)
+	return v.box(width, height, "Commits", commitItemRow, true)
 }
 
 // commitItemRow describes one commit row. The status comes with the commit here,
@@ -211,14 +173,6 @@ func commitItemRow(c gitlab.Commit) listRow {
 	}
 }
 
-// commitDetailFull renders the drilled-in commit the way GitLab's commit page
-// does: the message, then what the commit belongs to (parent, branches, merge
-// requests) and the pipelines it triggered.
-// detailRefsLine lists the branches and tags containing the commit.
-// detailMRLines lists the merge requests the commit belongs to.
-// detailPipelineLines renders the pipelines run for the commit, distinguishing a
-// success with warnings from a plain success — that is the whole reason the
-// detail asks GitLab for each pipeline individually.
 // shortSHA abbreviates a full SHA the way GitLab displays it.
 func shortSHA(sha string) string {
 	if len(sha) > 8 {
@@ -279,12 +233,4 @@ func (v *CommitsView) openCommitInBrowser() tea.Cmd {
 		return nil
 	}
 	return execBrowser(cmd)
-}
-
-// ============================================================================
-// Helpers
-// ============================================================================
-
-func (v *CommitsView) clampCursor() {
-	v.cursor = clampCursor(v.cursor, len(v.visible()))
 }

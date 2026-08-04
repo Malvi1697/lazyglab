@@ -19,7 +19,7 @@ func typeKeys(v View, s string) {
 func searchIssues() *IssuesView {
 	v := NewIssuesView(&Context{})
 	v.height = 20
-	v.issues = []gitlab.Issue{
+	v.items = []gitlab.Issue{
 		{IID: 1, Title: "Login crashes", Author: "alice"},
 		{IID: 2, Title: "Export to CSV", Author: "bob"},
 		{IID: 3, Title: "Login is slow", Author: "carol"},
@@ -108,7 +108,7 @@ func TestSearch_TitleShowsTheQueryAndTheCount(t *testing.T) {
 	v := searchIssues()
 	typeKeys(v, "/login")
 
-	title := plain(v.search.title("Issues", len(v.visible()), len(v.issues)))
+	title := plain(v.search.title("Issues", len(v.visible()), len(v.items)))
 	if !strings.Contains(title, "(2/3)") {
 		t.Errorf("title = %q, want it to say how many of how many matched", title)
 	}
@@ -132,7 +132,7 @@ func TestSearch_CommitPageStepsWithinTheSearchResults(t *testing.T) {
 	// jumping to a commit the search excluded.
 	v := NewDashboardView(&Context{})
 	v.height = 20
-	v.commits = []gitlab.Commit{
+	v.items = []gitlab.Commit{
 		{ShortID: "aaa1111", Title: "feat: one"},
 		{ShortID: "bbb2222", Title: "chore: skip me"},
 		{ShortID: "ccc3333", Title: "feat: two"},
@@ -159,7 +159,7 @@ func TestSearch_IsNotOfferedInsideTheCommitPage(t *testing.T) {
 	// The page has no list of its own to narrow, and "/" there would swallow keys.
 	v := NewDashboardView(&Context{})
 	v.height = 20
-	v.commits = []gitlab.Commit{{ShortID: "aaa1111", Title: "one"}}
+	v.items = []gitlab.Commit{{ShortID: "aaa1111", Title: "one"}}
 	v.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 
 	typeKeys(v, "/")

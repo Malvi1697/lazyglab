@@ -146,8 +146,9 @@ func TestPipelines_TNamesTheStagesBehindTheMarks(t *testing.T) {
 	if body := plain(v.Body(120, 24)); strings.Contains(body, "operations") {
 		t.Errorf("the stages box should start folded:\n%s", body)
 	}
-	if !hasHint(v.KeyHints(), "t", "Name the stages") {
-		t.Errorf("hints = %v, want t offering to name them", v.KeyHints())
+	// Every foldable box says it the same way: Show / Hide, and which box.
+	if !hasHint(v.KeyHints(), "t", "Show stages") {
+		t.Errorf("hints = %v, want t offering to show them", v.KeyHints())
 	}
 
 	v.Update(tea.KeyPressMsg{Code: 't', Text: "t"})
