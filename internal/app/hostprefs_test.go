@@ -8,11 +8,11 @@ import (
 
 func TestFavoritesFor(t *testing.T) {
 	cfg := &Config{Hosts: map[string]HostConfig{
-		"gitlab.olc.cz": {Token: "t", Favorites: []string{"a/b", "c/d"}},
-		"gitlab.com":    {Token: "t"},
+		"gitlab.example.com": {Token: "t", Favorites: []string{"a/b", "c/d"}},
+		"gitlab.com":         {Token: "t"},
 	}}
 
-	if got := FavoritesFor(cfg, "gitlab.olc.cz"); len(got) != 2 || got[0] != "a/b" {
+	if got := FavoritesFor(cfg, "gitlab.example.com"); len(got) != 2 || got[0] != "a/b" {
 		t.Errorf("FavoritesFor = %v, want [a/b c/d]", got)
 	}
 	if got := FavoritesFor(cfg, "gitlab.com"); len(got) != 0 {
@@ -29,10 +29,10 @@ func TestSaveFavorites_PreservesTokenAndSettings(t *testing.T) {
 
 	refresh := 45
 	initial := &Config{
-		DefaultHost: "gitlab.olc.cz",
+		DefaultHost: "gitlab.example.com",
 		Hosts: map[string]HostConfig{
-			"gitlab.olc.cz": {Token: "secret", APIHost: "api.gitlab.olc.cz"},
-			"gitlab.com":    {Token: "other"},
+			"gitlab.example.com": {Token: "secret", APIHost: "api.gitlab.example.com"},
+			"gitlab.com":         {Token: "other"},
 		},
 		Settings: Settings{DefaultView: "pipelines", RefreshInterval: &refresh},
 	}
@@ -40,7 +40,7 @@ func TestSaveFavorites_PreservesTokenAndSettings(t *testing.T) {
 		t.Fatalf("SaveConfig: %v", err)
 	}
 
-	if err := SaveFavorites("gitlab.olc.cz", []string{"group/one", "group/two"}); err != nil {
+	if err := SaveFavorites("gitlab.example.com", []string{"group/one", "group/two"}); err != nil {
 		t.Fatalf("SaveFavorites: %v", err)
 	}
 
@@ -48,14 +48,14 @@ func TestSaveFavorites_PreservesTokenAndSettings(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadConfig: %v", err)
 	}
-	host := reloaded.Hosts["gitlab.olc.cz"]
+	host := reloaded.Hosts["gitlab.example.com"]
 	if len(host.Favorites) != 2 || host.Favorites[1] != "group/two" {
 		t.Errorf("favorites = %v, want [group/one group/two]", host.Favorites)
 	}
 	if host.Token != "secret" {
 		t.Errorf("token must survive a favorites write, got %q", host.Token)
 	}
-	if host.APIHost != "api.gitlab.olc.cz" {
+	if host.APIHost != "api.gitlab.example.com" {
 		t.Errorf("api_host must survive, got %q", host.APIHost)
 	}
 	if reloaded.Hosts["gitlab.com"].Token != "other" {
@@ -100,16 +100,16 @@ func TestSaveLastProject_RoundTripAndPreservation(t *testing.T) {
 	t.Setenv("LAZYGLAB_CONFIG", path)
 
 	if err := SaveConfig(&Config{
-		DefaultHost: "gitlab.olc.cz",
+		DefaultHost: "gitlab.example.com",
 		Hosts: map[string]HostConfig{
-			"gitlab.olc.cz": {Token: "secret", Favorites: []string{"g/starred"}},
+			"gitlab.example.com": {Token: "secret", Favorites: []string{"g/starred"}},
 		},
 		Settings: Settings{DefaultView: "commits"},
 	}); err != nil {
 		t.Fatalf("SaveConfig: %v", err)
 	}
 
-	if err := SaveLastProject("gitlab.olc.cz", "g/worked-on"); err != nil {
+	if err := SaveLastProject("gitlab.example.com", "g/worked-on"); err != nil {
 		t.Fatalf("SaveLastProject: %v", err)
 	}
 
@@ -117,10 +117,10 @@ func TestSaveLastProject_RoundTripAndPreservation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadConfig: %v", err)
 	}
-	if got := LastProjectFor(reloaded, "gitlab.olc.cz"); got != "g/worked-on" {
+	if got := LastProjectFor(reloaded, "gitlab.example.com"); got != "g/worked-on" {
 		t.Errorf("last project = %q, want g/worked-on", got)
 	}
-	host := reloaded.Hosts["gitlab.olc.cz"]
+	host := reloaded.Hosts["gitlab.example.com"]
 	if host.Token != "secret" {
 		t.Errorf("token must survive, got %q", host.Token)
 	}

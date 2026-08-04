@@ -17,7 +17,7 @@ func todosView() *TodosView {
 	v.items = []gitlab.Todo{
 		{
 			ID: 1, Action: "review_requested", Target: "MergeRequest", Reference: "!42",
-			Title: "Fix the cart", ProjectPath: "group/api", Author: "alice",
+			Title: "Fix the cart", ProjectPath: "group/api", Author: "alice.novak",
 			CreatedAt: time.Now().Add(-2 * time.Hour),
 		},
 		{

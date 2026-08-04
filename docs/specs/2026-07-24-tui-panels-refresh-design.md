@@ -32,9 +32,9 @@ All settings live in the existing `~/.config/lazyglab/config.yml`. With no
 New optional `settings:` section in `~/.config/lazyglab/config.yml`:
 
 ```yaml
-default_host: gitlab.olc.cz
+default_host: gitlab.example.com
 hosts:
-  gitlab.olc.cz:
+  gitlab.example.com:
     token: "…"
 settings:
   panels: [projects, pipelines, merge_requests, issues]  # order = display order; omit to hide
@@ -123,9 +123,9 @@ for unicode/ANSI-safe padding:
 
 ```
 <time> <icon> <ref>            <commit title…>
- <1m   ◉     main             fix(#0): count only free…
- 26m   ✓     main             test(#0): fix registration…
-  3h   ✗     e2e_made_by_dav… feat: add Comgate gateway…
+ <1m   ◉     main             fix(#0): stop double-counting…
+ 26m   ✓     main             test(#0): fix the flaky timezone…
+  3h   ✗     feature/long-branch… feat: add the payment gateway…
 ```
 
 - **Time** — fixed width 4, right-aligned. Requires fixing `TimeAgoShort`

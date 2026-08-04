@@ -11,9 +11,9 @@ func TestNormalizeHost(t *testing.T) {
 		{"gitlab.com", "gitlab.com"},
 		{"  gitlab.com  ", "gitlab.com"},
 		{"https://gitlab.com", "gitlab.com"},
-		{"http://gitlab.olc.cz", "gitlab.olc.cz"},
+		{"http://gitlab.example.com", "gitlab.example.com"},
 		{"https://gitlab.com/", "gitlab.com"},
-		{"https://gitlab.olc.cz/some/group", "gitlab.olc.cz"},
+		{"https://gitlab.example.com/some/group", "gitlab.example.com"},
 		{"gitlab.example.com:8443", "gitlab.example.com:8443"}, // an explicit port is kept
 		{"", ""},
 	}
@@ -27,10 +27,10 @@ func TestNormalizeHost(t *testing.T) {
 func TestApplyHostToken_PreservesRestOfConfig(t *testing.T) {
 	refresh := 60
 	cfg := &Config{
-		DefaultHost: "gitlab.olc.cz",
+		DefaultHost: "gitlab.example.com",
 		Hosts: map[string]HostConfig{
-			"gitlab.olc.cz": {Token: "old-token", APIHost: "api.gitlab.olc.cz"},
-			"gitlab.com":    {Token: "other-token"},
+			"gitlab.example.com": {Token: "old-token", APIHost: "api.gitlab.example.com"},
+			"gitlab.com":         {Token: "other-token"},
 		},
 		Settings: Settings{
 			Views:           []string{"overview", "pipelines"},
@@ -39,12 +39,12 @@ func TestApplyHostToken_PreservesRestOfConfig(t *testing.T) {
 		},
 	}
 
-	applyHostToken(cfg, "gitlab.olc.cz", "new-token")
+	applyHostToken(cfg, "gitlab.example.com", "new-token")
 
-	if got := cfg.Hosts["gitlab.olc.cz"].Token; got != "new-token" {
+	if got := cfg.Hosts["gitlab.example.com"].Token; got != "new-token" {
 		t.Errorf("token = %q, want %q", got, "new-token")
 	}
-	if got := cfg.Hosts["gitlab.olc.cz"].APIHost; got != "api.gitlab.olc.cz" {
+	if got := cfg.Hosts["gitlab.example.com"].APIHost; got != "api.gitlab.example.com" {
 		t.Errorf("api_host must be preserved, got %q", got)
 	}
 	if got := cfg.Hosts["gitlab.com"].Token; got != "other-token" {
@@ -72,7 +72,7 @@ func TestApplyHostToken_AddsNewHostAndAdoptsDefault(t *testing.T) {
 
 func TestApplyHostToken_KeepsExistingDefaultHost(t *testing.T) {
 	cfg := &Config{DefaultHost: "gitlab.com", Hosts: map[string]HostConfig{"gitlab.com": {Token: "a"}}}
-	applyHostToken(cfg, "gitlab.olc.cz", "b")
+	applyHostToken(cfg, "gitlab.example.com", "b")
 
 	if cfg.DefaultHost != "gitlab.com" {
 		t.Errorf("default_host = %q, want it left alone", cfg.DefaultHost)
@@ -86,10 +86,10 @@ func TestApplyHostToken_RoundTrip(t *testing.T) {
 	t.Setenv("LAZYGLAB_CONFIG", path)
 
 	cfg := &Config{
-		Hosts:    map[string]HostConfig{"gitlab.olc.cz": {Token: "old"}},
+		Hosts:    map[string]HostConfig{"gitlab.example.com": {Token: "old"}},
 		Settings: Settings{DefaultView: "commits"},
 	}
-	applyHostToken(cfg, "gitlab.olc.cz", "fresh")
+	applyHostToken(cfg, "gitlab.example.com", "fresh")
 	if err := SaveConfig(cfg); err != nil {
 		t.Fatalf("SaveConfig: %v", err)
 	}
@@ -106,7 +106,7 @@ func TestApplyHostToken_RoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadConfig after save: %v", err)
 	}
-	if got := reloaded.Hosts["gitlab.olc.cz"].Token; got != "fresh" {
+	if got := reloaded.Hosts["gitlab.example.com"].Token; got != "fresh" {
 		t.Errorf("reloaded token = %q, want %q", got, "fresh")
 	}
 	if reloaded.Settings.DefaultView != "commits" {

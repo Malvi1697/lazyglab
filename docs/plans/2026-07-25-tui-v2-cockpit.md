@@ -1,7 +1,5 @@
 # lazyglab v2 Cockpit — Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use olc-powers:subagent-driven-development (recommended) or olc-powers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
-
 **Goal:** Replace the fixed 4-panel lazygit-style TUI with a cockpit: a context bar, one switchable full-screen view at a time (Overview, Pipelines, MRs, Issues, Commits), and shared modal overlays.
 
 **Architecture:** Three packages avoid an import cycle (the shell holds views, so shared code must be in packages both import): `internal/tui/components` (pure UI helpers/styles), `internal/tui/views` (the `View` interface, `Context`, view messages, and the concrete views), and `internal/tui` (the shell: app + frame + overlays). Views import `components` + `gitlab`; the shell imports `views` + `components`. Views never import the shell.

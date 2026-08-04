@@ -37,11 +37,11 @@ func (h *stagesHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 // The shape GitLab really sends: stages carrying their jobs, statuses shouted.
 const twoPipelineStages = `{"data":{"project":{"pipelines":{"nodes":[
-	{"id":"gid://gitlab/Ci::Pipeline/724560","stages":{"nodes":[
+	{"id":"gid://gitlab/Ci::Pipeline/1043","stages":{"nodes":[
 		{"name":"lint","jobs":{"nodes":[{"status":"SUCCESS"},{"status":"SUCCESS"}]}},
 		{"name":"build","jobs":{"nodes":[{"status":"SUCCESS"}]}},
 		{"name":"deploy","jobs":{"nodes":[{"status":"SKIPPED"}]}}]}},
-	{"id":"gid://gitlab/Ci::Pipeline/724553","stages":{"nodes":[
+	{"id":"gid://gitlab/Ci::Pipeline/1044","stages":{"nodes":[
 		{"name":"lint","jobs":{"nodes":[{"status":"SUCCESS"}]}},
 		{"name":"test","jobs":{"nodes":[{"status":"FAILED"},{"status":"SUCCESS"}]}}]}}
 ]}}}}`
@@ -49,7 +49,7 @@ const twoPipelineStages = `{"data":{"project":{"pipelines":{"nodes":[
 // The pipeline that started all this: stage 5 to 7 hold nothing but canceled jobs, and
 // GitLab's own CiStage.status calls every one of them a success.
 const canceledPipelineStages = `{"data":{"project":{"pipelines":{"nodes":[
-	{"id":"gid://gitlab/Ci::Pipeline/724403","stages":{"nodes":[
+	{"id":"gid://gitlab/Ci::Pipeline/1042","stages":{"nodes":[
 		{"name":"lint","status":"success","jobs":{"nodes":[{"status":"SUCCESS"},{"status":"SUCCESS"}]}},
 		{"name":"build","status":"canceled","jobs":{"nodes":[{"status":"CANCELED"},{"status":"SUCCESS"}]}},
 		{"name":"security","status":"canceled","jobs":{"nodes":[{"status":"FAILED"},{"status":"CANCELED"}]}},
@@ -66,23 +66,23 @@ func TestPipelineStages_OneRequestForTheWholePage(t *testing.T) {
 	defer srv.Close()
 
 	stages := client.PipelineStages("group/project", []Pipeline{
-		{ID: 724560, Status: "success"},
-		{ID: 724553, Status: "failed"},
+		{ID: 1043, Status: "success"},
+		{ID: 1044, Status: "failed"},
 	})
 
 	if h.calls != 1 {
 		t.Errorf("asked %d times, want one request for both pipelines", h.calls)
 	}
-	if len(h.askedIDs) != 2 || h.askedIDs[0] != "gid://gitlab/Ci::Pipeline/724560" {
+	if len(h.askedIDs) != 2 || h.askedIDs[0] != "gid://gitlab/Ci::Pipeline/1043" {
 		t.Errorf("asked for %v, want both pipelines as global ids", h.askedIDs)
 	}
-	if got := len(stages[724560]); got != 3 {
-		t.Errorf("pipeline 724560 has %d stages, want 3", got)
+	if got := len(stages[1043]); got != 3 {
+		t.Errorf("pipeline 1043 has %d stages, want 3", got)
 	}
-	if got := stages[724553]; len(got) != 2 || got[1].Name != "test" || got[1].Status != "failed" {
-		t.Errorf("pipeline 724553 stages = %v, want lint/test with test failed", got)
+	if got := stages[1044]; len(got) != 2 || got[1].Name != "test" || got[1].Status != "failed" {
+		t.Errorf("pipeline 1044 stages = %v, want lint/test with test failed", got)
 	}
-	if got := stages[724560][0].Jobs; got != 2 {
+	if got := stages[1043][0].Jobs; got != 2 {
 		t.Errorf("lint holds %d jobs, want 2", got)
 	}
 }
@@ -94,10 +94,10 @@ func TestPipelineStages_ACanceledStageIsNotGreen(t *testing.T) {
 	client, srv := setupTestClient(t, h)
 	defer srv.Close()
 
-	stages := client.PipelineStages("group/project", []Pipeline{{ID: 724403, Status: "canceled"}})
+	stages := client.PipelineStages("group/project", []Pipeline{{ID: 1042, Status: "canceled"}})
 
 	want := []string{"success", "canceled", "failed", "canceled", "canceled", "canceled"}
-	got := stages[724403]
+	got := stages[1042]
 	if len(got) != len(want) {
 		t.Fatalf("got %d stages, want %d", len(got), len(want))
 	}
@@ -141,15 +141,15 @@ func TestPipelineStages_AFinishedPipelineIsAskedAboutOnce(t *testing.T) {
 	client, srv := setupTestClient(t, h)
 	defer srv.Close()
 
-	finished := []Pipeline{{ID: 724560, Status: "success"}}
+	finished := []Pipeline{{ID: 1043, Status: "success"}}
 	client.PipelineStages("group/project", finished)
 	stages := client.PipelineStages("group/project", finished)
 
 	if h.calls != 1 {
 		t.Errorf("asked %d times, want the second refresh to cost nothing", h.calls)
 	}
-	if len(stages[724560]) != 3 {
-		t.Errorf("second call returned %v, want the cached stages", stages[724560])
+	if len(stages[1043]) != 3 {
+		t.Errorf("second call returned %v, want the cached stages", stages[1043])
 	}
 }
 
@@ -159,7 +159,7 @@ func TestPipelineStages_ARunningPipelineIsAskedAgain(t *testing.T) {
 	client, srv := setupTestClient(t, h)
 	defer srv.Close()
 
-	running := []Pipeline{{ID: 724560, Status: "running"}}
+	running := []Pipeline{{ID: 1043, Status: "running"}}
 	client.PipelineStages("group/project", running)
 	client.PipelineStages("group/project", running)
 

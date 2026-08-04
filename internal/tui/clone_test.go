@@ -23,12 +23,12 @@ func pickerApp(t *testing.T) *App {
 	a.width, a.height = 120, 30
 	a.projects = []gitlab.Project{
 		{
-			ID: 1, Name: "Idiskgolf", NameWithNamespace: "IDISCGOLF / Idiskgolf",
-			PathWithNamespace: "idiscgolf/idiskgolf",
-			SSHCloneURL:       "git@gitlab.olc.cz:idiscgolf/idiskgolf.git",
-			HTTPCloneURL:      "https://gitlab.olc.cz/idiscgolf/idiskgolf.git",
+			ID: 1, Name: "Website", NameWithNamespace: "ACME / Website",
+			PathWithNamespace: "acme/website",
+			SSHCloneURL:       "git@gitlab.example.com:acme/website.git",
+			HTTPCloneURL:      "https://gitlab.example.com/acme/website.git",
 		},
-		{ID: 2, Name: "neko-is", PathWithNamespace: "neko-klima/neko-is"},
+		{ID: 2, Name: "billing", PathWithNamespace: "contoso/billing"},
 	}
 	a.overlay = overlayProject
 	return a
@@ -41,16 +41,16 @@ func TestProjectPicker_YCopiesTheCloneURLs(t *testing.T) {
 	if cmd := a.pressKey(tea.KeyPressMsg{Code: 'y', Text: "y"}); cmd == nil {
 		t.Error("y should have copied something")
 	}
-	if !strings.Contains(a.pickerStatus, "git@gitlab.olc.cz:idiscgolf/idiskgolf.git") {
+	if !strings.Contains(a.pickerStatus, "git@gitlab.example.com:acme/website.git") {
 		t.Errorf("note = %q, want the SSH URL", a.pickerStatus)
 	}
 	// The note is shown where you are looking, inside the picker.
-	if box := ansi.Strip(a.renderProjectPicker()); !strings.Contains(box, "git@gitlab.olc.cz") {
+	if box := ansi.Strip(a.renderProjectPicker()); !strings.Contains(box, "git@gitlab.example.com") {
 		t.Errorf("picker should say what was copied:\n%s", box)
 	}
 
 	a.pressKey(tea.KeyPressMsg{Code: 'Y', Text: "Y", Mod: tea.ModShift})
-	if !strings.Contains(a.pickerStatus, "https://gitlab.olc.cz/idiscgolf/idiskgolf.git") {
+	if !strings.Contains(a.pickerStatus, "https://gitlab.example.com/acme/website.git") {
 		t.Errorf("note = %q, want the HTTPS URL", a.pickerStatus)
 	}
 }
@@ -112,7 +112,7 @@ func TestProjectPicker_OpensOnTheProjectYouAreIn(t *testing.T) {
 	if a.overlay != overlayProject {
 		t.Fatal("P should open the picker")
 	}
-	if got := a.visibleProjects()[a.projectCursor].PathWithNamespace; got != "neko-klima/neko-is" {
+	if got := a.visibleProjects()[a.projectCursor].PathWithNamespace; got != "contoso/billing" {
 		t.Errorf("cursor is on %q, want the active project", got)
 	}
 }

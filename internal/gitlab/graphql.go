@@ -211,7 +211,7 @@ func StageStatus(jobs []string) string {
 	return "skipped"
 }
 
-// pipelineIDFromGID reads the numeric id out of "gid://gitlab/Ci::Pipeline/724560".
+// pipelineIDFromGID reads the numeric id out of "gid://gitlab/Ci::Pipeline/1043".
 func pipelineIDFromGID(gid string) int {
 	i := strings.LastIndexByte(gid, '/')
 	if i < 0 {

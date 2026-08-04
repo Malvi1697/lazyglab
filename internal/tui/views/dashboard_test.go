@@ -15,11 +15,11 @@ import (
 
 func TestCommitStatus(t *testing.T) {
 	pipelines := []gitlab.Pipeline{
-		{SHA: "f138bae6729508b923de684d5a8e4f8a72eda3f2", Status: "success"},
+		{SHA: "1111111122222222333333334444444455555555", Status: "success"},
 	}
 
-	if got := commitStatus("f138bae6", pipelines); got != "success" {
-		t.Errorf(`commitStatus("f138bae6", pipelines) = %q, want "success"`, got)
+	if got := commitStatus("11111111", pipelines); got != "success" {
+		t.Errorf(`commitStatus("11111111", pipelines) = %q, want "success"`, got)
 	}
 	if got := commitStatus("deadbeef", pipelines); got != "" {
 		t.Errorf(`commitStatus("deadbeef", pipelines) = %q, want ""`, got)
@@ -253,7 +253,7 @@ func TestDashboard_CommitColumnsLineUp(t *testing.T) {
 	v := NewDashboardView(&Context{})
 	now := time.Now()
 	v.items = []gitlab.Commit{
-		{ShortID: "a", Title: "fix: short prefix", AuthorName: "Jan Všetíček", CreatedAt: now},
+		{ShortID: "a", Title: "fix: short prefix", AuthorName: "Zoë Müller", CreatedAt: now},
 		{ShortID: "b", Title: "refactor(api): long prefix", AuthorName: "Someone Else", CreatedAt: now},
 		{ShortID: "c", Title: "no conventional prefix at all", AuthorName: "Third Person", CreatedAt: now},
 	}
@@ -282,10 +282,10 @@ func TestDashboard_CommitColumnsLineUp(t *testing.T) {
 	// And the order is kind, subject, author, when — the timestamp last, past the author,
 	// because it is looked up rather than scanned.
 	row := rows[0]
-	if at(row, "fix:") >= first || first >= at(row, "Jan Všetíček") {
+	if at(row, "fix:") >= first || first >= at(row, "Zoë Müller") {
 		t.Errorf("row = %q, want kind, subject, then the author", row)
 	}
-	if when := at(row, now.Format("15:04")); when < at(row, "Jan Všetíček") {
+	if when := at(row, now.Format("15:04")); when < at(row, "Zoë Müller") {
 		t.Errorf("row = %q, want the timestamp at the right, past the author", row)
 	}
 }
@@ -333,7 +333,7 @@ func TestDashboard_NarrowRowsKeepTheMessage(t *testing.T) {
 	v := NewDashboardView(&Context{})
 	v.items = []gitlab.Commit{{
 		ShortID: "a", Title: "feat: a reasonably long subject line here",
-		AuthorName: "Jan Všetíček", CreatedAt: time.Now(),
+		AuthorName: "Zoë Müller", CreatedAt: time.Now(),
 	}}
 
 	row := ansi.Strip(strings.Split(v.commitsBox(46, 3), "\n")[1])

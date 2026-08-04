@@ -43,8 +43,8 @@ overlay.
 ### One row layout
 
 ```
- !42   feat: ● capacity-aware promotion    ● ● ● ▶   jiri.kucera   promo-cap   28.7. 20:28
-        fix: ▲ count only free wild cards            Jan Všetíček              27.7. 15:35
+ !42   feat: ● paginate the search endpoint    ● ● ● ▶   alice   search-cap   28.7. 20:28
+        fix: ▲ stop double-counting rows            Zoë Müller              27.7. 15:35
 ```
 
 `ref`, `kind`, CI mark, `subject`, `marks`, `author`, `extra`, `stamp`. A list fills

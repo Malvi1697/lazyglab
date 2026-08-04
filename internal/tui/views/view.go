@@ -114,8 +114,8 @@ func DefaultViewIndex(views []ViewID, name string) int {
 // Every list is laid out in the same columns — what it is called, what kind of change
 // it is, how CI went, what it says, then who, where and when:
 //
-//	 !42   feat: ● capacity-aware promotion        jiri.kucera   promo-cap   28.7. 20:28
-//	        fix: ▲ count only free wild cards      Jan Všetíček              27.7. 15:35
+//	 !42   feat: ● paginate the search endpoint        alice   search-cap   28.7. 20:28
+//	        fix: ▲ stop double-counting rows      Zoë Müller              27.7. 15:35
 //	#1234       · Login crashes on Safari          alice                      4.7. 09:02
 //
 // Each list fills them in as far as it has them; an empty column costs nothing.

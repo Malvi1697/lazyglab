@@ -13,7 +13,7 @@ import (
 
 func discussion() []gitlab.Note {
 	return []gitlab.Note{
-		{ID: 1, Author: "alice", Body: "Looks good, but the cart total is off by one.",
+		{ID: 1, Author: "alice.novak", Body: "Looks good, but the cart total is off by one.",
 			CreatedAt: time.Now().Add(-3 * time.Hour)},
 		{ID: 2, Author: "bob", Body: "added 3 commits", System: true,
 			CreatedAt: time.Now().Add(-2 * time.Hour)},
@@ -261,7 +261,7 @@ func TestNotes_TheToggleIsOnlyOfferedWhenItWouldChangeSomething(t *testing.T) {
 	}
 
 	var onlyPeople notesBox
-	onlyPeople.setNotes([]gitlab.Note{{ID: 1, Author: "alice", Body: "hello"}})
+	onlyPeople.setNotes([]gitlab.Note{{ID: 1, Author: "alice.novak", Body: "hello"}})
 	if got := hintsFor(onlyPeople.boxHints()); strings.Contains(got, "s ") {
 		t.Errorf("hints = %q, want no toggle when nothing is hidden", got)
 	}

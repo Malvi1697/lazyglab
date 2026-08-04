@@ -20,7 +20,7 @@ func searchIssues() *IssuesView {
 	v := NewIssuesView(&Context{})
 	v.height = 20
 	v.items = []gitlab.Issue{
-		{IID: 1, Title: "Login crashes", Author: "alice"},
+		{IID: 1, Title: "Login crashes", Author: "alice.novak"},
 		{IID: 2, Title: "Export to CSV", Author: "bob"},
 		{IID: 3, Title: "Login is slow", Author: "carol"},
 	}

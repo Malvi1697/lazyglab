@@ -42,7 +42,7 @@ focused, full-width per view.
 
 ```
 ┌ Context bar ──────────────────────────────────────────────┐  row 0
-│ main ⌄  idiskgolf                        ● pipeline: passing│
+│ main ⌄  website                        ● pipeline: passing│
 ├ Tabs ─────────────────────────────────────────────────────┤  row 1
 │ [Overview] Pipelines  MRs  Issues  Commits                 │
 ├ View body (full width, remaining height) ─────────────────┤  rows 2..h-2

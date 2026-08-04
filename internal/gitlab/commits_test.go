@@ -16,12 +16,12 @@ func TestListCommits_success(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`[
 			{
-				"id": "f138bae6729508b923de684d5a8e4f8a72eda3f2",
-				"short_id": "f138bae6",
+				"id": "1111111122222222333333334444444455555555",
+				"short_id": "11111111",
 				"title": "Fix the widget",
 				"author_name": "Jan Novak",
 				"created_at": "2026-07-20T10:30:00.000Z",
-				"web_url": "https://gitlab.com/my-group/my-project/-/commit/f138bae6729508b923de684d5a8e4f8a72eda3f2"
+				"web_url": "https://gitlab.com/my-group/my-project/-/commit/1111111122222222333333334444444455555555"
 			},
 			{
 				"id": "a1b2c3d4e5f6",
@@ -46,8 +46,8 @@ func TestListCommits_success(t *testing.T) {
 	}
 
 	c := commits[0]
-	if c.ShortID != "f138bae6" {
-		t.Errorf("want ShortID f138bae6, got %q", c.ShortID)
+	if c.ShortID != "11111111" {
+		t.Errorf("want ShortID 11111111, got %q", c.ShortID)
 	}
 	if c.Title != "Fix the widget" {
 		t.Errorf("want Title 'Fix the widget', got %q", c.Title)
@@ -59,7 +59,7 @@ func TestListCommits_success(t *testing.T) {
 	if !c.CreatedAt.Equal(wantTime) {
 		t.Errorf("want CreatedAt %v, got %v", wantTime, c.CreatedAt)
 	}
-	if c.WebURL != "https://gitlab.com/my-group/my-project/-/commit/f138bae6729508b923de684d5a8e4f8a72eda3f2" {
+	if c.WebURL != "https://gitlab.com/my-group/my-project/-/commit/1111111122222222333333334444444455555555" {
 		t.Errorf("WebURL mismatch, got %q", c.WebURL)
 	}
 

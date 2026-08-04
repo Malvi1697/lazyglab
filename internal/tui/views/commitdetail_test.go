@@ -22,9 +22,9 @@ func loadedDetail(sha string) CommitDetailLoadedMsg {
 		SHA: sha,
 		Commit: &gitlab.Commit{
 			ID: "38333fa410c18de0837225e792b28c29c33ee4fb", ShortID: "38333fa4",
-			Title:      "fix(#0): count only free wild cards",
-			Message:    "fix(#0): count only free wild cards\n\nThe header double-counted slots.",
-			AuthorName: "Jan Všetíček",
+			Title:      "fix(#0): stop double-counting rows",
+			Message:    "fix(#0): stop double-counting rows\n\nThe header double-counted slots.",
+			AuthorName: "Zoë Müller",
 			ParentIDs:  []string{"4fb11974cafe0000000000000000000000000000"},
 			WebURL:     "https://gitlab.example.com/g/p/-/commit/38333fa4",
 		},
@@ -108,16 +108,16 @@ func TestCommitDetail_ShowsWhatGitLabsCommitPageShows(t *testing.T) {
 
 	page := plain(v.Body(120, 40))
 	for _, want := range []string{
-		"fix(#0): count only free wild cards", // subject
-		"The header double-counted slots",     // body
-		"Jan Všetíček",                        // author
-		"4fb11974",                            // parent
-		"main",                                // branch
-		"v1.2.0",                              // tag
-		"!42",                                 // merge request
-		"722175",                              // pipeline
-		"passed with warnings",                // its detailed status
-		"build", "lint", "deploy",             // jobs
+		"fix(#0): stop double-counting rows", // subject
+		"The header double-counted slots",    // body
+		"Zoë Müller",                         // author
+		"4fb11974",                           // parent
+		"main",                               // branch
+		"v1.2.0",                             // tag
+		"!42",                                // merge request
+		"722175",                             // pipeline
+		"passed with warnings",               // its detailed status
+		"build", "lint", "deploy",            // jobs
 		"1m22s", // job duration
 	} {
 		if !strings.Contains(page, want) {
@@ -126,7 +126,7 @@ func TestCommitDetail_ShowsWhatGitLabsCommitPageShows(t *testing.T) {
 	}
 
 	// The subject must not be repeated as part of the body.
-	if n := strings.Count(page, "fix(#0): count only free wild cards"); n != 1 {
+	if n := strings.Count(page, "fix(#0): stop double-counting rows"); n != 1 {
 		t.Errorf("subject appears %d times, want once", n)
 	}
 }

@@ -21,10 +21,10 @@ func newPickerApp(t *testing.T) *App {
 	})
 	a.width, a.height = 100, 40
 	a.projects = []gitlab.Project{
-		{ID: 1, NameWithNamespace: "IDISCGOLF / Idiskgolf", PathWithNamespace: "idiscgolf/idiskgolf"},
-		{ID: 2, NameWithNamespace: "OLC Systems / DevOps / Renovate", PathWithNamespace: "olc/devops/renovate"},
-		{ID: 3, NameWithNamespace: "NEKO KLIMA / Neko IS", PathWithNamespace: "neko/neko-is"},
-		{ID: 4, NameWithNamespace: "OLC Systems / DevOps / traefik", PathWithNamespace: "olc/devops/traefik"},
+		{ID: 1, NameWithNamespace: "ACME / Website", PathWithNamespace: "acme/website"},
+		{ID: 2, NameWithNamespace: "ACME / DevOps / renovate", PathWithNamespace: "acme/devops/renovate"},
+		{ID: 3, NameWithNamespace: "Contoso / Billing", PathWithNamespace: "contoso/billing"},
+		{ID: 4, NameWithNamespace: "ACME / DevOps / traefik", PathWithNamespace: "acme/devops/traefik"},
 	}
 	return a
 }
@@ -60,13 +60,13 @@ func TestProjectFilter_MatchesFriendlyNameToo(t *testing.T) {
 	a := newPickerApp(t)
 	press(a, "P")
 	press(a, "/")
-	for _, r := range "KLIMA" {
+	for _, r := range "Contoso" {
 		press(a, string(r))
 	}
 
 	visible := a.visibleProjects()
 	if len(visible) != 1 || visible[0].ID != 3 {
-		t.Errorf("expected the NEKO KLIMA project by display name, got %v", visible)
+		t.Errorf("expected the Contoso project by display name, got %v", visible)
 	}
 }
 
@@ -152,7 +152,7 @@ func TestProjectFilter_StarAfterApplying(t *testing.T) {
 	press(a, "enter") // apply
 
 	press(a, "f")
-	if !a.isFavorite("olc/devops/traefik") {
+	if !a.isFavorite("acme/devops/traefik") {
 		t.Fatalf("expected the searched project to be starred, favorites = %v", a.favorites)
 	}
 	if a.overlay != overlayProject {
@@ -167,7 +167,7 @@ func TestProjectFilter_ArrowsNavigateWhileSearching(t *testing.T) {
 	a := newPickerApp(t)
 	press(a, "P")
 	press(a, "/")
-	for _, r := range "olc" {
+	for _, r := range "devops" {
 		press(a, string(r))
 	}
 	press(a, "down")
@@ -180,7 +180,7 @@ func TestProjectFilter_ArrowsNavigateWhileSearching(t *testing.T) {
 	cmd := press(a, "enter")
 	msg := cmd().(views.ProjectSelectedMsg)
 	if msg.Project.ID != 4 {
-		t.Errorf("selected ID = %d, want 4 (second olc match)", msg.Project.ID)
+		t.Errorf("selected ID = %d, want 4 (second devops match)", msg.Project.ID)
 	}
 }
 
@@ -305,7 +305,7 @@ func TestProjectFilter_TitleShowsCounts(t *testing.T) {
 	}
 
 	press(a, "/")
-	for _, r := range "olc" {
+	for _, r := range "devops" {
 		press(a, string(r))
 	}
 	if out := a.renderProjectPicker(); !strings.Contains(out, "(2/4)") {

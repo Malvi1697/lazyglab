@@ -17,24 +17,24 @@ const testWidth = 100
 
 func TestLists_TheTitleFitsBecauseTheListHasTheWholePage(t *testing.T) {
 	// Every list used to give half its width to a panel restating the highlighted row.
-	const title = "feat(cart): split registration into two steps"
+	const title = "feat(cart): split the table in two"
 
 	pages := map[string]string{
 		"merge requests": func() string {
 			v := NewMRsView(&Context{})
-			v.items = []gitlab.MergeRequest{{IID: 16, Title: title, Author: "jiri.kucera",
-				SourceBranch: "split-registration", UpdatedAt: time.Now()}}
+			v.items = []gitlab.MergeRequest{{IID: 16, Title: title, Author: "alice.novak",
+				SourceBranch: "split-tables", UpdatedAt: time.Now()}}
 			return plain(v.Body(testWidth, 20))
 		}(),
 		"issues": func() string {
 			v := NewIssuesView(&Context{})
-			v.items = []gitlab.Issue{{IID: 7, Title: title, Author: "alice", UpdatedAt: time.Now()}}
+			v.items = []gitlab.Issue{{IID: 7, Title: title, Author: "alice.novak", UpdatedAt: time.Now()}}
 			return plain(v.Body(testWidth, 20))
 		}(),
 		"pipelines": func() string {
 			v := NewPipelinesView(&Context{})
 			v.items = []gitlab.Pipeline{{ID: 1, Status: "success", CommitTitle: title,
-				Ref: "split-registration", CreatedAt: time.Now()}}
+				Ref: "split-tables", CreatedAt: time.Now()}}
 			return plain(v.Body(testWidth, 20))
 		}(),
 		"todos": func() string {
@@ -47,7 +47,7 @@ func TestLists_TheTitleFitsBecauseTheListHasTheWholePage(t *testing.T) {
 		"dashboard": func() string {
 			v := NewDashboardView(&Context{})
 			v.items = []gitlab.Commit{{ShortID: "abc1234", Title: title,
-				AuthorName: "jiri.kucera", CreatedAt: time.Now()}}
+				AuthorName: "alice.novak", CreatedAt: time.Now()}}
 			return plain(v.Body(testWidth, 20))
 		}(),
 	}
@@ -55,7 +55,7 @@ func TestLists_TheTitleFitsBecauseTheListHasTheWholePage(t *testing.T) {
 	for name, body := range pages {
 		// The conventional prefix moves to its own column, so what has to survive intact is
 		// the sentence after it.
-		if !strings.Contains(body, "split registration into two steps") {
+		if !strings.Contains(body, "split the table in two") {
 			t.Errorf("%s: the title is cut off in\n%s", name, body)
 		}
 		for _, line := range strings.Split(body, "\n") {
@@ -73,18 +73,18 @@ func TestLists_TheColumnsMeanTheSameThingEverywhere(t *testing.T) {
 	now := time.Date(time.Now().Year(), 7, 27, 9, 12, 0, 0, time.Local)
 
 	mr := plain(renderRow(mrRow(gitlab.MergeRequest{
-		IID: 42, Title: "feat(cart): promote", Author: "jiri.kucera",
-		SourceBranch: "promo-cap", UpdatedAt: now,
+		IID: 42, Title: "feat(cart): promote", Author: "alice.novak",
+		SourceBranch: "search-cap", UpdatedAt: now,
 	}), testWidth))
 	issue := plain(renderRow(issueRow(gitlab.Issue{
-		IID: 7, Title: "fix(api): crash", Author: "alice", UpdatedAt: now,
+		IID: 7, Title: "fix(api): crash", Author: "alice.novak", UpdatedAt: now,
 	}), testWidth))
 
 	for _, tc := range []struct {
 		name, row string
 		order     []string
 	}{
-		{"merge request", mr, []string{"!42", "feat:", "promote", "jiri.kucera", "promo-cap", "27.7."}},
+		{"merge request", mr, []string{"!42", "feat:", "promote", "alice", "search-cap", "27.7."}},
 		{"issue", issue, []string{"#7", "fix:", "crash", "alice", "27.7."}},
 	} {
 		for i := 1; i < len(tc.order); i++ {
@@ -104,7 +104,7 @@ func TestDashboard_TShowsAndFoldsTheReadme(t *testing.T) {
 	// see, which is the whole reason the key exists.
 	v := NewDashboardView(&Context{})
 	v.items = []gitlab.Commit{{ShortID: "abc1234", Title: "feat: one", AuthorName: "jan"}}
-	v.setReadme("README.md", "# Idiskgolf\n\nThis is the frontend.")
+	v.setReadme("README.md", "# Website\n\nThis is the frontend.")
 
 	// It starts folded: the commits are what the page is opened for.
 	body := plain(v.Body(testWidth, 20))

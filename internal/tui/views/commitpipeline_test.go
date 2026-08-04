@@ -14,11 +14,11 @@ func TestCommitRows_ShowAuthorNotHash(t *testing.T) {
 	v := NewCommitsView(&Context{})
 	v.items = []gitlab.Commit{{
 		ID:      "a665c90dfull0000000000000000000000000000",
-		ShortID: "a665c90d", Title: "merge migrations", AuthorName: "Jan Všetíček",
+		ShortID: "a665c90d", Title: "merge migrations", AuthorName: "Zoë Müller",
 	}}
 
 	row := renderRow(commitItemRow(v.visible()[0]), 120)
-	if !strings.Contains(row, "Jan Všetíček") {
+	if !strings.Contains(row, "Zoë Müller") {
 		t.Errorf("row = %q, want the author name", row)
 	}
 	if strings.Contains(row, "a665c90d") {

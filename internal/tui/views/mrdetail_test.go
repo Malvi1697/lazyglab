@@ -17,7 +17,7 @@ func mrsWithPage(t *testing.T) *MRsView {
 	v := NewMRsView(&Context{})
 	v.width, v.height = 160, 45
 	v.items = []gitlab.MergeRequest{
-		{IID: 42, Title: "Fix the cart", Author: "alice", SourceBranch: "fix-cart",
+		{IID: 42, Title: "Fix the cart", Author: "alice.novak", SourceBranch: "fix-cart",
 			TargetBranch: "main", State: "opened", WebURL: "https://gl/x/-/merge_requests/42"},
 		{IID: 12, Title: "Test mr", Author: "bob", SourceBranch: "test",
 			TargetBranch: "main", State: "opened", WebURL: "https://gl/x/-/merge_requests/12"},
@@ -31,7 +31,7 @@ func loadedPage(v *MRsView) {
 	v.detail.update(MRDetailLoadedMsg{
 		IID: iid,
 		MR: &gitlab.MergeRequest{
-			IID: iid, Title: "Fix the cart", Author: "alice",
+			IID: iid, Title: "Fix the cart", Author: "alice.novak",
 			SourceBranch: "fix-cart", TargetBranch: "main", State: "opened",
 			Description: "Why the cart was wrong.\n\nAnd how this fixes it.",
 			MergeStatus: "ci_still_running", Labels: []string{"bug"},
@@ -247,19 +247,19 @@ func TestMRList_ColumnsSayWhoFromWhereAndWhen(t *testing.T) {
 	// The reference is GitLab's own list: the number, what it is, and then who, from which
 	// branch, and when it last moved.
 	mr := gitlab.MergeRequest{
-		IID: 42, Title: "feat(cart): capacity-aware promotion", Author: "jiri.kucera",
-		SourceBranch: "registered_waiting_list", TargetBranch: "develop",
+		IID: 42, Title: "feat(api): paginate the search endpoint", Author: "alice.novak",
+		SourceBranch: "feature/long-branch-name", TargetBranch: "develop",
 		UpdatedAt: time.Date(time.Now().Year(), 7, 27, 9, 12, 0, 0, time.Local),
 	}
 
 	row := plain(renderRow(mrRow(mr), 140))
-	for _, want := range []string{"!42", "capacity-aware promotion", "jiri.kucera", "registered_wait", "27.7."} {
+	for _, want := range []string{"!42", "paginate the search endpoint", "alice.novak", "feature/long", "27.7."} {
 		if !strings.Contains(row, want) {
 			t.Errorf("row = %q, want it to carry %q", row, want)
 		}
 	}
 	// In that order.
-	inOrder := []string{"!42", "capacity", "jiri", "registered", "27.7."}
+	inOrder := []string{"!42", "paginate", "alice.novak", "feature/long", "27.7."}
 	for i := 1; i < len(inOrder); i++ {
 		if strings.Index(row, inOrder[i-1]) >= strings.Index(row, inOrder[i]) {
 			t.Errorf("row = %q, want %q before %q", row, inOrder[i-1], inOrder[i])
@@ -271,15 +271,15 @@ func TestMRList_NarrowTerminalKeepsTheTitle(t *testing.T) {
 	// What it is matters more than who wrote it, and a branch cut to eight characters says
 	// nothing — so the extra columns go, widest first.
 	mr := gitlab.MergeRequest{
-		IID: 42, Title: "feat(cart): capacity-aware promotion", Author: "jiri.kucera",
-		SourceBranch: "registered_waiting_list", UpdatedAt: time.Now(),
+		IID: 42, Title: "feat(api): paginate the search endpoint", Author: "alice.novak",
+		SourceBranch: "feature/long-branch-name", UpdatedAt: time.Now(),
 	}
 
 	narrow := plain(renderRow(mrRow(mr), 60))
-	if !strings.Contains(narrow, "capacity-aware") {
+	if !strings.Contains(narrow, "paginate the") {
 		t.Errorf("narrow row = %q, want the title kept", narrow)
 	}
-	if strings.Contains(narrow, "registered_wait") {
+	if strings.Contains(narrow, "feature/long") {
 		t.Errorf("narrow row = %q, want the branch dropped before the title", narrow)
 	}
 	if lipgloss.Width(narrow) > 60 {

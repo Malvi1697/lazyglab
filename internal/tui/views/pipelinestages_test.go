@@ -128,10 +128,10 @@ func TestPipelines_TNamesTheStagesBehindTheMarks(t *testing.T) {
 	v := NewPipelinesView(&Context{})
 	v.width, v.height = 120, 24
 	v.Update(PipelinesLoadedMsg{Pipelines: []gitlab.Pipeline{
-		{ID: 724403, Status: "canceled", CommitTitle: "fix: payments admin", Ref: "main"},
+		{ID: 1042, Status: "canceled", CommitTitle: "fix: restore the admin screen", Ref: "main"},
 	}})
 	v.Update(PipelineStagesLoadedMsg{Stages: map[int][]gitlab.Stage{
-		724403: {
+		1042: {
 			{Name: "lint", Status: "success", Jobs: 2},
 			{Name: "build", Status: "canceled", Jobs: 2},
 			{Name: "operations", Status: "canceled", Jobs: 4},
@@ -150,7 +150,7 @@ func TestPipelines_TNamesTheStagesBehindTheMarks(t *testing.T) {
 	v.Update(tea.KeyPressMsg{Code: 't', Text: "t"})
 	body := plain(v.Body(120, 24))
 
-	for _, want := range []string{"Stages (#724403)", "lint", "2 jobs", "operations", "4 jobs"} {
+	for _, want := range []string{"Stages (#1042)", "lint", "2 jobs", "operations", "4 jobs"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("body should carry %q:\n%s", want, body)
 		}
@@ -161,7 +161,7 @@ func TestPipelines_TNamesTheStagesBehindTheMarks(t *testing.T) {
 		t.Errorf("stages are named out of order:\n%s", body)
 	}
 	// And the list is still there above it.
-	if !strings.Contains(body, "payments admin") {
+	if !strings.Contains(body, "admin screen") {
 		t.Errorf("the list should keep the rest of the page:\n%s", body)
 	}
 }

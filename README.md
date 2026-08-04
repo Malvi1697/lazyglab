@@ -4,15 +4,18 @@ A terminal UI for GitLab, in the spirit of [lazygit](https://github.com/jesseduf
 merge requests, pipelines, issues and your to-do list without leaving the terminal.
 
 ```
-  main  IDISCGOLF / Idiskgolf                        Selected: Idiskgolf  updated 4s ago · next 23s
+  main  ACME / Website                                    Selected: ACME / Website  updated 4s ago
  [1] Dashboard ·  2 Pipelines ·  3 Merge Requests ·  4 Issues ·  5 Todos
 
-── Recent Commits (50) ─────────────────────────────────────────────────────────────────────────────
-▌     feat: ▲ add junior, membership and rating columns to exports      Pavel Zehnula   29.7. 15:28
-       fix: · anchor play window on weekend start, not today            Pavel Zehnula   28.7. 20:27
-      test: ▲ fix registration-state fee tests in CI                    Jan Všetíček   24.7. 17:06
- q Quit · ? Help · 1-5 View · P Project · f ★ · b Branch · r ↻ · Enter Commit page · t Show readme
+── Recent Commits (50) ──────────────────────────────────────────────────────────────────────────────
+▌     feat: ▲ paginate the search endpoint                              Zoë Müller     4.8. 15:28
+       fix: · clamp the date window to the current week                  Ada Byron      3.8. 20:27
+      test: ● fix the flaky timezone test in CI                         Zoë Müller     3.8. 17:06
+     chore: · bump the client library                                   Ada Byron      2.8. 09:14
+
+Commit page: Enter | Show readme: t | Copy SHA/link: y/Y | Search: / | View: 1-5 | Keybindings: ?
 ```
+
 
 ## Install
 

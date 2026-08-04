@@ -1,7 +1,5 @@
 # Configurable Panels, Auto-Refresh & Pipeline Redesign — Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use olc-powers:subagent-driven-development (recommended) or olc-powers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
-
 **Goal:** Make the lazyglab TUI adaptable and readable — configurable sidebar panels (show/hide + reorder), active-panel auto-refresh, a redesigned pipeline list with a hover job-preview, and a set of polish fixes.
 
 **Architecture:** Settings live in a new optional `settings:` block in `~/.config/lazyglab/config.yml` (backwards compatible). `PanelID` remains the stable identity enum; a new `a.panels []PanelID` holds the visible/ordered set. Layout and the sidebar view iterate that list. Auto-refresh uses `tea.Tick`; the job preview uses a debounced tick plus a per-pipeline jobs cache.
@@ -822,9 +820,9 @@ Drive with a hidden panel to verify visually:
 
 ```bash
 mkdir -p /tmp/lgtest && cat > /tmp/lgtest/config.yml <<'YAML'
-default_host: gitlab.olc.cz
+default_host: gitlab.example.com
 hosts:
-  gitlab.olc.cz: {token: "REPLACE_OR_COPY_FROM_REAL"}
+  gitlab.example.com: {token: "REPLACE_OR_COPY_FROM_REAL"}
 settings:
   panels: [projects, pipelines, merge_requests]   # issues hidden
 YAML
