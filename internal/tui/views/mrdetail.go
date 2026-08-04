@@ -35,7 +35,7 @@ type mrDetail struct {
 	iid       int // the merge request on screen; replies for others are stale
 	requested int // the one we have actually asked GitLab about
 	loading   bool
-	scroll    int
+	text      scrollBox // the offset into the page text
 
 	jobs  jobsPanel
 	focus pageFocus
@@ -89,7 +89,7 @@ func (d *mrDetail) showAt(mr *gitlab.MergeRequest, index, total int, delay time.
 	d.focus = focusPage
 	d.resetFiles()
 	d.resetNotes()
-	d.scroll = 0
+	d.text.scroll = 0
 	d.iid, d.requested = mr.IID, 0
 
 	if page, ok := d.pages[mr.IID]; ok {
@@ -117,7 +117,7 @@ func (d *mrDetail) close() {
 
 func (d *mrDetail) resetSearchState() {
 	d.iid, d.requested = 0, 0
-	d.scroll = 0
+	d.text.scroll = 0
 }
 
 // restore puts a cached page back on screen.
@@ -385,7 +385,7 @@ func (d *mrDetail) handleKey(key string, height int) tea.Cmd {
 
 	if act := components.NavFor(key); act != components.NavNone {
 		// The description scrolls; there is nothing to select in it.
-		d.scroll = components.ApplyNav(act, d.scroll, len(d.topLines(0)), listRows(height))
+		d.text.scroll = components.ApplyNav(act, d.text.scroll, len(d.topLines(0)), listRows(height))
 		return nil
 	}
 
@@ -596,13 +596,13 @@ func (d *mrDetail) page(width, height int) string {
 	bottomHeight := height - topHeight - gap
 	if bottomHeight < 4 {
 		d.descScrollable = len(top) > height-1
-		return components.RenderPanel(d.title(len(top), height-1), d.window(top, height-1),
+		return components.RenderPanel(d.title(len(top), height-1), d.text.window(top, height-1),
 			width, height, true)
 	}
 	d.descScrollable = len(top) > topHeight-1
 
 	return lipgloss.JoinVertical(lipgloss.Left,
-		components.RenderPanel(d.title(len(top), topHeight-1), d.window(top, topHeight-1),
+		components.RenderPanel(d.title(len(top), topHeight-1), d.text.window(top, topHeight-1),
 			width, topHeight, d.focus == focusPage),
 		"",
 		d.columns(width, bottomHeight),
@@ -618,24 +618,10 @@ func (d *mrDetail) title(lines, rows int) string {
 	}
 	out += d.counter()
 	if lines > rows {
-		end := min(d.scroll+rows, lines)
-		out = fmt.Sprintf("%s  ·  %d-%d of %d", out, d.scroll+1, end, lines)
+		end := min(d.text.scroll+rows, lines)
+		out = fmt.Sprintf("%s  ·  %d-%d of %d", out, d.text.scroll+1, end, lines)
 	}
 	return out
-}
-
-// window is the visible slice of the top block, scrolled by the page's offset.
-func (d *mrDetail) window(lines []string, rows int) []string {
-	if rows < 1 {
-		rows = 1
-	}
-	if d.scroll > len(lines)-rows {
-		d.scroll = max(0, len(lines)-rows)
-	}
-	if d.scroll < 0 {
-		d.scroll = 0
-	}
-	return lines[d.scroll:min(d.scroll+rows, len(lines))]
 }
 
 // columns renders the three lists you act on: the changed files, the jobs and the

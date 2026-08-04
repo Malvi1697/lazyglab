@@ -111,22 +111,12 @@ func DefaultViewIndex(views []ViewID, name string) int {
 	return 0
 }
 
-// Every list in the app is laid out the same way, because they are all the same
-// kind of thing: something with a name, a state, a subject, and some metadata about
-// who and when. Left to right —
+// Every list is laid out in the same columns — what it is called, what kind of change
+// it is, how CI went, what it says, then who, where and when:
 //
 //	 !42   feat: ● capacity-aware promotion        jiri.kucera   promo-cap   28.7. 20:28
 //	        fix: ▲ count only free wild cards      Jan Všetíček              27.7. 15:35
 //	#1234       · Login crashes on Safari          alice                      4.7. 09:02
-//
-// what it is called, what kind of change it is, how CI went, what it says, then who,
-// where, and when.
-//
-// The when is at the far right rather than opening the row: it is the thing you look
-// up rather than scan, and nineteen columns of metadata before the message was that
-// much of every row spent on something the eye skips. The name and the kind keep
-// columns of their own and are right-aligned, so the numbers and the colons line up
-// and the subject starts in the same place on every row.
 //
 // Each list fills them in as far as it has them; an empty column costs nothing.
 const (

@@ -29,7 +29,7 @@ type issueDetail struct {
 	iid       int // the issue on screen; replies for others are stale
 	requested int
 	loading   bool
-	scroll    int
+	text      scrollBox // the offset into the page text
 
 	focus pageFocus
 
@@ -66,7 +66,7 @@ func (d *issueDetail) showAt(issue *gitlab.Issue, index, total int, delay time.D
 	d.placeIn(index, total)
 	d.focus = focusPage
 	d.resetNotes()
-	d.scroll = 0
+	d.text.scroll = 0
 	d.iid, d.requested = issue.IID, 0
 
 	if notes, ok := d.pages[issue.IID]; ok {
@@ -87,7 +87,7 @@ func (d *issueDetail) close() {
 	d.issue = nil
 	d.focus = focusPage
 	d.resetNotes()
-	d.iid, d.requested, d.scroll = 0, 0, 0
+	d.iid, d.requested, d.text.scroll = 0, 0, 0
 }
 
 // reload refetches the open issue's discussion: a new comment is the one thing about an
@@ -219,7 +219,7 @@ func (d *issueDetail) handleKey(key string, height int) tea.Cmd {
 	}
 
 	if act := components.NavFor(key); act != components.NavNone {
-		d.scroll = components.ApplyNav(act, d.scroll, len(d.topLines(0)), listRows(height))
+		d.text.scroll = components.ApplyNav(act, d.text.scroll, len(d.topLines(0)), listRows(height))
 		return nil
 	}
 
@@ -310,13 +310,13 @@ func (d *issueDetail) page(width, height int) string {
 	bottomHeight := height - topHeight - gap
 	if bottomHeight < 4 {
 		d.descScrollable = len(top) > height-1
-		return components.RenderPanel(d.title(len(top), height-1), d.window(top, height-1),
+		return components.RenderPanel(d.title(len(top), height-1), d.text.window(top, height-1),
 			width, height, true)
 	}
 	d.descScrollable = len(top) > topHeight-1
 
 	return lipgloss.JoinVertical(lipgloss.Left,
-		components.RenderPanel(d.title(len(top), topHeight-1), d.window(top, topHeight-1),
+		components.RenderPanel(d.title(len(top), topHeight-1), d.text.window(top, topHeight-1),
 			width, topHeight, d.focus == focusPage),
 		"",
 		d.notesPanel(width, bottomHeight, d.focus == focusNotes, d.loading),
@@ -330,23 +330,10 @@ func (d *issueDetail) title(lines, rows int) string {
 	}
 	out += d.counter()
 	if lines > rows {
-		end := min(d.scroll+rows, lines)
-		out = fmt.Sprintf("%s  ·  %d-%d of %d", out, d.scroll+1, end, lines)
+		end := min(d.text.scroll+rows, lines)
+		out = fmt.Sprintf("%s  ·  %d-%d of %d", out, d.text.scroll+1, end, lines)
 	}
 	return out
-}
-
-func (d *issueDetail) window(lines []string, rows int) []string {
-	if rows < 1 {
-		rows = 1
-	}
-	if d.scroll > len(lines)-rows {
-		d.scroll = max(0, len(lines)-rows)
-	}
-	if d.scroll < 0 {
-		d.scroll = 0
-	}
-	return lines[d.scroll:min(d.scroll+rows, len(lines))]
 }
 
 // topLines is the title, who it is on, and what it says.

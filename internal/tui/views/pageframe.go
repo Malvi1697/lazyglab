@@ -65,6 +65,23 @@ func (f *pageFrame) withArrows(page string, prev, next bool) string {
 	return strings.Join(out, "\n")
 }
 
+// scrollBox is a page's vertical offset into whatever it is showing.
+type scrollBox struct{ scroll int }
+
+// window returns the visible slice of lines, clamping the offset to what there is.
+func (b *scrollBox) window(lines []string, rows int) []string {
+	if rows < 1 {
+		rows = 1
+	}
+	if b.scroll > len(lines)-rows {
+		b.scroll = max(0, len(lines)-rows)
+	}
+	if b.scroll < 0 {
+		b.scroll = 0
+	}
+	return lines[b.scroll:min(b.scroll+rows, len(lines))]
+}
+
 // stepKey maps a key to a move between the items of a list — the arrows, plus h/l for
 // hands that stay on the home row.
 func stepKey(key string) (int, bool) {

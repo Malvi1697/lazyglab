@@ -286,10 +286,10 @@ func TestCommitDetail_LongPageScrolls(t *testing.T) {
 	msg.Commit.Message = "subject\n\n" + strings.Repeat("a long explanation line\n", 30)
 	v.Update(msg)
 
-	before := v.detail.scroll
+	before := v.detail.text.scroll
 	v.Update(tea.KeyPressMsg{Code: 'j', Text: "j"})
 	v.Body(120, 12)
-	if v.detail.scroll == before {
+	if v.detail.text.scroll == before {
 		t.Error("j should scroll a page that does not fit")
 	}
 

@@ -39,7 +39,7 @@ type commitDetail struct {
 	sha       string // the commit on screen; replies for anything else are stale
 	requested string // the commit we have actually asked GitLab about
 	loading   bool
-	scroll    int
+	text      scrollBox // the offset into the page text
 
 	// jobs is the same interactive panel the Pipelines view uses.
 	jobs jobsPanel
@@ -101,7 +101,7 @@ func (d *commitDetail) showAt(c *gitlab.Commit, index, total int, delay time.Dur
 	d.jobs.close()
 	d.focus = focusPage
 	d.resetFiles()
-	d.scroll = 0
+	d.text.scroll = 0
 
 	sha := c.ID
 	if sha == "" {
@@ -174,7 +174,7 @@ func (d *commitDetail) close() {
 	d.focus = focusPage
 	d.resetFiles()
 	d.sha, d.requested = "", ""
-	d.scroll = 0
+	d.text.scroll = 0
 }
 
 // load fetches the commit, its pipelines (with their jobs), the refs containing it and
@@ -366,7 +366,7 @@ func (d *commitDetail) handleKey(key string, height int) tea.Cmd {
 
 	if act := components.NavFor(key); act != components.NavNone {
 		// The message scrolls; there is nothing to select in it.
-		d.scroll = components.ApplyNav(act, d.scroll, len(d.topLines(0)), listRows(height))
+		d.text.scroll = components.ApplyNav(act, d.text.scroll, len(d.topLines(0)), listRows(height))
 		return nil
 	}
 
@@ -617,13 +617,13 @@ func (d *commitDetail) page(width, height int) string {
 		// A short terminal: keep the message and drop the columns, which would be two
 		// headings and nothing else.
 		d.messageScrollable = len(top) > height-1
-		return components.RenderPanel(d.title(len(top), height-1), d.window(top, height-1), width, height, true)
+		return components.RenderPanel(d.title(len(top), height-1), d.text.window(top, height-1), width, height, true)
 	}
 
 	d.messageScrollable = len(top) > topHeight-1
 
 	return lipgloss.JoinVertical(lipgloss.Left,
-		components.RenderPanel(d.title(len(top), topHeight-1), d.window(top, topHeight-1), width, topHeight, d.focus == focusPage),
+		components.RenderPanel(d.title(len(top), topHeight-1), d.text.window(top, topHeight-1), width, topHeight, d.focus == focusPage),
 		"",
 		d.columns(width, bottomHeight),
 	)
@@ -638,24 +638,10 @@ func (d *commitDetail) title(lines, rows int) string {
 	}
 	out += d.counter()
 	if lines > rows {
-		end := min(d.scroll+rows, lines)
-		out = fmt.Sprintf("%s  ·  %d-%d of %d", out, d.scroll+1, end, lines)
+		end := min(d.text.scroll+rows, lines)
+		out = fmt.Sprintf("%s  ·  %d-%d of %d", out, d.text.scroll+1, end, lines)
 	}
 	return out
-}
-
-// window is the visible slice of the message, scrolled by the page's own offset.
-func (d *commitDetail) window(lines []string, rows int) []string {
-	if rows < 1 {
-		rows = 1
-	}
-	if d.scroll > len(lines)-rows {
-		d.scroll = max(0, len(lines)-rows)
-	}
-	if d.scroll < 0 {
-		d.scroll = 0
-	}
-	return lines[d.scroll:min(d.scroll+rows, len(lines))]
 }
 
 // columns renders the changed files beside the jobs, each scrolling on its own and the
