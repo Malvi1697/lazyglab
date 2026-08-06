@@ -376,9 +376,13 @@ func (p *jobsPanel) listBox(width, height int, title string) string {
 	return renderListBox(width, height, title, items, p.cursorRow(), &p.scroll)
 }
 
-// listTitle names the job list.
+// listTitle names the job list and says how many there are, so a list that
+// continues below the fold says so.
 func (p *jobsPanel) listTitle() string {
-	return fmt.Sprintf("Jobs (#%d)", p.pipelineID)
+	if len(p.jobs) == 0 {
+		return fmt.Sprintf("Jobs (#%d)", p.pipelineID)
+	}
+	return fmt.Sprintf("Jobs (#%d) · %s", p.pipelineID, plural(len(p.jobs), "job"))
 }
 
 // detailTitle names the pane beside the list: the selected job, or its log.

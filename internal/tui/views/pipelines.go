@@ -251,11 +251,30 @@ func (v *PipelinesView) selectedID() int {
 	return 0
 }
 
+// stagesTitle counts what the marks stand for, because a row of seven marks reads as
+// seven jobs until something says otherwise.
 func (v *PipelinesView) stagesTitle() string {
-	if p := v.selected(); p != nil {
+	p := v.selected()
+	if p == nil {
+		return "Stages"
+	}
+	stages := v.stages[p.ID]
+	jobs := 0
+	for _, s := range stages {
+		jobs += s.Jobs
+	}
+	if len(stages) == 0 {
 		return fmt.Sprintf("Stages (#%d)", p.ID)
 	}
-	return "Stages"
+	return fmt.Sprintf("Stages (#%d) · %s in %s", p.ID, plural(jobs, "job"), plural(len(stages), "stage"))
+}
+
+// plural is "1 job" / "13 jobs".
+func plural(n int, word string) string {
+	if n == 1 {
+		return fmt.Sprintf("%d %s", n, word)
+	}
+	return fmt.Sprintf("%d %ss", n, word)
 }
 
 // stageLines names the highlighted pipeline's stages, in the order it ran them — the
@@ -278,14 +297,10 @@ func (v *PipelinesView) stageLines() []string {
 
 	lines := make([]string, 0, len(stages))
 	for _, s := range stages {
-		jobs := fmt.Sprintf("%d jobs", s.Jobs)
-		if s.Jobs == 1 {
-			jobs = "1 job"
-		}
 		lines = append(lines, fmt.Sprintf("  %s %s  %s",
 			components.StatusIcon(s.Status),
 			components.PadRight(s.Name, width),
-			components.MutedStyle.Render(jobs)))
+			components.MutedStyle.Render(plural(s.Jobs, "job"))))
 	}
 	return lines
 }

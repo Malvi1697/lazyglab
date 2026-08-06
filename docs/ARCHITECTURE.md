@@ -163,8 +163,10 @@ something to scroll.
   row is a band, the active tab a chip, the focused box's heading and rule accented.
 - **Colour is never the only signal.** The active tab keeps its `[2]` brackets and
   the selected row its `▌`, so NO_COLOR still says where you are.
-- Four weights of text: default for content, light grey for legends, grey for
-  metadata, dimmed grey for structure.
+- Three weights of text: default for content, light grey (index 7) for everything you
+  read past it — metadata, legends, inactive tabs — and dimmed grey (8 + Faint) for
+  structure. Metadata used to sit on 8, which was unreadable beside the legend it was
+  supposed to match.
 
 ## Releases and the updater
 

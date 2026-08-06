@@ -7,8 +7,8 @@ import (
 // Color palette.
 var (
 	ColorPrimary   = lipgloss.Color("13") // accent: focus, headings, selection
-	ColorText      = lipgloss.Color("7")  // light grey: legends and inactive tabs
-	ColorSecondary = lipgloss.Color("8")  // muted text: metadata
+	ColorText      = lipgloss.Color("7")  // light grey: everything you read past the content
+	ColorSecondary = lipgloss.Color("7")  // metadata reads at the same weight as a legend
 	ColorFaint     = lipgloss.Color("8")  // structure; dimmed further via Faint
 	ColorOnAccent  = lipgloss.Color("0")  // text on top of the accent, always the darkest
 	ColorSuccess   = lipgloss.Color("2")
